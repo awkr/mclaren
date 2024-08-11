@@ -1,0 +1,6 @@
+[submodule "third-party/volk"]
+	path = third-party/volk
+	url = git@github.com:zeux/volk.git
+[submodule "third-party/SDL"]
+	path = third-party/SDL
+	url = git@github.com:libsdl-org/SDL.git
