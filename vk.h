@@ -6,7 +6,7 @@
 struct VkContext;
 struct SDL_Window;
 
-void vk_init(VkContext *vk_context, SDL_Window *window);
+void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height);
 
 void vk_terminate(VkContext *vk_context);
 

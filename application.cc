@@ -6,18 +6,57 @@
 #include "vk_fence.h"
 #include "vk_semaphore.h"
 #include "vk_queue.h"
+#include "vk_image.h"
+#include "vk_image_view.h"
 #include "logging.h"
+#include <SDL3/SDL.h>
 
 void app_create(SDL_Window *window, Application **app) {
+    int width, height;
+    SDL_GetWindowSizeInPixels(window, &width, &height);
+
     *app = new Application();
     (*app)->vk_context = new VkContext();
-    vk_init((*app)->vk_context, window);
+    vk_init((*app)->vk_context, window, width, height);
+
+    VkImage drawable_image;
+    VmaAllocation drawable_image_allocation;
+    VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                              VK_IMAGE_USAGE_STORAGE_BIT /* written by computer shader */;
+    vk_create_image((*app)->vk_context, width, height, format, usage, &drawable_image, &drawable_image_allocation);
+
+    VkImageView drawable_image_view;
+    vk_create_image_view((*app)->vk_context->device, drawable_image, format, &drawable_image_view);
+
+    (*app)->drawable_image = drawable_image;
+    (*app)->drawable_image_allocation = drawable_image_allocation;
+    (*app)->drawable_image_view = drawable_image_view;
+
+    (*app)->frame_number = 0;
+    (*app)->frame_index = 0;
 }
 
 void app_destroy(Application *app) {
+    vk_destroy_image_view(app->vk_context->device, app->drawable_image_view);
+    vk_destroy_image(app->vk_context, app->drawable_image, app->drawable_image_allocation);
+
     vk_terminate(app->vk_context);
     delete app->vk_context;
     delete app;
+}
+
+void draw(VkCommandBuffer command_buffer, VkImage image, uint64_t frame_number) {
+    float flash = std::abs(std::sin(frame_number / 60.0f));
+    VkClearColorValue clear_color{};
+    clear_color.float32[0] = 0.0f;
+    clear_color.float32[1] = 1.0f;
+    clear_color.float32[2] = flash;
+    clear_color.float32[3] = 1.0f;
+
+    vk_command_clear_color_image(command_buffer, image, VK_IMAGE_LAYOUT_GENERAL, &clear_color);
 }
 
 void app_update(Application *app) {
@@ -30,7 +69,7 @@ void app_update(Application *app) {
     uint32_t image_index;
     vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
 
-    log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
@@ -39,14 +78,7 @@ void app_update(Application *app) {
         vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        VkClearColorValue clear_color{};
-        clear_color.float32[0] = 0.0f;
-        clear_color.float32[1] = 1.0f;
-        clear_color.float32[2] = 1.0f;
-        clear_color.float32[3] = 1.0f;
-
-        vk_command_clear_color_image(command_buffer, app->vk_context->swapchain_images[image_index],
-                                     VK_IMAGE_LAYOUT_GENERAL, &clear_color);
+        draw(command_buffer, app->vk_context->swapchain_images[image_index], app->frame_number);
 
         vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);

@@ -8,14 +8,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityF
                                                     const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
                                                     void *user_data);
 
-bool vk_create_instance(VkContext *vk_context, const char *app_name, bool enable_debugging) {
+bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_debugging) {
     volkInitialize();
 
     // set and check required instance extensions
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_surface");
     required_extensions.push_back("VK_EXT_metal_surface");
-    if (enable_debugging) { required_extensions.push_back("VK_EXT_debug_utils"); }
+    if (is_debugging) { required_extensions.push_back("VK_EXT_debug_utils"); }
     required_extensions.push_back("VK_KHR_portability_enumeration");
 
     uint32_t extension_count = 0;
@@ -41,7 +41,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool enable
 
     // set and check required instance layers
     std::vector<const char *> required_layers;
-    if (enable_debugging) { required_layers.push_back("VK_LAYER_KHRONOS_validation"); }
+    if (is_debugging) { required_layers.push_back("VK_LAYER_KHRONOS_validation"); }
 
     uint32_t layer_count = 0;
     result = vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
@@ -81,7 +81,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool enable
     VkDebugUtilsMessengerCreateInfoEXT debug_utils_info{VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
     std::vector<VkValidationFeatureEnableEXT> enabled_validation_features;
     VkValidationFeaturesEXT validation_features_info{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
-    if (enable_debugging) {
+    if (is_debugging) {
         debug_utils_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
                                            VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                                            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -108,11 +108,13 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool enable
 
     volkLoadInstance(vk_context->instance);
 
-    if (enable_debugging) {
+    if (is_debugging) {
         result = vkCreateDebugUtilsMessengerEXT(vk_context->instance, &debug_utils_info, nullptr,
                                                 &vk_context->debug_utils_messenger);
         if (result != VK_SUCCESS) { return false; }
     }
+
+    vk_context->is_debugging = is_debugging;
 
     return true;
 }

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <volk.h>
+#include <vk_mem_alloc.h>
 
 struct VkContext;
 struct SDL_Window;
@@ -9,6 +11,9 @@ struct Application {
     VkContext *vk_context;
     uint64_t frame_number;
     uint32_t frame_index;
+    VkImage drawable_image;
+    VmaAllocation drawable_image_allocation;
+    VkImageView drawable_image_view;
 };
 
 void app_create(SDL_Window *window, Application **app);

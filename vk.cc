@@ -6,17 +6,16 @@
 #include "vk_command_pool.h"
 #include "vk_fence.h"
 #include "vk_semaphore.h"
+#include "vk_allocator.h"
 #include "logging.h"
 #include <SDL3/SDL_vulkan.h>
 
-void vk_init(VkContext *vk_context, SDL_Window *window) {
+void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
     vk_create_instance(vk_context, "mclaren", true);
     int ok = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
     ASSERT(ok == 0);
     vk_create_device(vk_context);
-
-    int width, height;
-    SDL_GetWindowSizeInPixels(window, &width, &height);
+    vk_create_allocator(vk_context);
     vk_create_swapchain(vk_context, width, height);
 
     ASSERT(vk_context->swapchain_image_count >= FRAMES_IN_FLIGHT);
@@ -42,6 +41,7 @@ void vk_terminate(VkContext *vk_context) {
         vk_destroy_command_pool(vk_context->device, vk_context->frames[i].command_pool);
     }
     vk_destroy_swapchain(vk_context);
+    vk_destroy_allocator(vk_context);
     vk_destroy_device(vk_context);
     vkDestroySurfaceKHR(vk_context->instance, vk_context->surface, nullptr);
     vk_destroy_instance(vk_context);

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <volk.h>
+#include <vk_mem_alloc.h>
 
 #define FRAMES_IN_FLIGHT 2
 
@@ -15,6 +16,7 @@ struct Frame {
 };
 
 struct VkContext {
+    bool is_debugging;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_utils_messenger;
     VkSurfaceKHR surface;
@@ -22,6 +24,7 @@ struct VkContext {
     VkDevice device;
     uint32_t graphics_queue_family_index;
     VkQueue graphics_queue;
+    VmaAllocator allocator;
     VkSwapchainKHR swapchain;
     VkFormat swapchain_image_format;
     uint16_t swapchain_image_count;

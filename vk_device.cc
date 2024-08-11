@@ -118,9 +118,15 @@ bool vk_create_device(VkContext *vk_context) {
     VkPhysicalDeviceFeatures required_device_features{};
     required_device_features.samplerAnisotropy = features.samplerAnisotropy;
 
-    VkPhysicalDeviceSynchronization2Features physical_device_synchronization_2_features{
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES};
-    physical_device_synchronization_2_features.synchronization2 = VK_TRUE;
+    VkPhysicalDeviceVulkan13Features physical_device_vulkan_13_features{};
+    physical_device_vulkan_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    physical_device_vulkan_13_features.synchronization2 = VK_TRUE;
+    physical_device_vulkan_13_features.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceVulkan12Features physical_device_vulkan_12_features{};
+    physical_device_vulkan_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    physical_device_vulkan_12_features.timelineSemaphore = VK_TRUE;
+    physical_device_vulkan_12_features.pNext = &physical_device_vulkan_13_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_create_info.queueCreateInfoCount = queue_create_infos.size();
@@ -128,7 +134,7 @@ bool vk_create_device(VkContext *vk_context) {
     device_create_info.enabledExtensionCount = required_extensions.size();
     device_create_info.ppEnabledExtensionNames = required_extensions.data();
     device_create_info.pEnabledFeatures = &required_device_features;
-    device_create_info.pNext = &physical_device_synchronization_2_features;
+    device_create_info.pNext = &physical_device_vulkan_12_features;
     result = vkCreateDevice(vk_context->physical_device, &device_create_info, nullptr, &vk_context->device);
     if (result != VK_SUCCESS) { return false; }
 
