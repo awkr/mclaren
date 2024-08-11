@@ -67,15 +67,8 @@ bool vk_create_device(VkContext *vk_context) {
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_swapchain");
     required_extensions.push_back("VK_KHR_portability_subset");
-    // required_extensions.push_back("VK_KHR_dynamic_rendering");
-    // required_extensions.push_back("VK_KHR_depth_stencil_resolve");
-    // required_extensions.push_back("VK_KHR_create_renderpass2");
-    // required_extensions.push_back("VK_KHR_maintenance2");
-    // required_extensions.push_back("VK_KHR_multiview");
+    required_extensions.push_back("VK_KHR_dynamic_rendering");
     required_extensions.push_back("VK_KHR_synchronization2");
-    // required_extensions.push_back("VK_EXT_buffer_device_address");
-    // required_extensions.push_back("VK_EXT_descriptor_indexing");
-    // required_extensions.push_back("VK_KHR_maintenance3");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,

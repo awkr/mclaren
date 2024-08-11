@@ -11,7 +11,8 @@
 
 void vk_init(VkContext *vk_context, SDL_Window *window) {
     vk_create_instance(vk_context, "mclaren", true);
-    SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
+    int ok = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
+    ASSERT(ok == 0);
     vk_create_device(vk_context);
 
     int width, height;

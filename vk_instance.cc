@@ -16,7 +16,6 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool enable
     required_extensions.push_back("VK_KHR_surface");
     required_extensions.push_back("VK_EXT_metal_surface");
     if (enable_debugging) { required_extensions.push_back("VK_EXT_debug_utils"); }
-    required_extensions.push_back("VK_KHR_get_physical_device_properties2");
     required_extensions.push_back("VK_KHR_portability_enumeration");
 
     uint32_t extension_count = 0;

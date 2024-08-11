@@ -21,9 +21,8 @@ void app_destroy(Application *app) {
 }
 
 void app_update(Application *app) {
-    app->vk_context->frame_index = app->vk_context->frame_number % FRAMES_IN_FLIGHT;
-    uint32_t frame_index = app->vk_context->frame_index;
-    Frame *frame = &app->vk_context->frames[frame_index];
+    app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+    Frame *frame = &app->vk_context->frames[app->frame_index];
 
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
@@ -31,36 +30,15 @@ void app_update(Application *app) {
     uint32_t image_index;
     vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
 
-    printf("frame index %d, image index %d\n", frame_index, image_index);
+    log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
-        vk_reset_command_buffer(command_buffer);
         vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        {
-            VkImageMemoryBarrier2 image_barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-            image_barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-            image_barrier.srcAccessMask = 0;
-            image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-            image_barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-            image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-            VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
-            VkImageSubresourceRange subresource_range = vk_image_subresource_range(aspect_mask);
-            image_barrier.subresourceRange = subresource_range;
-
-            image_barrier.image = app->vk_context->swapchain_images[image_index];
-
-            VkDependencyInfo dependency_info{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-            dependency_info.imageMemoryBarrierCount = 1;
-            dependency_info.pImageMemoryBarriers = &image_barrier;
-
-            vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-        }
         VkClearColorValue clear_color{};
         clear_color.float32[0] = 0.0f;
         clear_color.float32[1] = 1.0f;
@@ -69,29 +47,9 @@ void app_update(Application *app) {
 
         vk_command_clear_color_image(command_buffer, app->vk_context->swapchain_images[image_index],
                                      VK_IMAGE_LAYOUT_GENERAL, &clear_color);
-        {
-            VkImageMemoryBarrier2 image_barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-            image_barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-            image_barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-            image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-            image_barrier.dstAccessMask = 0;
-            image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-            image_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-            VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
-            VkImageSubresourceRange subresource_range = vk_image_subresource_range(aspect_mask);
-            image_barrier.subresourceRange = subresource_range;
-
-            image_barrier.image = app->vk_context->swapchain_images[image_index];
-
-            VkDependencyInfo dependency_info{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-            dependency_info.imageMemoryBarrierCount = 1;
-            dependency_info.pImageMemoryBarriers = &image_barrier;
-
-            vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-        }
+        vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
+                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
@@ -105,5 +63,5 @@ void app_update(Application *app) {
 
     vk_present(app->vk_context, image_index, frame->render_finished_semaphore);
 
-    ++app->vk_context->frame_number;
+    ++app->frame_number;
 }

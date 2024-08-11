@@ -29,6 +29,4 @@ struct VkContext {
     std::vector<VkImageView> swapchain_image_views;
 
     Frame frames[FRAMES_IN_FLIGHT];
-    uint64_t frame_number;
-    uint32_t frame_index;
 };
