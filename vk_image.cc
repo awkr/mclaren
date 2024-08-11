@@ -14,7 +14,7 @@ void vk_transition_image_layout(VkCommandBuffer command_buffer, VkImage image, V
     } else if (old_layout == VK_IMAGE_LAYOUT_GENERAL && new_layout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
         image_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         image_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+        image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
         image_barrier.dstAccessMask = 0;
     } else {
         ASSERT_MESSAGE(false, "unsupported image layout transition");
