@@ -11,7 +11,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
-    vk_create_instance(vk_context, "mclaren", true);
+    vk_create_instance(vk_context, "mclaren", VK_API_VERSION_1_3, true);
     int ok = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
     ASSERT(ok == 0);
     vk_create_device(vk_context);

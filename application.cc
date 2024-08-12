@@ -10,10 +10,6 @@
 #include "vk_image_view.h"
 #include "logging.h"
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
-#include <unistd.h>
-#include <fstream>
-#include <iostream>
 
 void app_create(SDL_Window *window, Application **app) {
     int width, height;
@@ -75,7 +71,7 @@ void app_update(Application *app) {
 
     VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
 
-    // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {

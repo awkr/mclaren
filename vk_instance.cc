@@ -8,7 +8,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityF
                                                     const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
                                                     void *user_data);
 
-bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_debugging) {
+bool vk_create_instance(VkContext *vk_context, const char *app_name, uint32_t api_version, bool is_debugging) {
     volkInitialize();
 
     // set and check required instance extensions
@@ -68,7 +68,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_deb
     VkApplicationInfo app_info{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app_info.pApplicationName = app_name;
     app_info.pEngineName = "aki engine";
-    app_info.apiVersion = VK_API_VERSION_1_3;
+    app_info.apiVersion = api_version;
 
     VkInstanceCreateInfo instance_info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     instance_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
@@ -114,7 +114,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_deb
         if (result != VK_SUCCESS) { return false; }
     }
 
-    vk_context->api_version = VK_API_VERSION_1_3;
+    vk_context->api_version = api_version;
     vk_context->is_debugging = is_debugging;
 
     return true;
