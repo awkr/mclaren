@@ -16,7 +16,7 @@ void vk_create_allocator(VkContext *vk_context) {
     allocator_info.device = vk_context->device;
     allocator_info.instance = vk_context->instance;
     allocator_info.pVulkanFunctions = &vulkan_functions;
-    allocator_info.vulkanApiVersion = VK_API_VERSION_1_1;
+    allocator_info.vulkanApiVersion = vk_context->api_version;
 
     VkResult result = vmaCreateAllocator(&allocator_info, &vk_context->allocator);
     ASSERT(result == VK_SUCCESS);

@@ -10,12 +10,17 @@
 #include "vk_image_view.h"
 #include "logging.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#include <unistd.h>
+#include <fstream>
+#include <iostream>
 
 void app_create(SDL_Window *window, Application **app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
 
     *app = new Application();
+    (*app)->window = window;
     (*app)->vk_context = new VkContext();
     vk_init((*app)->vk_context, window, width, height);
 
@@ -26,21 +31,19 @@ void app_create(SDL_Window *window, Application **app) {
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* written by computer shader */;
-    vk_create_image((*app)->vk_context, width, height, format, usage, &drawable_image, &drawable_image_allocation);
-
-    VkImageView drawable_image_view;
-    vk_create_image_view((*app)->vk_context->device, drawable_image, format, &drawable_image_view);
+    vk_create_image((*app)->vk_context, (*app)->vk_context->swapchain_extent.width,
+                    (*app)->vk_context->swapchain_extent.height, format, usage, &drawable_image,
+                    &drawable_image_allocation);
 
     (*app)->drawable_image = drawable_image;
     (*app)->drawable_image_allocation = drawable_image_allocation;
-    (*app)->drawable_image_view = drawable_image_view;
 
     (*app)->frame_number = 0;
-    (*app)->frame_index = 0;
 }
 
 void app_destroy(Application *app) {
-    vk_destroy_image_view(app->vk_context->device, app->drawable_image_view);
+    vkDeviceWaitIdle(app->vk_context->device);
+
     vk_destroy_image(app->vk_context, app->drawable_image, app->drawable_image_allocation);
 
     vk_terminate(app->vk_context);
@@ -61,6 +64,7 @@ void draw(VkCommandBuffer command_buffer, VkImage image, uint64_t frame_number) 
 
 void app_update(Application *app) {
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+
     Frame *frame = &app->vk_context->frames[app->frame_index];
 
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
@@ -69,29 +73,42 @@ void app_update(Application *app) {
     uint32_t image_index;
     vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
 
+    VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
+
     // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
         vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
-                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        vk_transition_image_layout(command_buffer, app->drawable_image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_GENERAL);
 
-        draw(command_buffer, app->vk_context->swapchain_images[image_index], app->frame_number);
+        draw(command_buffer, app->drawable_image, app->frame_number);
 
-        vk_transition_image_layout(command_buffer, app->vk_context->swapchain_images[image_index],
-                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_transition_image_layout(command_buffer, app->drawable_image, VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_transition_image_layout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkExtent2D extent = {app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height};
+        vk_blit_image(command_buffer, app->drawable_image, swapchain_image, &extent);
+
+        vk_transition_image_layout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
 
     VkSemaphoreSubmitInfoKHR wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore,
                                                                        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR);
-    VkSemaphoreSubmitInfoKHR signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore, 0);
+    VkSemaphoreSubmitInfoKHR signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore,
+                                                                         VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT);
     VkCommandBufferSubmitInfoKHR command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
+
+    vkQueueWaitIdle(app->vk_context->graphics_queue);
 
     vk_present(app->vk_context, image_index, frame->render_finished_semaphore);
 

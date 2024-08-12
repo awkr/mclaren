@@ -98,6 +98,7 @@ bool vk_create_swapchain(VkContext *vk_context, uint32_t width, uint32_t height)
     result = vkCreateSwapchainKHR(vk_context->device, &swapchain_info, nullptr, &vk_context->swapchain);
     if (result != VK_SUCCESS) { return false; }
 
+    vk_context->swapchain_extent = surface_size;
     vk_context->swapchain_image_format = surface_format.format;
     vk_context->swapchain_image_count = desired_image_count;
 

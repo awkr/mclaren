@@ -43,5 +43,5 @@ VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaph
 void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
                                   VkClearColorValue *clear_color) {
     VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCmdClearColorImage(command_buffer, image, VK_IMAGE_LAYOUT_GENERAL, clear_color, 1, &clear_range);
+    vkCmdClearColorImage(command_buffer, image, image_layout, clear_color, 1, &clear_range);
 }

@@ -33,7 +33,6 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
 }
 
 void vk_terminate(VkContext *vk_context) {
-    vkDeviceWaitIdle(vk_context->device);
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_semaphore(vk_context->device, vk_context->frames[i].render_finished_semaphore);
         vk_destroy_semaphore(vk_context->device, vk_context->frames[i].image_acquired_semaphore);

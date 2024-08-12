@@ -94,7 +94,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_deb
 
         enabled_validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
         enabled_validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
-        enabled_validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
+        // enabled_validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
         enabled_validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
 
         validation_features_info.enabledValidationFeatureCount = enabled_validation_features.size();
@@ -114,6 +114,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, bool is_deb
         if (result != VK_SUCCESS) { return false; }
     }
 
+    vk_context->api_version = VK_API_VERSION_1_3;
     vk_context->is_debugging = is_debugging;
 
     return true;

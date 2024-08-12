@@ -16,6 +16,7 @@ struct Frame {
 };
 
 struct VkContext {
+    uint32_t api_version;
     bool is_debugging;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_utils_messenger;
@@ -26,6 +27,7 @@ struct VkContext {
     VkQueue graphics_queue;
     VmaAllocator allocator;
     VkSwapchainKHR swapchain;
+    VkExtent2D swapchain_extent;
     VkFormat swapchain_image_format;
     uint16_t swapchain_image_count;
     std::vector<VkImage> swapchain_images;
