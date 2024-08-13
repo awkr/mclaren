@@ -11,7 +11,8 @@
 #include <SDL3/SDL_vulkan.h>
 
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
-    vk_create_instance(vk_context, "mclaren", VK_API_VERSION_1_3, true);
+    bool succeed = vk_create_instance(vk_context, "mclaren", VK_API_VERSION_1_2, true);
+    ASSERT(succeed);
     int ok = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
     ASSERT(ok == 0);
     vk_create_device(vk_context);
@@ -46,21 +47,8 @@ void vk_terminate(VkContext *vk_context) {
     vk_destroy_instance(vk_context);
 }
 
-void vk_acquire_next_image(VkContext *vk_context, VkSemaphore signal_semaphore, uint32_t *image_index) {
+VkResult vk_acquire_next_image(VkContext *vk_context, VkSemaphore signal_semaphore, uint32_t *image_index) {
     VkResult result = vkAcquireNextImageKHR(vk_context->device, vk_context->swapchain, UINT64_MAX, signal_semaphore,
                                             VK_NULL_HANDLE, image_index);
-    ASSERT(result == VK_SUCCESS);
-}
-
-void vk_present(VkContext *vk_context, uint32_t image_index, VkSemaphore wait_semaphore) {
-    VkPresentInfoKHR present_info{};
-    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present_info.swapchainCount = 1;
-    present_info.pSwapchains = &vk_context->swapchain;
-    present_info.pImageIndices = &image_index;
-    present_info.pWaitSemaphores = &wait_semaphore;
-    present_info.waitSemaphoreCount = 1;
-
-    VkResult result = vkQueuePresentKHR(vk_context->graphics_queue, &present_info);
-    ASSERT(result == VK_SUCCESS);
+    return result;
 }

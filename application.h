@@ -14,6 +14,7 @@ struct Application {
     uint32_t frame_index;
     VkImage drawable_image;
     VmaAllocation drawable_image_allocation;
+    VkImageView drawable_image_view;
 };
 
 void app_create(SDL_Window *window, Application **app);

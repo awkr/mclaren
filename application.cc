@@ -20,19 +20,15 @@ void app_create(SDL_Window *window, Application **app) {
     (*app)->vk_context = new VkContext();
     vk_init((*app)->vk_context, window, width, height);
 
-    VkImage drawable_image;
-    VmaAllocation drawable_image_allocation;
     VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* written by computer shader */;
     vk_create_image((*app)->vk_context, (*app)->vk_context->swapchain_extent.width,
-                    (*app)->vk_context->swapchain_extent.height, format, usage, &drawable_image,
-                    &drawable_image_allocation);
-
-    (*app)->drawable_image = drawable_image;
-    (*app)->drawable_image_allocation = drawable_image_allocation;
+                    (*app)->vk_context->swapchain_extent.height, format, usage, &(*app)->drawable_image,
+                    &(*app)->drawable_image_allocation);
+    vk_create_image_view((*app)->vk_context->device, (*app)->drawable_image, format, &(*app)->drawable_image_view);
 
     (*app)->frame_number = 0;
 }
@@ -40,6 +36,7 @@ void app_create(SDL_Window *window, Application **app) {
 void app_destroy(Application *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
+    vk_destroy_image_view(app->vk_context->device, app->drawable_image_view);
     vk_destroy_image(app->vk_context, app->drawable_image, app->drawable_image_allocation);
 
     vk_terminate(app->vk_context);
@@ -67,11 +64,12 @@ void app_update(Application *app) {
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
 
     uint32_t image_index;
-    vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
+    VkResult result = vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
+    ASSERT(result == VK_SUCCESS);
 
     VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
 
-    log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
@@ -97,16 +95,17 @@ void app_update(Application *app) {
     }
 
     VkSemaphoreSubmitInfoKHR wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore,
-                                                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR);
+                                                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
     VkSemaphoreSubmitInfoKHR signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore,
-                                                                         VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT);
+                                                                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     VkCommandBufferSubmitInfoKHR command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 
     vkQueueWaitIdle(app->vk_context->graphics_queue);
 
-    vk_present(app->vk_context, image_index, frame->render_finished_semaphore);
+    result = vk_present(app->vk_context, image_index, frame->render_finished_semaphore);
+    ASSERT(result == VK_SUCCESS);
 
     ++app->frame_number;
 }
