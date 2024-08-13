@@ -45,3 +45,27 @@ void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image,
     VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
     vkCmdClearColorImage(command_buffer, image, image_layout, clear_color, 1, &clear_range);
 }
+
+void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
+    VkImageBlit blit_region{};
+    blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit_region.srcSubresource.mipLevel = 0;
+    blit_region.srcSubresource.baseArrayLayer = 0;
+    blit_region.srcSubresource.layerCount = 1;
+    blit_region.srcOffsets[1].x = (int32_t) extent->width;
+    blit_region.srcOffsets[1].y = (int32_t) extent->height;
+    blit_region.srcOffsets[1].z = 1;
+    blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit_region.dstSubresource.mipLevel = 0;
+    blit_region.dstSubresource.baseArrayLayer = 0;
+    blit_region.dstSubresource.layerCount = 1;
+    blit_region.dstOffsets[1].x = (int32_t) extent->width;
+    blit_region.dstOffsets[1].y = (int32_t) extent->height;
+    blit_region.dstOffsets[1].z = 1;
+
+    vkCmdBlitImage(command_buffer,
+                   src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   1, &blit_region,
+                   VK_FILTER_NEAREST);
+}

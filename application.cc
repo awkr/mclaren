@@ -24,7 +24,7 @@ void app_create(SDL_Window *window, Application **app) {
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                              VK_IMAGE_USAGE_STORAGE_BIT /* written by computer shader */;
+                              VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image((*app)->vk_context, (*app)->vk_context->swapchain_extent.width,
                     (*app)->vk_context->swapchain_extent.height, format, usage, &(*app)->drawable_image,
                     &(*app)->drawable_image_allocation);
@@ -69,27 +69,44 @@ void app_update(Application *app) {
 
     VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
 
-    // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
         vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        vk_transition_image_layout(command_buffer, app->drawable_image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_GENERAL);
+        vk_transition_image_layout(command_buffer, app->drawable_image,
+                                   VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, // can be in layout transition or clear or blit
+                                   VK_PIPELINE_STAGE_2_CLEAR_BIT,
+                                   VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
         draw(command_buffer, app->drawable_image, app->frame_number);
 
-        vk_transition_image_layout(command_buffer, app->drawable_image, VK_IMAGE_LAYOUT_GENERAL,
-                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_transition_image_layout(command_buffer, app->drawable_image,
+                                   VK_PIPELINE_STAGE_2_CLEAR_BIT,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_ACCESS_2_TRANSFER_READ_BIT,
+                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+        vk_transition_image_layout(command_buffer, swapchain_image,
+                                   VK_PIPELINE_STAGE_2_NONE,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   0,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkExtent2D extent = {app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height};
-        vk_blit_image(command_buffer, app->drawable_image, swapchain_image, &extent);
+        vk_command_blit_image(command_buffer, app->drawable_image, swapchain_image, &extent);
 
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_transition_image_layout(command_buffer, swapchain_image,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   0,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
@@ -102,9 +119,7 @@ void app_update(Application *app) {
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 
-    vkQueueWaitIdle(app->vk_context->graphics_queue);
-
-    result = vk_present(app->vk_context, image_index, frame->render_finished_semaphore);
+    result = vk_queue_present(app->vk_context, image_index, frame->render_finished_semaphore);
     ASSERT(result == VK_SUCCESS);
 
     ++app->frame_number;

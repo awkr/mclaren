@@ -130,6 +130,7 @@ bool vk_create_device(VkContext *vk_context) {
     VkPhysicalDeviceVulkan12Features vulkan_12_features{};
     vulkan_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vulkan_12_features.timelineSemaphore = VK_TRUE;
+    vulkan_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan_12_features.pNext = &synchronization2_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};

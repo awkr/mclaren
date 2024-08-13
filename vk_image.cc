@@ -32,62 +32,19 @@ void vk_destroy_image(VkContext *vk_context, VkImage image, VmaAllocation alloca
     vmaDestroyImage(vk_context->allocator, image, allocation);
 }
 
-void vk_transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkImageLayout old_layout,
-                                VkImageLayout new_layout) {
+void vk_transition_image_layout(VkCommandBuffer command_buffer, VkImage image,
+                                VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask,
+                                VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask,
+                                VkImageLayout old_layout, VkImageLayout new_layout) {
+    ASSERT(old_layout != new_layout);
+
     VkImageMemoryBarrier2 image_memory_barrier{};
     image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 
-    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_GENERAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-        image_memory_barrier.srcAccessMask = 0;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    } else if (old_layout == VK_IMAGE_LAYOUT_GENERAL && new_layout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-        image_memory_barrier.dstAccessMask = 0;
-    } else if (old_layout == VK_IMAGE_LAYOUT_GENERAL && new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-    } else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-        image_memory_barrier.srcAccessMask = 0;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-               new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-        image_memory_barrier.dstAccessMask = 0;
-    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-        image_memory_barrier.dstAccessMask = 0;
-    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
-               new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
-               new_layout == VK_IMAGE_LAYOUT_GENERAL) {
-        image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-        image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        image_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    } else {
-        ASSERT_MESSAGE(false, "unsupported image layout transition");
-    }
+    image_memory_barrier.srcStageMask = src_stage_mask;
+    image_memory_barrier.dstStageMask = dst_stage_mask;
+    image_memory_barrier.srcAccessMask = src_access_mask;
+    image_memory_barrier.dstAccessMask = dst_access_mask;
 
     image_memory_barrier.oldLayout = old_layout;
     image_memory_barrier.newLayout = new_layout;
@@ -100,37 +57,12 @@ void vk_transition_image_layout(VkCommandBuffer command_buffer, VkImage image, V
                                                                                             : VK_IMAGE_ASPECT_COLOR_BIT;
     image_memory_barrier.subresourceRange = vk_image_subresource_range(aspect_mask);
 
-
     VkDependencyInfo dependency_info{};
     dependency_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
     dependency_info.imageMemoryBarrierCount = 1;
     dependency_info.pImageMemoryBarriers = &image_memory_barrier;
 
     vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-}
-
-void vk_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
-    VkImageBlit image_blit_region{};
-    image_blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_blit_region.srcSubresource.mipLevel = 0;
-    image_blit_region.srcSubresource.baseArrayLayer = 0;
-    image_blit_region.srcSubresource.layerCount = 1;
-    image_blit_region.srcOffsets[1].x = (int32_t) extent->width;
-    image_blit_region.srcOffsets[1].y = (int32_t) extent->height;
-    image_blit_region.srcOffsets[1].z = 1;
-    image_blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_blit_region.dstSubresource.mipLevel = 0;
-    image_blit_region.dstSubresource.baseArrayLayer = 0;
-    image_blit_region.dstSubresource.layerCount = 1;
-    image_blit_region.dstOffsets[1].x = (int32_t) extent->width;
-    image_blit_region.dstOffsets[1].y = (int32_t) extent->height;
-    image_blit_region.dstOffsets[1].z = 1;
-
-    vkCmdBlitImage(command_buffer,
-                   src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                   1, &image_blit_region,
-                   VK_FILTER_LINEAR);
 }
 
 VkImageSubresourceRange vk_image_subresource_range(VkImageAspectFlags aspect_mask) {

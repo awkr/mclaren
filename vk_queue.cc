@@ -7,7 +7,7 @@ void vk_queue_submit(VkQueue queue, const VkSubmitInfo2 *submit_info, VkFence fe
     ASSERT(result == VK_SUCCESS);
 }
 
-VkResult vk_present(VkContext *vk_context, uint32_t image_index, VkSemaphore wait_semaphore) {
+VkResult vk_queue_present(VkContext *vk_context, uint32_t image_index, VkSemaphore wait_semaphore) {
     VkPresentInfoKHR present_info{};
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present_info.swapchainCount = 1;
