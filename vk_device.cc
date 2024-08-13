@@ -69,6 +69,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_extensions.push_back("VK_KHR_portability_subset");
     required_extensions.push_back("VK_KHR_dynamic_rendering");
     required_extensions.push_back("VK_KHR_synchronization2");
+    required_extensions.push_back("VK_KHR_copy_commands2");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,
