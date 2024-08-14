@@ -31,7 +31,7 @@ set(SDL_DIALOG OFF CACHE BOOL "")
 add_subdirectory(third-party/SDL)
 
 set(PLATFORM_SRCS platform.cc)
-set(APP_SRCS application.cc)
+set(APP_SRCS app.cc)
 set(CORE_SRCS logging.cc deletion_queue.cc)
 set(VK_SRCS
     vk.cc

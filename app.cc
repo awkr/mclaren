@@ -1,4 +1,5 @@
-#include "application.h"
+#include "app.h"
+#include "deletion_queue.h"
 #include "vk.h"
 #include "vk_context.h"
 #include "vk_command_buffer.h"
@@ -55,6 +56,11 @@ void app_create(SDL_Window *window, Application **app) {
 
     VkShaderModule compute_shader_module;
     vk_create_shader_module(vk_context->device, "shaders/gradient.spv", &compute_shader_module);
+
+    vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, &(*app)->compute_pipeline_layout);
+    vk_create_compute_pipeline(vk_context->device, (*app)->compute_pipeline_layout, compute_shader_module,
+                               &(*app)->compute_pipeline);
+
     vk_destroy_shader_module(vk_context->device, compute_shader_module);
 
     (*app)->frame_number = 0;
@@ -63,6 +69,8 @@ void app_create(SDL_Window *window, Application **app) {
 void app_destroy(Application *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
+    vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
     vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pool);
     vk_destroy_image_view(app->vk_context->device, app->drawable_image_view);

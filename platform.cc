@@ -1,5 +1,5 @@
 #include "platform.h"
-#include "application.h"
+#include "app.h"
 #include "logging.h"
 #include <SDL3/SDL.h>
 

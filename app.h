@@ -18,6 +18,8 @@ struct Application {
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
     VkDescriptorSet descriptor_set;
+    VkPipelineLayout compute_pipeline_layout;
+    VkPipeline compute_pipeline;
 };
 
 void app_create(SDL_Window *window, Application **app);
