@@ -13,6 +13,7 @@
 #include "vk_pipeline.h"
 #include "logging.h"
 #include <SDL3/SDL.h>
+#include <imgui.h>
 
 void app_create(SDL_Window *window, App **app) {
     int width, height;
