@@ -14,11 +14,11 @@
 #include "logging.h"
 #include <SDL3/SDL.h>
 
-void app_create(SDL_Window *window, Application **app) {
+void app_create(SDL_Window *window, App **app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
 
-    *app = new Application();
+    *app = new App();
     (*app)->window = window;
     (*app)->vk_context = new VkContext();
     vk_init((*app)->vk_context, window, width, height);
@@ -66,7 +66,7 @@ void app_create(SDL_Window *window, Application **app) {
     (*app)->frame_number = 0;
 }
 
-void app_destroy(Application *app) {
+void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
@@ -81,18 +81,24 @@ void app_destroy(Application *app) {
     delete app;
 }
 
-void draw(VkCommandBuffer command_buffer, VkImage image, uint64_t frame_number) {
-    float flash = std::abs(std::sin(frame_number / 60.0f));
-    VkClearColorValue clear_color{};
-    clear_color.float32[0] = 0.0f;
-    clear_color.float32[1] = 1.0f;
-    clear_color.float32[2] = flash;
-    clear_color.float32[3] = 1.0f;
+void draw(App *app, VkCommandBuffer command_buffer) {
+    // float flash = std::abs(std::sin(app->frame_number / 60.0f));
+    // VkClearColorValue clear_color{};
+    // clear_color.float32[0] = 0.0f;
+    // clear_color.float32[1] = 1.0f;
+    // clear_color.float32[2] = flash;
+    // clear_color.float32[3] = 1.0f;
+    //
+    // vk_command_clear_color_image(command_buffer, image, VK_IMAGE_LAYOUT_GENERAL, &clear_color);
 
-    vk_command_clear_color_image(command_buffer, image, VK_IMAGE_LAYOUT_GENERAL, &clear_color);
+    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
+    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
+                                    &app->descriptor_set, 0, nullptr);
+    vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
+                        std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void app_update(Application *app) {
+void app_update(App *app) {
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
 
     Frame *frame = &app->vk_context->frames[app->frame_index];
@@ -113,13 +119,13 @@ void app_update(Application *app) {
         vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
-                                   VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, // could be in layout transition or clear or blit operation of current frame or previous frame
-                                   VK_PIPELINE_STAGE_2_CLEAR_BIT,
-                                   VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT,
+                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        draw(command_buffer, app->drawable_image, app->frame_number);
+        draw(app, command_buffer);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
                                    VK_PIPELINE_STAGE_2_CLEAR_BIT,

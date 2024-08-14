@@ -72,3 +72,20 @@ void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage 
 
     vkCmdBlitImage2KHR(command_buffer, &blit_image_info);
 }
+
+void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline) {
+    vkCmdBindPipeline(command_buffer, bind_point, pipeline);
+}
+
+void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
+                                     VkPipelineLayout pipeline_layout, uint32_t first_set, uint32_t set_count,
+                                     const VkDescriptorSet *descriptor_sets, uint32_t dynamic_offset_count,
+                                     const uint32_t *dynamic_offsets) {
+    vkCmdBindDescriptorSets(command_buffer, bind_point, pipeline_layout, first_set, set_count,
+                            descriptor_sets, dynamic_offset_count, dynamic_offsets);
+}
+
+void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
+                         uint32_t group_count_z) {
+    vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z);
+}

@@ -1,11 +1,11 @@
 #pragma once
 
 struct SDL_Window;
-struct Application;
+struct App;
 
 struct PlatformContext {
     SDL_Window *window;
-    Application *app;
+    App *app;
 };
 
 void platform_init(PlatformContext *platform_context);

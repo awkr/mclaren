@@ -7,7 +7,7 @@
 struct VkContext;
 struct SDL_Window;
 
-struct Application {
+struct App {
     SDL_Window *window;
     VkContext *vk_context;
     uint64_t frame_number;
@@ -22,8 +22,8 @@ struct Application {
     VkPipeline compute_pipeline;
 };
 
-void app_create(SDL_Window *window, Application **app);
+void app_create(SDL_Window *window, App **app);
 
-void app_destroy(Application *app);
+void app_destroy(App *app);
 
-void app_update(Application *app);
+void app_update(App *app);

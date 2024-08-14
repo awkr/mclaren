@@ -17,3 +17,17 @@ void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image,
                                   VkClearColorValue *clear_color);
 
 void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent);
+
+void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
+
+void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineLayout layout, uint32_t first_set,
+                                     uint32_t descriptor_set_count, const VkDescriptorSet *descriptor_sets,
+                                     uint32_t dynamic_offset_count, const uint32_t *dynamic_offsets);
+
+void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
+                                     VkPipelineLayout pipeline_layout, uint32_t first_set, uint32_t set_count,
+                                     const VkDescriptorSet *descriptor_sets, uint32_t dynamic_offset_count,
+                                     const uint32_t *dynamic_offsets);
+
+void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
+                         uint32_t group_count_z);
