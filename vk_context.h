@@ -17,7 +17,7 @@ struct Frame {
 
 struct VkContext {
     uint32_t api_version;
-    bool is_debugging;
+    bool is_debugging_mode;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_utils_messenger;
     VkSurfaceKHR surface;

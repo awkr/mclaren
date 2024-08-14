@@ -119,11 +119,6 @@ bool vk_create_device(VkContext *vk_context) {
     VkPhysicalDeviceFeatures required_device_features{};
     required_device_features.samplerAnisotropy = features.samplerAnisotropy;
 
-    // VkPhysicalDeviceVulkan13Features physical_device_vulkan_13_features{};
-    // physical_device_vulkan_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    // physical_device_vulkan_13_features.synchronization2 = VK_TRUE;
-    // physical_device_vulkan_13_features.dynamicRendering = VK_TRUE;
-
     VkPhysicalDeviceSynchronization2Features synchronization2_features{};
     synchronization2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
     synchronization2_features.synchronization2 = VK_TRUE;

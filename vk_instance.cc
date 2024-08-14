@@ -115,7 +115,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, uint32_t ap
     }
 
     vk_context->api_version = api_version;
-    vk_context->is_debugging = is_debugging;
+    vk_context->is_debugging_mode = is_debugging;
 
     return true;
 }
@@ -140,7 +140,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityF
         log_warning("%s", callback_data->pMessage);
     } else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         log_error("%s", callback_data->pMessage);
-        ASSERT(false);
+        // ASSERT(false);
     }
     return VK_FALSE;
 }

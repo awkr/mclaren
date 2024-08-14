@@ -45,6 +45,8 @@ set(VK_SRCS
     vk_image.cc
     vk_image_view.cc
     vk_queue.cc
+    vk_descriptor.cc
+    vk_pipeline.cc
     vk_allocator.cc
 )
 

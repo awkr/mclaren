@@ -23,7 +23,7 @@ void vk_create_allocator(VkContext *vk_context) {
 }
 
 void vk_destroy_allocator(VkContext *vk_context) {
-    if (vk_context->is_debugging) {
+    if (vk_context->is_debugging_mode) {
         VmaTotalStatistics stats;
         vmaCalculateStatistics(vk_context->allocator, &stats);
         log_debug("vk device memory stats: allocation %d, allocated %d bytes", stats.total.statistics.allocationCount,

@@ -15,6 +15,9 @@ struct Application {
     VkImage drawable_image;
     VmaAllocation drawable_image_allocation;
     VkImageView drawable_image_view;
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet descriptor_set;
 };
 
 void app_create(SDL_Window *window, Application **app);
