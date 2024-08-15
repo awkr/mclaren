@@ -69,6 +69,6 @@ void log_assert_failed(const char *func, const char *file, int line, const char 
     char buffer[1024];
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    printf("assert failed: %s\n  at %s:%d:%s\n", buffer, file, line, func);
+    printf(RED "assert failed" NORMAL ": %s\n  at %s:%d:%s\n", buffer, file, line, func);
 #endif
 }

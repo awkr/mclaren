@@ -6,6 +6,7 @@
 
 struct VkContext;
 struct SDL_Window;
+struct ImGuiContext;
 
 struct App {
     SDL_Window *window;
@@ -20,6 +21,8 @@ struct App {
     VkDescriptorSet descriptor_set;
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
+
+    ImGuiContext *gui_context;
 };
 
 void app_create(SDL_Window *window, App **app);

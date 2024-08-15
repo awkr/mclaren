@@ -64,11 +64,16 @@ void app_create(SDL_Window *window, App **app) {
 
     vk_destroy_shader_module(vk_context->device, compute_shader_module);
 
+    // create ui
+    (*app)->gui_context = ImGui::CreateContext();
+
     (*app)->frame_number = 0;
 }
 
 void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
+
+    ImGui::DestroyContext(app->gui_context);
 
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
