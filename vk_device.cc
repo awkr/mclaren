@@ -123,11 +123,16 @@ bool vk_create_device(VkContext *vk_context) {
     synchronization2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
     synchronization2_features.synchronization2 = VK_TRUE;
 
+    VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features{};
+    dynamic_rendering_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+    dynamic_rendering_features.dynamicRendering = VK_TRUE;
+    dynamic_rendering_features.pNext = &synchronization2_features;
+
     VkPhysicalDeviceVulkan12Features vulkan_12_features{};
     vulkan_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vulkan_12_features.timelineSemaphore = VK_TRUE;
     vulkan_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
-    vulkan_12_features.pNext = &synchronization2_features;
+    vulkan_12_features.pNext = &dynamic_rendering_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_create_info.queueCreateInfoCount = queue_create_infos.size();

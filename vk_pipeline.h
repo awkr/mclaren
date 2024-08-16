@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <volk.h>
 
 void vk_create_shader_module(VkDevice device, const char *filepath, VkShaderModule *shader_module);
@@ -11,11 +12,12 @@ void vk_create_pipeline_layout(VkDevice device, VkDescriptorSetLayout descriptor
 
 void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layout);
 
-void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout pipeline_layout, VkShaderModule compute_shader_module,
-                                VkPipeline *pipeline);
-
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout pipeline_layout, VkRenderPass render_pass,
-                                 VkShaderModule vertex_shader_module, VkShaderModule fragment_shader_module,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format,
+                                 VkFormat depth_attachment_format,
+                                 const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  VkPipeline *pipeline);
+
+void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module,
+                                VkPipeline *pipeline);
 
 void vk_destroy_pipeline(VkDevice device, VkPipeline pipeline);

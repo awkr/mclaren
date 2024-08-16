@@ -55,14 +55,38 @@ void app_create(SDL_Window *window, App **app) {
     vk_update_descriptor_set(vk_context->device, (*app)->descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                              &image_info);
 
-    VkShaderModule compute_shader_module;
-    vk_create_shader_module(vk_context->device, "shaders/gradient.spv", &compute_shader_module);
+    {// create compute pipeline
+        VkShaderModule compute_shader_module;
+        vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
-    vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, &(*app)->compute_pipeline_layout);
-    vk_create_compute_pipeline(vk_context->device, (*app)->compute_pipeline_layout, compute_shader_module,
-                               &(*app)->compute_pipeline);
+        vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, &(*app)->compute_pipeline_layout);
+        vk_create_compute_pipeline(vk_context->device, (*app)->compute_pipeline_layout, compute_shader_module,
+                                   &(*app)->compute_pipeline);
 
-    vk_destroy_shader_module(vk_context->device, compute_shader_module);
+        vk_destroy_shader_module(vk_context->device, compute_shader_module);
+    }
+
+    { // create graphics pipeline
+        VkShaderModule vert_shader_module;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.vert.spv", &vert_shader_module);
+
+        VkShaderModule frag_shader_module;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader_module);
+
+        VkPipelineLayout graphics_pipeline_layout;
+        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &graphics_pipeline_layout);
+
+        VkPipeline graphics_pipeline;
+        vk_create_graphics_pipeline(vk_context->device, graphics_pipeline_layout, format, VK_FORMAT_UNDEFINED,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader_module},
+                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader_module}}, &graphics_pipeline);
+
+        vk_destroy_shader_module(vk_context->device, frag_shader_module);
+        vk_destroy_shader_module(vk_context->device, vert_shader_module);
+
+        vk_destroy_pipeline(vk_context->device, graphics_pipeline);
+        vk_destroy_pipeline_layout(vk_context->device, graphics_pipeline_layout);
+    }
 
     // create ui
     (*app)->gui_context = ImGui::CreateContext();
@@ -125,18 +149,20 @@ void app_update(App *app) {
         vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                                   VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT,
+                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+                                   VK_ACCESS_2_TRANSFER_READ_BIT,
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
         draw(app, command_buffer);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
-                                   VK_PIPELINE_STAGE_2_CLEAR_BIT,
+                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_ACCESS_2_TRANSFER_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 

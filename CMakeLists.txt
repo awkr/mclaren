@@ -7,7 +7,7 @@ add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc)
-set(CORE_SRCS logging.cc deletion_queue.cc)
+set(CORE_SRCS logging.cc deletion_queue.cc frame_graph.cc)
 set(VK_SRCS
     vk.cc
     vk_instance.cc
