@@ -31,3 +31,17 @@ void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineB
 
 void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
                          uint32_t group_count_z);
+
+void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count);
+
+void vk_command_end_rendering(VkCommandBuffer command_buffer);
+
+void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w,
+                             uint32_t h);
+
+void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+
+void
+vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+                uint32_t first_instance);

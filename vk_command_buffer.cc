@@ -89,3 +89,42 @@ void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x,
                          uint32_t group_count_z) {
     vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z);
 }
+
+void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count) {
+    VkRenderingInfo rendering_info{};
+    rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    rendering_info.renderArea.extent = *extent;
+    rendering_info.colorAttachmentCount = attachment_count;
+    rendering_info.pColorAttachments = attachments;
+    rendering_info.layerCount = 1;
+    vkCmdBeginRenderingKHR(command_buffer, &rendering_info);
+}
+
+void vk_command_end_rendering(VkCommandBuffer command_buffer) { vkCmdEndRenderingKHR(command_buffer); }
+
+void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+    VkViewport viewport{};
+    viewport.x = (float) x;
+    viewport.y = (float) y;
+    viewport.width = (float) w;
+    viewport.height = (float) h;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+}
+
+void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+    VkRect2D scissor{};
+    scissor.offset.x = x;
+    scissor.offset.y = y;
+    scissor.extent.width = w;
+    scissor.extent.height = h;
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+}
+
+void
+vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+                uint32_t first_instance) {
+    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+}

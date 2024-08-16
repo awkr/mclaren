@@ -73,19 +73,13 @@ void app_create(SDL_Window *window, App **app) {
         VkShaderModule frag_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader_module);
 
-        VkPipelineLayout graphics_pipeline_layout;
-        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &graphics_pipeline_layout);
-
-        VkPipeline graphics_pipeline;
-        vk_create_graphics_pipeline(vk_context->device, graphics_pipeline_layout, format, VK_FORMAT_UNDEFINED,
+        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &(*app)->graphics_pipeline_layout);
+        vk_create_graphics_pipeline(vk_context->device, (*app)->graphics_pipeline_layout, format, VK_FORMAT_UNDEFINED,
                                     {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader_module},
-                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader_module}}, &graphics_pipeline);
+                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader_module}}, &(*app)->graphics_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader_module);
         vk_destroy_shader_module(vk_context->device, vert_shader_module);
-
-        vk_destroy_pipeline(vk_context->device, graphics_pipeline);
-        vk_destroy_pipeline_layout(vk_context->device, graphics_pipeline_layout);
     }
 
     // create ui
@@ -96,6 +90,9 @@ void app_create(SDL_Window *window, App **app) {
 
 void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
+
+    vk_destroy_pipeline(app->vk_context->device, app->graphics_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->graphics_pipeline_layout);
 
     ImGui::DestroyContext(app->gui_context);
 
@@ -111,21 +108,34 @@ void app_destroy(App *app) {
     delete app;
 }
 
-void draw(App *app, VkCommandBuffer command_buffer) {
-    // float flash = std::abs(std::sin(app->frame_number / 60.0f));
-    // VkClearColorValue clear_color{};
-    // clear_color.float32[0] = 0.0f;
-    // clear_color.float32[1] = 1.0f;
-    // clear_color.float32[2] = flash;
-    // clear_color.float32[3] = 1.0f;
-    //
-    // vk_command_clear_color_image(command_buffer, image, VK_IMAGE_LAYOUT_GENERAL, &clear_color);
-
+void draw_background(App *app, VkCommandBuffer command_buffer) {
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
                                     &app->descriptor_set, 0, nullptr);
     vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
+}
+
+void draw_geometry(App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
+    VkRenderingAttachmentInfo color_attachment_info{};
+    color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color_attachment_info.imageView = image_view;
+    color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    const VkExtent2D *extent = &app->vk_context->swapchain_extent;
+
+    vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1);
+
+    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphics_pipeline);
+
+    vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
+    vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
+
+    vk_command_draw(command_buffer, 3, 1, 0, 0);
+
+    vk_command_end_rendering(command_buffer);
 }
 
 void app_update(App *app) {
@@ -157,14 +167,23 @@ void app_update(App *app) {
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        draw(app, command_buffer);
+        draw_background(app, command_buffer);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
+                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        draw_geometry(app, command_buffer, app->drawable_image_view);
+
+        vk_transition_image_layout(command_buffer, app->drawable_image,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_ACCESS_2_TRANSFER_READ_BIT,
-                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
         vk_transition_image_layout(command_buffer, swapchain_image,
                                    VK_PIPELINE_STAGE_2_NONE,

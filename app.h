@@ -21,6 +21,8 @@ struct App {
     VkDescriptorSet descriptor_set;
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
+    VkPipelineLayout graphics_pipeline_layout;
+    VkPipeline graphics_pipeline;
 
     ImGuiContext *gui_context;
 };
