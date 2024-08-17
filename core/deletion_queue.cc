@@ -1,4 +1,4 @@
-#include "deletion_queue.h"
+#include "core/deletion_queue.h"
 
 void DeletionQueue::push_function(void (*function)()) {
     deletions.push_back(function);

@@ -1,6 +1,6 @@
 #include "platform.h"
 #include "app.h"
-#include "logging.h"
+#include "core/logging.h"
 #include <SDL3/SDL.h>
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {

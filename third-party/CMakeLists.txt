@@ -40,3 +40,6 @@ set(IMGUI_FILES
     "${IMGUI_DIR}/imstb_truetype.h")
 add_library(imgui STATIC ${IMGUI_FILES})
 target_include_directories(imgui SYSTEM PUBLIC ${IMGUI_DIR})
+
+add_subdirectory(glm)
+add_subdirectory(cgltf)

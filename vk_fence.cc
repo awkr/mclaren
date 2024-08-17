@@ -1,5 +1,5 @@
 #include "vk_fence.h"
-#include "logging.h"
+#include "core/logging.h"
 
 bool vk_create_fence(VkDevice device, VkFenceCreateFlags flags, VkFence *fence) {
     VkFenceCreateInfo fence_create_info{};

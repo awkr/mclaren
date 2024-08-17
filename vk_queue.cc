@@ -1,7 +1,7 @@
 #include "vk_queue.h"
 #include "vk_context.h"
 #include "vk_command_buffer.h"
-#include "logging.h"
+#include "core/logging.h"
 
 void vk_queue_submit(VkQueue queue, const VkSubmitInfo2 *submit_info, VkFence fence) {
     VkResult result = vkQueueSubmit2KHR(queue, 1, submit_info, fence);

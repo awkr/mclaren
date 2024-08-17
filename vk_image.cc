@@ -1,6 +1,6 @@
 #include "vk_image.h"
 #include "vk_context.h"
-#include "logging.h"
+#include "core/logging.h"
 
 void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
                      VkImage *image, VmaAllocation *allocation) {

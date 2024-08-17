@@ -2,10 +2,12 @@
 
 #include "vk_context.h"
 #include "vk_buffer.h"
+#include <simd/simd.h>
+#include <glm/glm.hpp>
 
 struct MeshBuffer {
-    struct Buffer vertex_buffer;
-    struct Buffer index_buffer;
+    Buffer vertex_buffer;
+    Buffer index_buffer;
     VkDeviceAddress vertex_buffer_address;
 };
 

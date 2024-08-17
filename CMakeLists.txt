@@ -7,7 +7,7 @@ add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc)
-set(CORE_SRCS logging.cc deletion_queue.cc frame_graph.cc mesh_buffer.cc)
+set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc mesh_buffer.cc)
 set(VK_SRCS
     vk.cc
     vk_instance.cc
@@ -27,7 +27,8 @@ set(VK_SRCS
 )
 
 add_executable(mclaren main.cc ${PLATFORM_SRCS} ${APP_SRCS} ${CORE_SRCS} ${VK_SRCS})
-target_link_libraries(mclaren PRIVATE volk SDL3-static VulkanMemoryAllocator imgui)
+target_include_directories(mclaren PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mclaren PRIVATE volk SDL3-static VulkanMemoryAllocator imgui glm cgltf)
 target_compile_definitions(mclaren PRIVATE VK_NO_PROTOTYPES)
 
 if (IOS)

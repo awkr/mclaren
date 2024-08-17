@@ -1,6 +1,6 @@
 #include "vk_device.h"
 #include "vk_context.h"
-#include "logging.h"
+#include "core/logging.h"
 
 static bool
 is_physical_device_present_supported(VkPhysicalDevice physical_device, VkSurfaceKHR surface) {

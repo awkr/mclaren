@@ -8,7 +8,7 @@
 #include "vk_fence.h"
 #include "vk_semaphore.h"
 #include "vk_allocator.h"
-#include "logging.h"
+#include "core/logging.h"
 #include <SDL3/SDL_vulkan.h>
 
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {

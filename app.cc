@@ -1,5 +1,5 @@
 #include "app.h"
-#include "deletion_queue.h"
+#include "core/deletion_queue.h"
 #include "vk.h"
 #include "vk_context.h"
 #include "vk_command_buffer.h"
@@ -12,7 +12,7 @@
 #include "vk_descriptor.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
-#include "logging.h"
+#include "core/logging.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
