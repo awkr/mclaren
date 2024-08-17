@@ -9,9 +9,7 @@ bool vk_create_fence(VkDevice device, VkFenceCreateFlags flags, VkFence *fence) 
     return result == VK_SUCCESS;
 }
 
-void vk_destroy_fence(VkDevice device, VkFence fence) {
-    vkDestroyFence(device, fence, nullptr);
-}
+void vk_destroy_fence(VkDevice device, VkFence fence) { vkDestroyFence(device, fence, nullptr); }
 
 void vk_wait_fence(VkDevice device, VkFence fence) {
     VkResult result = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);

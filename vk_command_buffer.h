@@ -2,9 +2,17 @@
 
 #include <volk.h>
 
+bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
+                              VkCommandBuffer *command_buffers);
+
+void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
+                             VkCommandBuffer *command_buffers);
+
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer);
 
 bool vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags);
+
+bool vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer);
 
 bool vk_end_command_buffer(VkCommandBuffer command_buffer);
 
@@ -45,3 +53,7 @@ void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t
 void
 vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                 uint32_t first_instance);
+
+void
+vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset,
+                       uint32_t dst_offset);

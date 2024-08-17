@@ -70,6 +70,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_extensions.push_back("VK_KHR_dynamic_rendering");
     required_extensions.push_back("VK_KHR_synchronization2");
     required_extensions.push_back("VK_KHR_copy_commands2");
+    required_extensions.push_back("VK_KHR_buffer_device_address");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,
@@ -132,6 +133,7 @@ bool vk_create_device(VkContext *vk_context) {
     vulkan_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vulkan_12_features.timelineSemaphore = VK_TRUE;
     vulkan_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
+    vulkan_12_features.bufferDeviceAddress = VK_TRUE;
     vulkan_12_features.pNext = &dynamic_rendering_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};

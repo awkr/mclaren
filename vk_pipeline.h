@@ -8,7 +8,7 @@ void vk_create_shader_module(VkDevice device, const char *filepath, VkShaderModu
 void vk_destroy_shader_module(VkDevice device, VkShaderModule shader_module);
 
 void vk_create_pipeline_layout(VkDevice device, VkDescriptorSetLayout descriptor_set_layout,
-                               VkPipelineLayout *pipeline_layout);
+                               const VkPushConstantRange *push_constant, VkPipelineLayout *pipeline_layout);
 
 void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layout);
 

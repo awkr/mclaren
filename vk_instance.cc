@@ -14,7 +14,15 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, uint32_t ap
     // set and check required instance extensions
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_surface");
+#if defined(PLATFORM_MACOS) || defined(PLATFORM_IOS)
     required_extensions.push_back("VK_EXT_metal_surface");
+#elif defined(PLATFORM_WINDOWS)
+    required_extensions.push_back("VK_KHR_win32_surface");
+#elif defined(PLATFORM_ANDROID)
+    required_extensions.push_back("VK_KHR_android_surface");
+#elif defined(PLATFORM_LINUX)
+    required_extensions.push_back("VK_KHR_xcb_surface");
+#endif
     if (is_debugging) { required_extensions.push_back("VK_EXT_debug_utils"); }
     required_extensions.push_back("VK_KHR_portability_enumeration");
 

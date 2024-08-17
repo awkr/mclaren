@@ -1,5 +1,22 @@
 #include "vk_command_buffer.h"
 #include "vk_image.h"
+#include "logging.h"
+
+bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
+                              VkCommandBuffer *command_buffers) {
+    VkCommandBufferAllocateInfo command_buffer_allocate_info{};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = count;
+    VkResult result = vkAllocateCommandBuffers(device, &command_buffer_allocate_info, command_buffers);
+    return result == VK_SUCCESS;
+}
+
+void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
+                             VkCommandBuffer *command_buffers) {
+    vkFreeCommandBuffers(device, command_pool, count, command_buffers);
+}
 
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer) {
     VkResult result = vkResetCommandBuffer(command_buffer, 0);
@@ -12,6 +29,10 @@ bool vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsag
     begin_info.flags = flags;
     VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
     return result == VK_SUCCESS;
+}
+
+bool vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer) {
+    return vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 }
 
 bool vk_end_command_buffer(VkCommandBuffer command_buffer) {
@@ -29,14 +50,20 @@ VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer command_
 
 VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaphoreSubmitInfo *wait_semaphore,
                              VkSemaphoreSubmitInfo *signal_semaphore) {
+    ASSERT(command_buffer);
+
     VkSubmitInfo2 submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
     submit_info.commandBufferInfoCount = 1;
     submit_info.pCommandBufferInfos = command_buffer;
-    submit_info.waitSemaphoreInfoCount = 1;
-    submit_info.pWaitSemaphoreInfos = wait_semaphore;
-    submit_info.signalSemaphoreInfoCount = 1;
-    submit_info.pSignalSemaphoreInfos = signal_semaphore;
+    if (wait_semaphore) {
+        submit_info.waitSemaphoreInfoCount = 1;
+        submit_info.pWaitSemaphoreInfos = wait_semaphore;
+    }
+    if (signal_semaphore) {
+        submit_info.signalSemaphoreInfoCount = 1;
+        submit_info.pSignalSemaphoreInfos = signal_semaphore;
+    }
     return submit_info;
 }
 
@@ -127,4 +154,23 @@ void
 vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                 uint32_t first_instance) {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void
+vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset,
+                       uint32_t dst_offset) {
+    VkBufferCopy2 buffer_copy{};
+    buffer_copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+    buffer_copy.size = size;
+    buffer_copy.srcOffset = src_offset;
+    buffer_copy.dstOffset = dst_offset;
+
+    VkCopyBufferInfo2 buffer_copy_info{};
+    buffer_copy_info.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+    buffer_copy_info.srcBuffer = src;
+    buffer_copy_info.dstBuffer = dst;
+    buffer_copy_info.regionCount = 1;
+    buffer_copy_info.pRegions = &buffer_copy;
+
+    vkCmdCopyBuffer2KHR(command_buffer, &buffer_copy_info);
 }

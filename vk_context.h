@@ -1,7 +1,7 @@
 #pragma once
 
+#include "vk_defines.h"
 #include <vector>
-#include <volk.h>
 #include <vk_mem_alloc.h>
 
 #define FRAMES_IN_FLIGHT 2
@@ -32,6 +32,8 @@ struct VkContext {
     uint16_t swapchain_image_count;
     std::vector<VkImage> swapchain_images;
     std::vector<VkImageView> swapchain_image_views;
+
+    VkCommandPool command_pool;
 
     Frame frames[FRAMES_IN_FLIGHT];
 };

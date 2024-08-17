@@ -6,9 +6,3 @@
 bool vk_create_command_pool(VkDevice device, uint32_t graphics_queue_family_index, VkCommandPool *command_pool);
 
 void vk_destroy_command_pool(VkDevice device, VkCommandPool command_pool);
-
-bool vk_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
-                                 VkCommandBuffer *command_buffers);
-
-void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
-                             VkCommandBuffer *command_buffers);

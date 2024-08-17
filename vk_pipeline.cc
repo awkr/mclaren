@@ -37,13 +37,18 @@ void vk_destroy_shader_module(VkDevice device, VkShaderModule shader_module) {
 }
 
 void vk_create_pipeline_layout(VkDevice device, VkDescriptorSetLayout descriptor_set_layout,
-                               VkPipelineLayout *pipeline_layout) {
+                               const VkPushConstantRange *push_constant, VkPipelineLayout *pipeline_layout) {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
     if (descriptor_set_layout) {
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &descriptor_set_layout;
+    }
+
+    if (push_constant) {
+        pipeline_layout_create_info.pushConstantRangeCount = 1;
+        pipeline_layout_create_info.pPushConstantRanges = push_constant;
     }
 
     VkResult result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, pipeline_layout);
@@ -86,6 +91,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
     rasterization_state_create_info.lineWidth = 1.0f;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_FALSE;
 

@@ -13,19 +13,3 @@ bool vk_create_command_pool(VkDevice device, uint32_t graphics_queue_family_inde
 void vk_destroy_command_pool(VkDevice device, VkCommandPool command_pool) {
     vkDestroyCommandPool(device, command_pool, nullptr);
 }
-
-bool vk_allocate_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
-                                 VkCommandBuffer *command_buffers) {
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = count;
-    VkResult result = vkAllocateCommandBuffers(device, &command_buffer_allocate_info, command_buffers);
-    return result == VK_SUCCESS;
-}
-
-void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
-                             VkCommandBuffer *command_buffers) {
-    vkFreeCommandBuffers(device, command_pool, count, command_buffers);
-}

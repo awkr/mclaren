@@ -11,9 +11,15 @@
 #include "vk_image_view.h"
 #include "vk_descriptor.h"
 #include "vk_pipeline.h"
+#include "vk_buffer.h"
 #include "logging.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
+
+struct Vertex {
+    float pos[4];
+    float color[4];
+};
 
 void app_create(SDL_Window *window, App **app) {
     int width, height;
@@ -59,27 +65,63 @@ void app_create(SDL_Window *window, App **app) {
         VkShaderModule compute_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
-        vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, &(*app)->compute_pipeline_layout);
+        vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, nullptr,
+                                  &(*app)->compute_pipeline_layout);
         vk_create_compute_pipeline(vk_context->device, (*app)->compute_pipeline_layout, compute_shader_module,
                                    &(*app)->compute_pipeline);
 
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
 
-    { // create graphics pipeline
-        VkShaderModule vert_shader_module;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.vert.spv", &vert_shader_module);
+    { // create triangle pipeline
+        VkShaderModule vert_shader;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.vert.spv", &vert_shader);
 
-        VkShaderModule frag_shader_module;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader_module);
+        VkShaderModule frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader);
 
-        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &(*app)->graphics_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, (*app)->graphics_pipeline_layout, format, VK_FORMAT_UNDEFINED,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader_module},
-                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader_module}}, &(*app)->graphics_pipeline);
+        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, nullptr, &(*app)->triangle_pipeline_layout);
+        vk_create_graphics_pipeline(vk_context->device, (*app)->triangle_pipeline_layout, format, VK_FORMAT_UNDEFINED,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
+                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, &(*app)->triangle_pipeline);
 
-        vk_destroy_shader_module(vk_context->device, frag_shader_module);
-        vk_destroy_shader_module(vk_context->device, vert_shader_module);
+        vk_destroy_shader_module(vk_context->device, frag_shader);
+        vk_destroy_shader_module(vk_context->device, vert_shader);
+    }
+
+    { // create mesh pipeline
+        VkShaderModule vert_shader;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle-mesh.vert.spv", &vert_shader);
+
+        VkShaderModule frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader);
+
+        VkPushConstantRange push_constant_range{};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.size = sizeof(MeshPushConstants);
+
+        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &push_constant_range,
+                                  &(*app)->mesh_pipeline_layout);
+        vk_create_graphics_pipeline(vk_context->device, (*app)->mesh_pipeline_layout, format, VK_FORMAT_UNDEFINED,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
+                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, &(*app)->mesh_pipeline);
+
+        vk_destroy_shader_module(vk_context->device, frag_shader);
+        vk_destroy_shader_module(vk_context->device, vert_shader);
+
+        {
+            Vertex vertices[4];
+            vertices[0] = {{-0.5f, -0.5f, 0.0f},
+                           {1.0f,  0.0f,  0.0f}};
+            vertices[1] = {{0.5f, -0.5f, 0.0f},
+                           {1.0f, 0.0f,  0.0f}};
+            vertices[2] = {{-0.5f, 0.5f, 0.0f},
+                           {1.0f,  0.0f, 0.0f}};
+            vertices[3] = {{0.5f, 0.5f, 0.0f},
+                           {1.0f, 0.0f, 0.0f}};
+            uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
+            create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, &(*app)->mesh_buffer);
+        }
     }
 
     // create ui
@@ -91,8 +133,13 @@ void app_create(SDL_Window *window, App **app) {
 void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
-    vk_destroy_pipeline(app->vk_context->device, app->graphics_pipeline);
-    vk_destroy_pipeline_layout(app->vk_context->device, app->graphics_pipeline_layout);
+    destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
+
+    vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
+
+    vk_destroy_pipeline(app->vk_context->device, app->triangle_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->triangle_pipeline_layout);
 
     ImGui::DestroyContext(app->gui_context);
 
@@ -128,12 +175,24 @@ void draw_geometry(App *app, VkCommandBuffer command_buffer, VkImageView image_v
 
     vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1);
 
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphics_pipeline);
+    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->triangle_pipeline);
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
     vk_command_draw(command_buffer, 3, 1, 0, 0);
+
+    {
+        vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
+
+        MeshPushConstants mesh_push_constants{};
+        mesh_push_constants.vertex_buffer_address = app->mesh_buffer.vertex_buffer_address;
+
+        vkCmdPushConstants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                           sizeof(MeshPushConstants), &mesh_push_constants);
+        vkCmdBindIndexBuffer(command_buffer, app->mesh_buffer.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0);
+    }
 
     vk_command_end_rendering(command_buffer);
 }
@@ -156,7 +215,7 @@ void app_update(App *app) {
 
     VkCommandBuffer command_buffer = frame->command_buffer;
     {
-        vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        vk_begin_one_flight_command_buffer(command_buffer);
 
         vk_transition_image_layout(command_buffer, app->drawable_image,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
@@ -205,11 +264,11 @@ void app_update(App *app) {
         vk_end_command_buffer(command_buffer);
     }
 
-    VkSemaphoreSubmitInfoKHR wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore,
-                                                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
-    VkSemaphoreSubmitInfoKHR signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore,
-                                                                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
-    VkCommandBufferSubmitInfoKHR command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
+    VkSemaphoreSubmitInfo wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore,
+                                                                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
+    VkSemaphoreSubmitInfo signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore,
+                                                                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    VkCommandBufferSubmitInfo command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 

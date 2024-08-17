@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mesh_buffer.h"
 #include <cstdint>
 #include <volk.h>
 #include <vk_mem_alloc.h>
@@ -19,10 +20,16 @@ struct App {
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
     VkDescriptorSet descriptor_set;
+
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
-    VkPipelineLayout graphics_pipeline_layout;
-    VkPipeline graphics_pipeline;
+
+    VkPipelineLayout triangle_pipeline_layout;
+    VkPipeline triangle_pipeline;
+
+    VkPipelineLayout mesh_pipeline_layout;
+    VkPipeline mesh_pipeline;
+    MeshBuffer mesh_buffer;
 
     ImGuiContext *gui_context;
 };

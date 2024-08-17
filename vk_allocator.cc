@@ -11,14 +11,15 @@ void vk_create_allocator(VkContext *vk_context) {
     vulkan_functions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
     vulkan_functions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 
-    VmaAllocatorCreateInfo allocator_info{};
-    allocator_info.physicalDevice = vk_context->physical_device;
-    allocator_info.device = vk_context->device;
-    allocator_info.instance = vk_context->instance;
-    allocator_info.pVulkanFunctions = &vulkan_functions;
-    allocator_info.vulkanApiVersion = vk_context->api_version;
+    VmaAllocatorCreateInfo allocator_create_info{};
+    allocator_create_info.physicalDevice = vk_context->physical_device;
+    allocator_create_info.device = vk_context->device;
+    allocator_create_info.instance = vk_context->instance;
+    allocator_create_info.pVulkanFunctions = &vulkan_functions;
+    allocator_create_info.vulkanApiVersion = vk_context->api_version;
+    allocator_create_info.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 
-    VkResult result = vmaCreateAllocator(&allocator_info, &vk_context->allocator);
+    VkResult result = vmaCreateAllocator(&allocator_create_info, &vk_context->allocator);
     ASSERT(result == VK_SUCCESS);
 }
 

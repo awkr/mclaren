@@ -4,6 +4,7 @@
 #include "vk_device.h"
 #include "vk_swapchain.h"
 #include "vk_command_pool.h"
+#include "vk_command_buffer.h"
 #include "vk_fence.h"
 #include "vk_semaphore.h"
 #include "vk_allocator.h"
@@ -24,16 +25,19 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index,
                                &vk_context->frames[i].command_pool);
-        vk_allocate_command_buffers(vk_context->device, vk_context->frames[i].command_pool, 1,
-                                    &vk_context->frames[i].command_buffer);
+        vk_alloc_command_buffers(vk_context->device, vk_context->frames[i].command_pool, 1,
+                                 &vk_context->frames[i].command_buffer);
 
         vk_create_fence(vk_context->device, VK_FENCE_CREATE_SIGNALED_BIT, &vk_context->frames[i].in_flight_fence);
         vk_create_semaphore(vk_context->device, &vk_context->frames[i].image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &vk_context->frames[i].render_finished_semaphore);
     }
+
+    vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &vk_context->command_pool);
 }
 
 void vk_terminate(VkContext *vk_context) {
+    vk_destroy_command_pool(vk_context->device, vk_context->command_pool);
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_semaphore(vk_context->device, vk_context->frames[i].render_finished_semaphore);
         vk_destroy_semaphore(vk_context->device, vk_context->frames[i].image_acquired_semaphore);
