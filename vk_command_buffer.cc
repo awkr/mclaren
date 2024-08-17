@@ -112,6 +112,15 @@ void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineB
                             descriptor_sets, dynamic_offset_count, dynamic_offsets);
 }
 
+void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer) {
+    vkCmdBindIndexBuffer(command_buffer, buffer, 0, VK_INDEX_TYPE_UINT32);
+}
+
+void vk_command_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
+                               uint32_t offset, uint32_t size, const void *data) {
+    vkCmdPushConstants(command_buffer, layout, stage_flags, offset, size, data);
+}
+
 void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
                          uint32_t group_count_z) {
     vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z);
@@ -154,6 +163,10 @@ void
 vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                 uint32_t first_instance) {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void vk_command_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count) {
+    vkCmdDrawIndexed(command_buffer, index_count, 1, 0, 0, 0);
 }
 
 void

@@ -4,8 +4,8 @@
 layout (location = 0) out vec3 out_color;
 
 struct Vertex {
-    vec4 position;
-    vec4 color;
+    vec3 position;
+    vec3 color;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
@@ -20,6 +20,6 @@ layout (push_constant) uniform PushConstants {
 void main() {
     Vertex vertex = push_constants.vertex_buffer.vertices[gl_VertexIndex];
     // gl_Position = push_constants.transform * vec4(vertex.position, 1.0);
-    gl_Position = vec4(vertex.position.xyz, 1.0);
-    out_color = vertex.color.rgb;
+    gl_Position = vec4(vertex.position, 1.0);
+    out_color = vertex.color;
 }

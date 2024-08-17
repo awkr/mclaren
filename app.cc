@@ -17,8 +17,8 @@
 #include <imgui.h>
 
 struct Vertex {
-    float pos[4];
-    float color[4];
+    alignas(16) float pos[3];
+    alignas(16) float color[3];
 };
 
 void app_create(SDL_Window *window, App **app) {
@@ -112,14 +112,14 @@ void app_create(SDL_Window *window, App **app) {
         {
             Vertex vertices[4];
             vertices[0] = {{-0.5f, -0.5f, 0.0f},
-                           {1.0f,  0.0f,  0.0f}};
+                           {0.0f,  0.0f,  0.0f}};
             vertices[1] = {{0.5f, -0.5f, 0.0f},
-                           {1.0f, 0.0f,  0.0f}};
+                           {0.5f, 0.5f,  0.5f}};
             vertices[2] = {{-0.5f, 0.5f, 0.0f},
                            {1.0f,  0.0f, 0.0f}};
             vertices[3] = {{0.5f, 0.5f, 0.0f},
-                           {1.0f, 0.0f, 0.0f}};
-            uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
+                           {0.0f, 1.0f, 0.0f}};
+            uint32_t indices[6] = {0, 2, 1, 1, 2, 3};
             create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, &(*app)->mesh_buffer);
         }
     }
@@ -188,10 +188,10 @@ void draw_geometry(App *app, VkCommandBuffer command_buffer, VkImageView image_v
         MeshPushConstants mesh_push_constants{};
         mesh_push_constants.vertex_buffer_address = app->mesh_buffer.vertex_buffer_address;
 
-        vkCmdPushConstants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(MeshPushConstants), &mesh_push_constants);
-        vkCmdBindIndexBuffer(command_buffer, app->mesh_buffer.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0);
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                                  sizeof(MeshPushConstants), &mesh_push_constants);
+        vk_command_bind_index_buffer(command_buffer, app->mesh_buffer.index_buffer.handle);
+        vk_command_draw_indexed(command_buffer, 6);
     }
 
     vk_command_end_rendering(command_buffer);
