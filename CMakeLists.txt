@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.25)
 project(mclaren)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
-set(APP_SRCS app.cc)
-set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc mesh_buffer.cc)
+set(APP_SRCS app.cc camera.cc)
+set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc mesh_buffer.cc mesh_loader.cc)
 set(VK_SRCS
     vk.cc
     vk_instance.cc

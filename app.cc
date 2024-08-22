@@ -1,5 +1,6 @@
 #include "app.h"
 #include "core/deletion_queue.h"
+#include "core/logging.h"
 #include "vk.h"
 #include "vk_context.h"
 #include "vk_command_buffer.h"
@@ -12,14 +13,9 @@
 #include "vk_descriptor.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
-#include "core/logging.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
-
-struct Vertex {
-    alignas(16) float pos[3];
-    alignas(16) float color[3];
-};
+#include <glm/gtc/type_ptr.hpp>
 
 void app_create(SDL_Window *window, App **app) {
     int width, height;
@@ -91,10 +87,10 @@ void app_create(SDL_Window *window, App **app) {
 
     { // create mesh pipeline
         VkShaderModule vert_shader;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle-mesh.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/mesh.vert.spv", &vert_shader);
 
         VkShaderModule frag_shader;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader);
+        vk_create_shader_module(vk_context->device, "shaders/mesh.frag.spv", &frag_shader);
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -108,24 +104,13 @@ void app_create(SDL_Window *window, App **app) {
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
-
-        {
-            Vertex vertices[4];
-            vertices[0] = {{-0.5f, -0.5f, 0.0f},
-                           {0.0f,  0.0f,  0.0f}};
-            vertices[1] = {{0.5f, -0.5f, 0.0f},
-                           {0.5f, 0.5f,  0.5f}};
-            vertices[2] = {{-0.5f, 0.5f, 0.0f},
-                           {1.0f,  0.0f, 0.0f}};
-            vertices[3] = {{0.5f, 0.5f, 0.0f},
-                           {0.0f, 1.0f, 0.0f}};
-            uint32_t indices[6] = {0, 2, 1, 1, 2, 3};
-            create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, &(*app)->mesh_buffer);
-        }
     }
 
     // create ui
     (*app)->gui_context = ImGui::CreateContext();
+
+    // load_gltf((*app)->vk_context, "models/cube.gltf", &(*app)->geometry);
+    load_gltf((*app)->vk_context, "models/chinese-dragon.gltf", &(*app)->geometry);
 
     (*app)->frame_number = 0;
 }
@@ -133,7 +118,7 @@ void app_create(SDL_Window *window, App **app) {
 void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
-    destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
+    destroy_geometry(app->vk_context, &app->geometry);
 
     vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
@@ -155,7 +140,7 @@ void app_destroy(App *app) {
     delete app;
 }
 
-void draw_background(App *app, VkCommandBuffer command_buffer) {
+void draw_background(const App *app, VkCommandBuffer command_buffer) {
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
                                     &app->descriptor_set, 0, nullptr);
@@ -163,7 +148,7 @@ void draw_background(App *app, VkCommandBuffer command_buffer) {
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_geometry(App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
+void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
     VkRenderingAttachmentInfo color_attachment_info{};
     color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     color_attachment_info.imageView = image_view;
@@ -182,16 +167,34 @@ void draw_geometry(App *app, VkCommandBuffer command_buffer, VkImageView image_v
 
     vk_command_draw(command_buffer, 3, 1, 0, 0);
 
-    {
+    for (const Mesh &mesh: app->geometry.meshes) {
         vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
 
-        MeshPushConstants mesh_push_constants{};
-        mesh_push_constants.vertex_buffer_address = app->mesh_buffer.vertex_buffer_address;
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
+                                     glm::vec3(0.0f, 0.0f, 0.0f),
+                                     glm::vec3(0.0f, 1.0f, 0.0f));
+
+        glm::mat4 projection = glm::mat4(1.0f);
+        projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width /
+                                                           (float) app->vk_context->swapchain_extent.height,
+                                      0.1f, 1000.0f);
+
+        MeshPushConstants mesh_push_constants{};
+        mesh_push_constants.model = model;
+        mesh_push_constants.view = view;
+        mesh_push_constants.projection = projection;
+        mesh_push_constants.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
                                   sizeof(MeshPushConstants), &mesh_push_constants);
-        vk_command_bind_index_buffer(command_buffer, app->mesh_buffer.index_buffer.handle);
-        vk_command_draw_indexed(command_buffer, 6);
+
+        for (const Primitive &primitive: mesh.primitives) {
+            vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+            vk_command_draw_indexed(command_buffer, primitive.index_count);
+        }
     }
 
     vk_command_end_rendering(command_buffer);

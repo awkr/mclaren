@@ -13,13 +13,14 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
 };
 
 layout (push_constant) uniform PushConstants {
-    mat4 transform;
+    mat4 model;
+    mat4 view;
+    mat4 projection;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } push_constants;
 
 void main() {
     Vertex vertex = push_constants.vertex_buffer.vertices[gl_VertexIndex];
-    // gl_Position = push_constants.transform * vec4(vertex.position, 1.0);
-    gl_Position = vec4(vertex.position, 1.0);
+    gl_Position = push_constants.projection * push_constants.view * push_constants.model * vec4(vertex.position, 1.0);
     out_color = vertex.color;
 }

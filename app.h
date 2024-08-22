@@ -1,6 +1,7 @@
 #pragma once
 
-#include "mesh_buffer.h"
+#include "camera.h"
+#include "mesh_loader.h"
 #include <cstdint>
 #include <volk.h>
 #include <vk_mem_alloc.h>
@@ -29,7 +30,9 @@ struct App {
 
     VkPipelineLayout mesh_pipeline_layout;
     VkPipeline mesh_pipeline;
-    MeshBuffer mesh_buffer;
+
+    Geometry geometry;
+    Camera camera;
 
     ImGuiContext *gui_context;
 };

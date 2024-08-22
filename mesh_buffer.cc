@@ -4,10 +4,11 @@
 #include "vk_fence.h"
 
 void create_mesh_buffer(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
-                        const uint32_t *indices, uint32_t index_count, MeshBuffer *mesh_buffer) {
+                        const void *indices, uint32_t index_count, uint32_t index_stride, MeshBuffer *mesh_buffer) {
     const size_t vertex_buffer_size = vertex_count * vertex_stride;
-    const size_t index_buffer_size = index_count * sizeof(uint32_t);
+    const size_t index_buffer_size = index_count * index_stride;
 
+    // vertex buffer
     vk_create_buffer(vk_context, vertex_buffer_size,
                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
                      VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, &mesh_buffer->vertex_buffer);
@@ -15,11 +16,14 @@ void create_mesh_buffer(VkContext *vk_context, const void *vertices, uint32_t ve
     VkBufferDeviceAddressInfo buffer_device_address_info{};
     buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     buffer_device_address_info.buffer = mesh_buffer->vertex_buffer.handle;
-    mesh_buffer->vertex_buffer_address = vkGetBufferDeviceAddress(vk_context->device, &buffer_device_address_info);
+    mesh_buffer->vertex_buffer_device_address = vkGetBufferDeviceAddress(vk_context->device,
+                                                                         &buffer_device_address_info);
 
+    // index buffer
     vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                      VMA_MEMORY_USAGE_GPU_ONLY, &mesh_buffer->index_buffer);
 
+    // upload data
     Buffer staging_buffer;
     vk_create_buffer(vk_context, vertex_buffer_size + index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                      VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);

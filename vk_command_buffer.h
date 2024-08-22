@@ -37,10 +37,10 @@ void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineB
                                      const VkDescriptorSet *descriptor_sets, uint32_t dynamic_offset_count,
                                      const uint32_t *dynamic_offsets);
 
-void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer);
+void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
 
 void vk_command_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
-                               uint32_t offset, uint32_t size, const void *data);
+                               uint32_t size, const void *data);
 
 void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
                          uint32_t group_count_z);
