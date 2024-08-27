@@ -90,8 +90,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
     rasterization_state_create_info.lineWidth = 1.0f;
-    // rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT; // release me !
-    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT; // release me !
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_FALSE;
 

@@ -30,41 +30,47 @@ void platform_main_loop(PlatformContext *platform_context) {
                 if (event.key.key == SDLK_ESCAPE) {
                     quit = true;
                 } else if (event.key.key == SDLK_W) {
-                    // app_key_up(platform_context->app, KEY_W);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_forward(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_S) {
-                    // app_key_up(platform_context->app, KEY_S);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_backward(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_A) {
-                    // app_key_up(platform_context->app, KEY_A);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_left(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_D) {
-                    // app_key_up(platform_context->app, KEY_D);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_right(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_Q) {
-                    // app_key_up(platform_context->app, KEY_Q);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_up(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_E) {
-                    // app_key_up(platform_context->app, KEY_E);
-                    Camera *camera = &platform_context->app->camera;
-                    camera_down(camera, 0.2f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_UP) {
-                    Camera *camera = &platform_context->app->camera;
-                    camera_pitch(camera, 2.0f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_DOWN) {
-                    Camera *camera = &platform_context->app->camera;
-                    camera_pitch(camera, -2.0f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_LEFT) {
-                    Camera *camera = &platform_context->app->camera;
-                    camera_yaw(camera, 2.0f);
+                    app_key_up(platform_context->app, event.key.key);
                 } else if (event.key.key == SDLK_RIGHT) {
-                    Camera *camera = &platform_context->app->camera;
-                    camera_yaw(camera, -2.0f);
+                    app_key_up(platform_context->app, event.key.key);
+                }
+            } else if (event.type == SDL_EVENT_KEY_DOWN) {
+                if (event.key.key == SDLK_W) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_S) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_A) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_D) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_Q) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_E) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_UP) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_DOWN) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_LEFT) {
+                    app_key_down(platform_context->app, event.key.key);
+                } else if (event.key.key == SDLK_RIGHT) {
+                    app_key_down(platform_context->app, event.key.key);
                 }
             }
             if (quit) { break; }

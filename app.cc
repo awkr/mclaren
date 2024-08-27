@@ -16,6 +16,16 @@
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
+// vulkan clip space has inverted Y and half Z
+glm::mat4 clip = glm::mat4(
+        // clang-format off
+        1.0f,  0.0f, 0.0f, 0.0f, // 1st column
+        0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
+        0.0f,  0.0f, 0.5f, 0.5f, // 3rd column
+        0.0f,  0.0f, 0.0f, 1.0f  // 4th column
+        // clang-format on
+);
+
 void app_create(SDL_Window *window, App **app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
@@ -163,14 +173,14 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
                                                            (float) app->vk_context->swapchain_extent.height,
                                       0.1f, 1000.0f);
 
-        MeshPushConstants mesh_push_constants{};
-        mesh_push_constants.model = model;
-        mesh_push_constants.view = view;
-        mesh_push_constants.projection = projection;
-        mesh_push_constants.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+        MeshPushConstants mesh_instance_state{};
+        mesh_instance_state.model = model;
+        mesh_instance_state.view = view;
+        mesh_instance_state.projection = clip * projection;
+        mesh_instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
         vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                                  sizeof(MeshPushConstants), &mesh_push_constants);
+                                  sizeof(MeshPushConstants), &mesh_instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
             vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
@@ -298,4 +308,36 @@ void app_key_up(App *app, uint32_t key) {
     }
 }
 
-void app_key_down(App *app, uint32_t key) {}
+void app_key_down(App *app, uint32_t key) {
+    if (key == SDLK_W) {
+        Camera *camera = &app->camera;
+        camera_forward(camera, 0.2f);
+    } else if (key == SDLK_S) {
+        Camera *camera = &app->camera;
+        camera_backward(camera, 0.2f);
+    } else if (key == SDLK_A) {
+        Camera *camera = &app->camera;
+        camera_left(camera, 0.2f);
+    } else if (key == SDLK_D) {
+        Camera *camera = &app->camera;
+        camera_right(camera, 0.2f);
+    } else if (key == SDLK_Q) {
+        Camera *camera = &app->camera;
+        camera_up(camera, 0.2f);
+    } else if (key == SDLK_E) {
+        Camera *camera = &app->camera;
+        camera_down(camera, 0.2f);
+    } else if (key == SDLK_UP) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, 2.0f);
+    } else if (key == SDLK_DOWN) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, -2.0f);
+    } else if (key == SDLK_LEFT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, 2.0f);
+    } else if (key == SDLK_RIGHT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, -2.0f);
+    }
+}

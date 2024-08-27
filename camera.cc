@@ -94,9 +94,9 @@ void camera_update(Camera *camera) {
 
     // calculate the view matrix
     const auto &rotation = glm::mat4_cast(camera->rotation);
-    const auto &translation = glm::translate(glm::mat4(1.0), -camera->position);
+    const auto &translation = glm::translate(glm::mat4(1.0), camera->position);
 
-    auto view_matrix = rotation * translation;
+    auto view_matrix = glm::inverse(translation * rotation);
     camera->view_matrix = view_matrix;
 
     camera->is_dirty = false;
