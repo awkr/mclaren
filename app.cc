@@ -15,7 +15,6 @@
 #include "vk_buffer.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
-#include <glm/gtc/type_ptr.hpp>
 
 void app_create(SDL_Window *window, App **app) {
     int width, height;
@@ -69,22 +68,6 @@ void app_create(SDL_Window *window, App **app) {
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
 
-    { // create triangle pipeline
-        VkShaderModule vert_shader;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.vert.spv", &vert_shader);
-
-        VkShaderModule frag_shader;
-        vk_create_shader_module(vk_context->device, "shaders/colored-triangle.frag.spv", &frag_shader);
-
-        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, nullptr, &(*app)->triangle_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, (*app)->triangle_pipeline_layout, format, VK_FORMAT_UNDEFINED,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
-                                     {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, &(*app)->triangle_pipeline);
-
-        vk_destroy_shader_module(vk_context->device, frag_shader);
-        vk_destroy_shader_module(vk_context->device, vert_shader);
-    }
-
     { // create mesh pipeline
         VkShaderModule vert_shader;
         vk_create_shader_module(vk_context->device, "shaders/mesh.vert.spv", &vert_shader);
@@ -112,19 +95,20 @@ void app_create(SDL_Window *window, App **app) {
     // load_gltf((*app)->vk_context, "models/cube.gltf", &(*app)->geometry);
     load_gltf((*app)->vk_context, "models/chinese-dragon.gltf", &(*app)->geometry);
 
+    create_camera(&(*app)->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+
     (*app)->frame_number = 0;
 }
 
 void app_destroy(App *app) {
     vkDeviceWaitIdle(app->vk_context->device);
 
+    destroy_camera(&app->camera);
+
     destroy_geometry(app->vk_context, &app->geometry);
 
     vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
-
-    vk_destroy_pipeline(app->vk_context->device, app->triangle_pipeline);
-    vk_destroy_pipeline_layout(app->vk_context->device, app->triangle_pipeline_layout);
 
     ImGui::DestroyContext(app->gui_context);
 
@@ -160,22 +144,19 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
 
     vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1);
 
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->triangle_pipeline);
+    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
-    vk_command_draw(command_buffer, 3, 1, 0, 0);
-
     for (const Mesh &mesh: app->geometry.meshes) {
-        vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
-
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
 
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
-                                     glm::vec3(0.0f, 0.0f, 0.0f),
-                                     glm::vec3(0.0f, 1.0f, 0.0f));
+        // glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
+        //                              glm::vec3(0.0f, 0.0f, 0.0f),
+        //                              glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 view = app->camera.view_matrix;
 
         glm::mat4 projection = glm::mat4(1.0f);
         projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width /
@@ -202,6 +183,8 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
 
 void app_update(App *app) {
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+
+    camera_update(&app->camera);
 
     Frame *frame = &app->vk_context->frames[app->frame_index];
 
@@ -280,3 +263,39 @@ void app_update(App *app) {
 
     ++app->frame_number;
 }
+
+void app_key_up(App *app, uint32_t key) {
+    if (key == SDLK_W) {
+        Camera *camera = &app->camera;
+        camera_forward(camera, 0.2f);
+    } else if (key == SDLK_S) {
+        Camera *camera = &app->camera;
+        camera_backward(camera, 0.2f);
+    } else if (key == SDLK_A) {
+        Camera *camera = &app->camera;
+        camera_left(camera, 0.2f);
+    } else if (key == SDLK_D) {
+        Camera *camera = &app->camera;
+        camera_right(camera, 0.2f);
+    } else if (key == SDLK_Q) {
+        Camera *camera = &app->camera;
+        camera_up(camera, 0.2f);
+    } else if (key == SDLK_E) {
+        Camera *camera = &app->camera;
+        camera_down(camera, 0.2f);
+    } else if (key == SDLK_UP) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, 2.0f);
+    } else if (key == SDLK_DOWN) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, -2.0f);
+    } else if (key == SDLK_LEFT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, 2.0f);
+    } else if (key == SDLK_RIGHT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, -2.0f);
+    }
+}
+
+void app_key_down(App *app, uint32_t key) {}

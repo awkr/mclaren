@@ -15,7 +15,7 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
     for (size_t mesh_index = 0; mesh_index < data->meshes_count; ++mesh_index) {
         const cgltf_mesh *mesh = &data->meshes[mesh_index];
 
-        log_debug("mesh index %d, name: %s", mesh_index, mesh->name);
+        log_debug("mesh index: %d, name: %s", mesh_index, mesh->name);
 
         geometry->meshes[mesh_index].primitives.resize(mesh->primitives_count);
 
