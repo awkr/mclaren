@@ -15,9 +15,15 @@ struct App {
     VkContext *vk_context;
     uint64_t frame_number;
     uint32_t frame_index;
+
     VkImage drawable_image;
     VmaAllocation drawable_image_allocation;
     VkImageView drawable_image_view;
+
+    VkImage depth_image;
+    VmaAllocation depth_image_allocation;
+    VkImageView depth_image_view;
+
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
     VkDescriptorSet descriptor_set;

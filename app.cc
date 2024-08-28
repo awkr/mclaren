@@ -44,7 +44,15 @@ void app_create(SDL_Window *window, App **app) {
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image(vk_context, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, format, usage,
                     &(*app)->drawable_image, &(*app)->drawable_image_allocation);
-    vk_create_image_view(vk_context->device, (*app)->drawable_image, format, &(*app)->drawable_image_view);
+    vk_create_image_view(vk_context->device, (*app)->drawable_image, format, VK_IMAGE_ASPECT_COLOR_BIT,
+                         &(*app)->drawable_image_view);
+
+    // create depth image
+    VkFormat depth_format = VK_FORMAT_D32_SFLOAT;
+    vk_create_image(vk_context, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, depth_format,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &(*app)->depth_image, &(*app)->depth_image_allocation);
+    vk_create_image_view(vk_context->device, (*app)->depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT,
+                         &(*app)->depth_image_view);
 
     // create a descriptor pool that holds `max_sets` sets with 1 image each
     uint32_t max_sets = 1;
@@ -91,7 +99,7 @@ void app_create(SDL_Window *window, App **app) {
 
         vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &push_constant_range,
                                   &(*app)->mesh_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, (*app)->mesh_pipeline_layout, format, VK_FORMAT_UNDEFINED,
+        vk_create_graphics_pipeline(vk_context->device, (*app)->mesh_pipeline_layout, format, depth_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
                                      {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, &(*app)->mesh_pipeline);
 
@@ -126,6 +134,10 @@ void app_destroy(App *app) {
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
     vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pool);
+
+    vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
+    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_allocation);
+
     vk_destroy_image_view(app->vk_context->device, app->drawable_image_view);
     vk_destroy_image(app->vk_context, app->drawable_image, app->drawable_image_allocation);
 
@@ -143,16 +155,24 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
 }
 
 void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
-    VkRenderingAttachmentInfo color_attachment_info{};
+    VkRenderingAttachmentInfo color_attachment_info = {};
     color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     color_attachment_info.imageView = image_view;
     color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
+    VkRenderingAttachmentInfo depth_attachment_info = {};
+    depth_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth_attachment_info.imageView = app->depth_image_view;
+    depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+
     const VkExtent2D *extent = &app->vk_context->swapchain_extent;
 
-    vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1);
+    vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1, &depth_attachment_info);
 
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
 
@@ -163,9 +183,6 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
 
-        // glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
-        //                              glm::vec3(0.0f, 0.0f, 0.0f),
-        //                              glm::vec3(0.0f, 1.0f, 0.0f));
         glm::mat4 view = app->camera.view_matrix;
 
         glm::mat4 projection = glm::mat4(1.0f);
@@ -230,6 +247,13 @@ void app_update(App *app) {
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        vk_transition_image_layout(command_buffer, app->depth_image,
+                                   VK_PIPELINE_STAGE_2_NONE | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                                   VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                                   VK_ACCESS_2_NONE | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                   VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
         draw_geometry(app, command_buffer, app->drawable_image_view);
 

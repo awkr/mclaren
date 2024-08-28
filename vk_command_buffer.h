@@ -46,7 +46,8 @@ void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x,
                          uint32_t group_count_z);
 
 void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
-                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count);
+                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count,
+                                const VkRenderingAttachmentInfo *depth_attachment);
 
 void vk_command_end_rendering(VkCommandBuffer command_buffer);
 

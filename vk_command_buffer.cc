@@ -127,12 +127,14 @@ void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x,
 }
 
 void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
-                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count) {
+                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count,
+                                const VkRenderingAttachmentInfo *depth_attachment) {
     VkRenderingInfo rendering_info{};
     rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     rendering_info.renderArea.extent = *extent;
     rendering_info.colorAttachmentCount = attachment_count;
     rendering_info.pColorAttachments = attachments;
+    rendering_info.pDepthAttachment = depth_attachment;
     rendering_info.layerCount = 1;
     vkCmdBeginRenderingKHR(command_buffer, &rendering_info);
 }

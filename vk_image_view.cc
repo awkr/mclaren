@@ -1,13 +1,14 @@
 #include "vk_image_view.h"
 #include "core/logging.h"
 
-void vk_create_image_view(VkDevice device, VkImage image, VkFormat format, VkImageView *image_view) {
+void vk_create_image_view(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspect_mask,
+                          VkImageView *image_view) {
     VkImageViewCreateInfo image_view_create_info{};
     image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     image_view_create_info.image = image;
     image_view_create_info.format = format;
-    image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_view_create_info.subresourceRange.aspectMask = aspect_mask;
     image_view_create_info.subresourceRange.baseMipLevel = 0;
     image_view_create_info.subresourceRange.levelCount = 1;
     image_view_create_info.subresourceRange.baseArrayLayer = 0;
