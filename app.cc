@@ -155,24 +155,24 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
 }
 
 void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
-    VkRenderingAttachmentInfo color_attachment_info = {};
-    color_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color_attachment_info.imageView = image_view;
-    color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    VkRenderingAttachmentInfo color_attachment = {};
+    color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color_attachment.imageView = image_view;
+    color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    VkRenderingAttachmentInfo depth_attachment_info = {};
-    depth_attachment_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth_attachment_info.imageView = app->depth_image_view;
-    depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+    VkRenderingAttachmentInfo depth_attachment = {};
+    depth_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth_attachment.imageView = app->depth_image_view;
+    depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.clearValue.depthStencil.depth = 1.0f;
 
     const VkExtent2D *extent = &app->vk_context->swapchain_extent;
 
-    vk_command_begin_rendering(command_buffer, extent, &color_attachment_info, 1, &depth_attachment_info);
+    vk_command_begin_rendering(command_buffer, extent, &color_attachment, 1, &depth_attachment);
 
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
 

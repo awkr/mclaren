@@ -64,11 +64,11 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
                     ASSERT_MESSAGE(false, "unsupported index component type - %d", primitive->indices->component_type);
                 }
             }
-        } // end loop primitives
+        } // end looping primitives
 
         create_mesh_buffer(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(),
                            sizeof(uint32_t), &geometry->meshes[mesh_index].mesh_buffer);
-    } // end loop meshes
+    } // end looping meshes
 
     cgltf_free(data);
 }

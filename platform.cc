@@ -1,6 +1,8 @@
 #include "platform.h"
 #include "app.h"
 #include "core/logging.h"
+#include "event_system.h"
+#include "input_system.h"
 #include <SDL3/SDL.h>
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
@@ -14,6 +16,8 @@ void platform_init(PlatformContext *platform_context) {
     int ok = SDL_Init(SDL_INIT_VIDEO);
     ASSERT(ok == 0);
     create_window(platform_context, 320, 240);
+    event_system_create(&platform_context->event_system_state);
+    input_system_create(&platform_context->input_system_state);
     app_create(platform_context->window, &platform_context->app);
 }
 
@@ -24,52 +28,74 @@ void platform_main_loop(PlatformContext *platform_context) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 quit = true;
+                break;
             } else if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
                 quit = true;
+                break;
             } else if (event.type == SDL_EVENT_KEY_UP) {
                 if (event.key.key == SDLK_ESCAPE) {
                     quit = true;
-                } else if (event.key.key == SDLK_W) {
+                    break;
+                }
+                if (event.key.key == SDLK_W) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_S) {
+                }
+                if (event.key.key == SDLK_S) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_A) {
+                }
+                if (event.key.key == SDLK_A) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_D) {
+                }
+                if (event.key.key == SDLK_D) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_Q) {
+                }
+                if (event.key.key == SDLK_Q) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_E) {
+                }
+                if (event.key.key == SDLK_E) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_UP) {
+                }
+                if (event.key.key == SDLK_UP) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_DOWN) {
+                }
+                if (event.key.key == SDLK_DOWN) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_LEFT) {
+                }
+                if (event.key.key == SDLK_LEFT) {
                     app_key_up(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_RIGHT) {
+                }
+                if (event.key.key == SDLK_RIGHT) {
                     app_key_up(platform_context->app, event.key.key);
                 }
             } else if (event.type == SDL_EVENT_KEY_DOWN) {
                 if (event.key.key == SDLK_W) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_S) {
+                }
+                if (event.key.key == SDLK_S) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_A) {
+                }
+                if (event.key.key == SDLK_A) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_D) {
+                }
+                if (event.key.key == SDLK_D) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_Q) {
+                }
+                if (event.key.key == SDLK_Q) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_E) {
+                }
+                if (event.key.key == SDLK_E) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_UP) {
+                }
+                if (event.key.key == SDLK_UP) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_DOWN) {
+                }
+                if (event.key.key == SDLK_DOWN) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_LEFT) {
+                }
+                if (event.key.key == SDLK_LEFT) {
                     app_key_down(platform_context->app, event.key.key);
-                } else if (event.key.key == SDLK_RIGHT) {
+                }
+                if (event.key.key == SDLK_RIGHT) {
                     app_key_down(platform_context->app, event.key.key);
                 }
             }
@@ -82,5 +108,7 @@ void platform_main_loop(PlatformContext *platform_context) {
 
 void platform_terminate(PlatformContext *platform_context) {
     app_destroy(platform_context->app);
+    input_system_destroy(platform_context->input_system_state);
+    event_system_destroy(platform_context->event_system_state);
     SDL_DestroyWindow(platform_context->window);
 }
