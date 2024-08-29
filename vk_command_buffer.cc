@@ -13,9 +13,17 @@ bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint3
     return result == VK_SUCCESS;
 }
 
+bool vk_alloc_command_buffer(VkDevice device, VkCommandPool command_pool, VkCommandBuffer *command_buffer) {
+    return vk_alloc_command_buffers(device, command_pool, 1, command_buffer);
+}
+
 void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
                              VkCommandBuffer *command_buffers) {
     vkFreeCommandBuffers(device, command_pool, count, command_buffers);
+}
+
+void vk_free_command_buffer(VkDevice device, VkCommandPool command_pool, VkCommandBuffer command_buffer) {
+    vk_free_command_buffers(device, command_pool, 1, &command_buffer);
 }
 
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer) {

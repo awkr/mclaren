@@ -54,6 +54,33 @@ void app_create(SDL_Window *window, App **app) {
     vk_create_image_view(vk_context->device, (*app)->depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT,
                          &(*app)->depth_image_view);
 
+    { // transition depth image layout once and for all
+        VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+        vk_alloc_command_buffers((*app)->vk_context->device, (*app)->vk_context->command_pool, 1, &command_buffer);
+        vk_begin_one_flight_command_buffer(command_buffer);
+
+        vk_transition_image_layout(command_buffer, (*app)->depth_image,
+                                   VK_PIPELINE_STAGE_2_NONE,
+                                   VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                   VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                                   VK_ACCESS_2_NONE,
+                                   VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                   VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+        vk_end_command_buffer(command_buffer);
+
+        VkFence fence;
+        vk_create_fence(vk_context->device, 0, &fence);
+
+        vk_queue_submit(vk_context->graphics_queue, command_buffer, fence);
+
+        vk_wait_fence(vk_context->device, fence);
+        vk_destroy_fence(vk_context->device, fence);
+
+        vk_free_command_buffer((*app)->vk_context->device, (*app)->vk_context->command_pool, command_buffer);
+    }
+
     // create a descriptor pool that holds `max_sets` sets with 1 image each
     uint32_t max_sets = 1;
     std::vector<VkDescriptorPoolSize> pool_sizes;
@@ -247,14 +274,6 @@ void app_update(App *app) {
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-        // todo 在创建 depth image 时单独一次性处理掉
-        vk_transition_image_layout(command_buffer, app->depth_image,
-                                   VK_PIPELINE_STAGE_2_NONE | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                                   VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                                   VK_ACCESS_2_NONE | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                                   VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
         draw_geometry(app, command_buffer, app->drawable_image_view);
 

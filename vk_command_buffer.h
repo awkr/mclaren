@@ -5,8 +5,12 @@
 bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
                               VkCommandBuffer *command_buffers);
 
+bool vk_alloc_command_buffer(VkDevice device, VkCommandPool command_pool, VkCommandBuffer *command_buffer);
+
 void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
                              VkCommandBuffer *command_buffers);
+
+void vk_free_command_buffer(VkDevice device, VkCommandPool command_pool, VkCommandBuffer command_buffer);
 
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer);
 
