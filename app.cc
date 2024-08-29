@@ -248,6 +248,7 @@ void app_update(App *app) {
                                    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
+        // todo 在创建 depth image 时单独一次性处理掉
         vk_transition_image_layout(command_buffer, app->depth_image,
                                    VK_PIPELINE_STAGE_2_NONE | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                                    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
