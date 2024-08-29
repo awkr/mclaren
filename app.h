@@ -35,6 +35,8 @@ struct App {
     VkPipeline mesh_pipeline;
 
     Geometry geometry;
+    MeshBuffer mesh_buffer;
+
     Camera camera;
 
     ImGuiContext *gui_context;

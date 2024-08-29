@@ -140,6 +140,20 @@ void app_create(SDL_Window *window, App **app) {
     // load_gltf((*app)->vk_context, "models/cube.gltf", &(*app)->geometry);
     load_gltf((*app)->vk_context, "models/chinese-dragon.gltf", &(*app)->geometry);
 
+    {
+        Vertex vertices[4];
+        vertices[0] = {{-0.5f, -0.5f, 0.0f},
+                       { 0.0f,  0.0f, 0.0f}};
+        vertices[1] = {{ 0.5f, -0.5f, 0.0f},
+                       { 0.5f,  0.5f, 0.0f}};
+        vertices[2] = {{-0.5f,  0.5f, 0.0f},
+                       { 1.0f,  0.0f, 0.0f}};
+        vertices[3] = {{ 0.5f,  0.5f, 0.0f},
+                       { 0.0f,  1.0f, 0.0f}};
+        uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
+        create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t), &(*app)->mesh_buffer);
+    }
+
     create_camera(&(*app)->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
     (*app)->frame_number = 0;
@@ -150,6 +164,7 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
+    destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
     destroy_geometry(app->vk_context, &app->geometry);
 
     vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
@@ -206,21 +221,23 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
+    glm::mat4 view = app->camera.view_matrix;
+
+    glm::mat4 projection = glm::mat4(1.0f);
+    float z_near = 0.1f, z_far = 1000.0f;
+    projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width /
+                                                       (float) app->vk_context->swapchain_extent.height,
+                                  z_near, z_far);
+    projection = clip * projection;
+
     for (const Mesh &mesh: app->geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
 
-        glm::mat4 view = app->camera.view_matrix;
-
-        glm::mat4 projection = glm::mat4(1.0f);
-        projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width /
-                                                           (float) app->vk_context->swapchain_extent.height,
-                                      0.1f, 1000.0f);
-
         MeshPushConstants mesh_instance_state{};
         mesh_instance_state.model = model;
         mesh_instance_state.view = view;
-        mesh_instance_state.projection = clip * projection;
+        mesh_instance_state.projection = projection;
         mesh_instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
         vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
@@ -230,6 +247,21 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
             vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
             vk_command_draw_indexed(command_buffer, primitive.index_count);
         }
+    }
+
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 1.0f));
+
+        MeshPushConstants mesh_instance_state{};
+        mesh_instance_state.model = model;
+        mesh_instance_state.view = view;
+        mesh_instance_state.projection = projection;
+        mesh_instance_state.vertex_buffer_device_address = app->mesh_buffer.vertex_buffer_device_address;
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
+                                  sizeof(MeshPushConstants), &mesh_instance_state);
+        vk_command_bind_index_buffer(command_buffer, app->mesh_buffer.index_buffer.handle, 0);
+        vk_command_draw_indexed(command_buffer, 6);
     }
 
     vk_command_end_rendering(command_buffer);
