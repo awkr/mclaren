@@ -1,11 +1,11 @@
 #version 460 core
 #extension GL_EXT_buffer_reference : require
 
-layout (location = 0) out vec3 out_color;
+layout (location = 0) out vec4 out_color;
 
 struct Vertex {
     vec3 position;
-    vec3 color;
+    vec4 color;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {

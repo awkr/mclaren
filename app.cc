@@ -143,13 +143,13 @@ void app_create(SDL_Window *window, App **app) {
     {
         Vertex vertices[4];
         vertices[0] = {{-0.5f, -0.5f, 0.0f},
-                       { 0.0f,  0.0f, 0.0f}};
+                       { 1.0f,  0.0f, 0.0f, 0.5f}};
         vertices[1] = {{ 0.5f, -0.5f, 0.0f},
-                       { 0.5f,  0.5f, 0.0f}};
+                       { 1.0f,  0.0f, 0.0f, 0.5f}};
         vertices[2] = {{-0.5f,  0.5f, 0.0f},
-                       { 1.0f,  0.0f, 0.0f}};
+                       { 1.0f,  0.0f, 0.0f, 0.5f}};
         vertices[3] = {{ 0.5f,  0.5f, 0.0f},
-                       { 0.0f,  1.0f, 0.0f}};
+                       { 1.0f,  0.0f, 0.0f, 0.5f}};
         uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
         create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t), &(*app)->mesh_buffer);
     }
