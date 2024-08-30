@@ -13,3 +13,7 @@ bool vk_create_command_pool(VkDevice device, uint32_t graphics_queue_family_inde
 void vk_destroy_command_pool(VkDevice device, VkCommandPool command_pool) {
     vkDestroyCommandPool(device, command_pool, nullptr);
 }
+
+void vk_reset_command_pool(VkDevice device, VkCommandPool command_pool) {
+    vkResetCommandPool(device, command_pool, 0);
+}

@@ -16,9 +16,9 @@ struct App {
     uint64_t frame_number;
     uint32_t frame_index;
 
-    VkImage drawable_image;
-    VmaAllocation drawable_image_allocation;
-    VkImageView drawable_image_view;
+    VkImage color_image;
+    VmaAllocation color_image_allocation;
+    VkImageView color_image_view;
 
     VkImage depth_image;
     VmaAllocation depth_image_allocation;
@@ -40,6 +40,8 @@ struct App {
     Camera camera;
 
     ImGuiContext *gui_context;
+
+    bool is_resizing;
 };
 
 void app_create(SDL_Window *window, App **app);
@@ -47,6 +49,8 @@ void app_create(SDL_Window *window, App **app);
 void app_destroy(App *app);
 
 void app_update(App *app);
+
+void app_resize(App *app, uint32_t width, uint32_t height);
 
 void app_key_up(App *app, uint32_t key);
 

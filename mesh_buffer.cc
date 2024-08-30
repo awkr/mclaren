@@ -47,7 +47,7 @@ void create_mesh_buffer(VkContext *vk_context, const void *vertices, uint32_t ve
     vk_end_command_buffer(command_buffer);
 
     VkFence fence;
-    vk_create_fence(vk_context->device, 0, &fence);
+    vk_create_fence(vk_context->device, false, &fence);
 
     vk_queue_submit(vk_context->graphics_queue, command_buffer, fence);
 

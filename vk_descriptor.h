@@ -18,6 +18,8 @@ void vk_reset_descriptor_pool(VkDevice device, VkDescriptorPool descriptor_pool)
 void vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout layout,
                                 VkDescriptorSet *descriptor_set);
 
+void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set);
+
 void
 vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, uint32_t descriptor_count,
                          VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info);

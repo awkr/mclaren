@@ -28,7 +28,7 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
         vk_alloc_command_buffers(vk_context->device, vk_context->frames[i].command_pool, 1,
                                  &vk_context->frames[i].command_buffer);
 
-        vk_create_fence(vk_context->device, VK_FENCE_CREATE_SIGNALED_BIT, &vk_context->frames[i].in_flight_fence);
+        vk_create_fence(vk_context->device, true, &vk_context->frames[i].in_flight_fence);
         vk_create_semaphore(vk_context->device, &vk_context->frames[i].image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &vk_context->frames[i].render_finished_semaphore);
     }
@@ -50,6 +50,24 @@ void vk_terminate(VkContext *vk_context) {
     vkDestroySurfaceKHR(vk_context->instance, vk_context->surface, nullptr);
     vk_destroy_instance(vk_context);
 }
+
+void vk_resize(VkContext *vk_context, uint32_t width, uint32_t height) {
+    vk_destroy_swapchain(vk_context);
+    vk_create_swapchain(vk_context, width, height);
+    for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].render_finished_semaphore);
+        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].image_acquired_semaphore);
+        vk_destroy_fence(vk_context->device, vk_context->frames[i].in_flight_fence);
+
+        vk_create_semaphore(vk_context->device, &vk_context->frames[i].image_acquired_semaphore);
+        vk_create_semaphore(vk_context->device, &vk_context->frames[i].render_finished_semaphore);
+        vk_create_fence(vk_context->device, true, &vk_context->frames[i].in_flight_fence);
+
+        vk_reset_command_pool(vk_context->device, vk_context->frames[i].command_pool);
+    }
+}
+
+void vk_wait_idle(VkContext *vk_context) { vkDeviceWaitIdle(vk_context->device); }
 
 VkResult vk_acquire_next_image(VkContext *vk_context, VkSemaphore signal_semaphore, uint32_t *image_index) {
     VkResult result = vkAcquireNextImageKHR(vk_context->device, vk_context->swapchain, UINT64_MAX, signal_semaphore,

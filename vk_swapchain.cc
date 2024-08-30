@@ -1,5 +1,6 @@
 #include "vk_swapchain.h"
 #include "vk_context.h"
+#include "core/logging.h"
 
 static bool
 select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR *surface_format) {

@@ -1,10 +1,10 @@
 #include "vk_fence.h"
 #include "core/logging.h"
 
-bool vk_create_fence(VkDevice device, VkFenceCreateFlags flags, VkFence *fence) {
+bool vk_create_fence(VkDevice device, bool signaled, VkFence *fence) {
     VkFenceCreateInfo fence_create_info{};
     fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_create_info.flags = flags;
+    fence_create_info.flags = signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
     VkResult result = vkCreateFence(device, &fence_create_info, nullptr, fence);
     return result == VK_SUCCESS;
 }

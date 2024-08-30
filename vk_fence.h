@@ -2,7 +2,7 @@
 
 #include <volk.h>
 
-bool vk_create_fence(VkDevice device, VkFenceCreateFlags flags, VkFence *fence);
+bool vk_create_fence(VkDevice device, bool signaled, VkFence *fence);
 
 void vk_destroy_fence(VkDevice device, VkFence fence);
 

@@ -15,7 +15,7 @@ void create_window(PlatformContext *platform_context, uint16_t width, uint16_t h
 void platform_init(PlatformContext *platform_context) {
     SDL_bool succeed = SDL_Init(SDL_INIT_VIDEO);
     ASSERT_MESSAGE(succeed == SDL_TRUE, "SDL_Init failed: %s", SDL_GetError());
-    create_window(platform_context, 320, 240);
+    create_window(platform_context, 640, 480);
     event_system_create(&platform_context->event_system_state);
     input_system_create(&platform_context->input_system_state);
     app_create(platform_context->window, &platform_context->app);
@@ -98,10 +98,13 @@ void platform_main_loop(PlatformContext *platform_context) {
                 if (event.key.key == SDLK_RIGHT) {
                     app_key_down(platform_context->app, event.key.key);
                 }
+            } else if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+                app_resize(platform_context->app, event.window.data1, event.window.data2);
             }
             if (quit) { break; }
-        }
+        } // end polling events
 
+        if (platform_context->app->is_resizing) { continue; }
         app_update(platform_context->app);
     }
 }
