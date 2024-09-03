@@ -16,3 +16,6 @@
 [submodule "third-party/cgltf"]
 	path = third-party/cgltf
 	url = git@github.com:awkr/cgltf.git
+[submodule "third-party/microprofile"]
+	path = third-party/microprofile
+	url = git@github.com:jonasmr/microprofile.git

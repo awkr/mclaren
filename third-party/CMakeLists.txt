@@ -43,3 +43,4 @@ target_include_directories(imgui SYSTEM PUBLIC ${IMGUI_DIR})
 
 add_subdirectory(glm)
 add_subdirectory(cgltf)
+add_subdirectory(microprofile)

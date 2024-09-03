@@ -19,7 +19,7 @@ void vk_create_descriptor_pool(VkDevice device, uint32_t max_sets, const std::ve
                                VkDescriptorPool *descriptor_pool) {
     VkDescriptorPoolCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    create_info.flags = 0;
     create_info.maxSets = max_sets;
     create_info.poolSizeCount = pool_sizes.size();
     create_info.pPoolSizes = pool_sizes.data();
@@ -36,16 +36,15 @@ void vk_reset_descriptor_pool(VkDevice device, VkDescriptorPool descriptor_pool)
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout layout,
-                                VkDescriptorSet *descriptor_set) {
+VkResult vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout layout,
+                                    VkDescriptorSet *descriptor_set) {
     VkDescriptorSetAllocateInfo allocate_info{};
     allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocate_info.descriptorPool = descriptor_pool;
     allocate_info.descriptorSetCount = 1;
     allocate_info.pSetLayouts = &layout;
 
-    VkResult result = vkAllocateDescriptorSets(device, &allocate_info, descriptor_set);
-    ASSERT(result == VK_SUCCESS);
+    return vkAllocateDescriptorSets(device, &allocate_info, descriptor_set);
 }
 
 void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set) {

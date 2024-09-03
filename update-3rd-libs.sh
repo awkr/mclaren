@@ -17,3 +17,7 @@ popd
 pushd third-party/VulkanMemoryAllocator
   git pull
 popd
+
+pushd third-party/microprofile
+  git pull
+popd

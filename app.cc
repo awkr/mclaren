@@ -12,6 +12,7 @@
 #include "vk_image.h"
 #include "vk_image_view.h"
 #include "vk_descriptor.h"
+#include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
 #include "vk_swapchain.h"
 #include "vk_buffer.h"
@@ -27,6 +28,11 @@ glm::mat4 clip = glm::mat4(
         0.0f, 0.0f, 0.0f, 1.0f  // 4th column
         // clang-format on
 );
+
+struct GlobalState {
+    glm::mat4 view;
+    glm::mat4 projection;
+};
 
 void create_color_image(App *app, VkFormat format) {
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -72,51 +78,63 @@ void create_depth_image(App *app, VkFormat format) {
     vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 }
 
-void app_create(SDL_Window *window, App **app) {
+void create_pipelines() {}
+
+void app_create(SDL_Window *window, App **out_app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
 
-    *app = new App();
-    (*app)->window = window;
-    (*app)->vk_context = new VkContext();
-    vk_init((*app)->vk_context, window, width, height);
+    App *app = new App();
+    app->window = window;
+    app->vk_context = new VkContext();
 
-    VkContext *vk_context = (*app)->vk_context;
+    vk_init(app->vk_context, window, width, height);
+
+    VkContext *vk_context = app->vk_context;
+
+    ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
+
+    for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+        RenderFrame *frame = &app->frames[i];
+        vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &frame->command_pool);
+        vk_alloc_command_buffers(vk_context->device, app->frames[i].command_pool, 1, &frame->command_buffer);
+
+        vk_create_fence(vk_context->device, true, &frame->in_flight_fence);
+        vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
+        vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
+
+        uint32_t max_sets = 1; // ??
+        std::vector<DescriptorPoolSizeRatio> size_ratios;
+        size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
+        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
+    }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    create_color_image(*app, color_image_format);
+    create_color_image(app, color_image_format);
 
     VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
-    create_depth_image(*app, depth_image_format);
+    create_depth_image(app, depth_image_format);
 
-    // create a descriptor pool that holds `max_sets` sets with 1 image each
-    uint32_t max_sets = 1;
-    std::vector<VkDescriptorPoolSize> pool_sizes;
-    pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * max_sets});
-    vk_create_descriptor_pool(vk_context->device, max_sets, pool_sizes, &(*app)->descriptor_pool);
-
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
-    bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr});
-    vk_create_descriptor_set_layout(vk_context->device, bindings, &(*app)->descriptor_set_layout);
-
-    vk_allocate_descriptor_set(vk_context->device, (*app)->descriptor_pool, (*app)->descriptor_set_layout,
-                               &(*app)->descriptor_set);
-
-    VkDescriptorImageInfo image_info{};
-    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    image_info.imageView = (*app)->color_image_view;
-
-    vk_update_descriptor_set(vk_context->device, (*app)->descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                             &image_info);
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr});
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_image_descriptor_set_layout);
+    }
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_state_descriptor_set_layout);
+    }
 
     {// create compute pipeline
         VkShaderModule compute_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
-        vk_create_pipeline_layout(vk_context->device, (*app)->descriptor_set_layout, nullptr,
-                                  &(*app)->compute_pipeline_layout);
-        vk_create_compute_pipeline(vk_context->device, (*app)->compute_pipeline_layout, compute_shader_module,
-                                   &(*app)->compute_pipeline);
+        vk_create_pipeline_layout(vk_context->device, app->single_image_descriptor_set_layout, nullptr,
+                                  &app->compute_pipeline_layout);
+        vk_create_compute_pipeline(vk_context->device, app->compute_pipeline_layout, compute_shader_module,
+                                   &app->compute_pipeline);
 
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
@@ -133,21 +151,21 @@ void app_create(SDL_Window *window, App **app) {
         push_constant_range.size = sizeof(MeshPushConstants);
 
         vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &push_constant_range,
-                                  &(*app)->mesh_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, (*app)->mesh_pipeline_layout, color_image_format,
+                                  &app->mesh_pipeline_layout);
+        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format,
                                     depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
                                                          {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
-                                    &(*app)->mesh_pipeline);
+                                    &app->mesh_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
     // create ui
-    (*app)->gui_context = ImGui::CreateContext();
+    // (*app)->gui_context = ImGui::CreateContext();
 
     // load_gltf((*app)->vk_context, "models/cube.gltf", &(*app)->geometry);
-    load_gltf((*app)->vk_context, "models/chinese-dragon.gltf", &(*app)->geometry);
+    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->geometry);
 
     {
         Vertex vertices[4];
@@ -160,12 +178,15 @@ void app_create(SDL_Window *window, App **app) {
         vertices[3] = {{0.5f, 0.5f, 0.0f},
                        {1.0f, 0.0f, 0.0f, 0.5f}};
         uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
-        create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t), &(*app)->mesh_buffer);
+        create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t),
+                           &app->mesh_buffer);
     }
 
-    create_camera(&(*app)->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+    create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
-    (*app)->frame_number = 0;
+    app->frame_number = 0;
+
+    *out_app = app;
 }
 
 void app_destroy(App *app) {
@@ -179,20 +200,27 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
 
-    ImGui::DestroyContext(app->gui_context);
+    // ImGui::DestroyContext(app->gui_context);
 
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
 
-    vk_free_descriptor_set(app->vk_context->device, app->descriptor_pool, app->descriptor_set);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
-    vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pool);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_state_descriptor_set_layout);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_image_descriptor_set_layout);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_allocation);
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
     vk_destroy_image(app->vk_context, app->color_image, app->color_image_allocation);
+
+    for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+        vk_descriptor_allocator_destroy(app->vk_context->device, app->frames[i].descriptor_allocator);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
+        vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
+        vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
+    }
 
     vk_terminate(app->vk_context);
     delete app->vk_context;
@@ -201,8 +229,22 @@ void app_destroy(App *app) {
 
 void draw_background(const App *app, VkCommandBuffer command_buffer) {
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
+
+    const RenderFrame *frame = &app->frames[app->frame_index];
+
+    VkDescriptorSet descriptor_set;
+    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
+                                  app->single_image_descriptor_set_layout, &descriptor_set);
+
+    VkDescriptorImageInfo image_info = {};
+    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    image_info.imageView = app->color_image_view;
+
+    vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                             &image_info);
+
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
-                                    &app->descriptor_set, 0, nullptr);
+                                    &descriptor_set, 0, nullptr);
     vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
@@ -283,10 +325,12 @@ void app_update(App *app) {
 
     camera_update(&app->camera);
 
-    Frame *frame = &app->vk_context->frames[app->frame_index];
+    RenderFrame *frame = &app->frames[app->frame_index];
 
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
+
+    vk_descriptor_allocator_reset(app->vk_context->device, frame->descriptor_allocator);
 
     uint32_t image_index;
     VkResult result = vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
@@ -362,9 +406,19 @@ void app_update(App *app) {
 }
 
 void app_resize(App *app, uint32_t width, uint32_t height) {
-    app->is_resizing = true;
+    vk_resize(app->vk_context, width, height);
 
-    vk_wait_idle(app->vk_context);
+    for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
+        vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
+
+        vk_create_semaphore(app->vk_context->device, &app->frames[i].image_acquired_semaphore);
+        vk_create_semaphore(app->vk_context->device, &app->frames[i].render_finished_semaphore);
+        vk_create_fence(app->vk_context->device, true, &app->frames[i].in_flight_fence);
+
+        vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
+    }
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_allocation);
@@ -372,22 +426,8 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
     vk_destroy_image(app->vk_context, app->color_image, app->color_image_allocation);
 
-    vk_resize(app->vk_context, width, height);
-
-    VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    create_color_image(app, color_image_format);
-
-    VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
-    create_depth_image(app, depth_image_format);
-
-    VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    descriptor_image_info.imageView = app->color_image_view;
-
-    vk_update_descriptor_set(app->vk_context->device, app->descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                             &descriptor_image_info);
-
-    app->is_resizing = false;
+    create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
+    create_depth_image(app, VK_FORMAT_D32_SFLOAT);
 }
 
 void app_key_up(App *app, uint32_t key) {

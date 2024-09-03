@@ -104,7 +104,6 @@ void platform_main_loop(PlatformContext *platform_context) {
             if (quit) { break; }
         } // end polling events
 
-        if (platform_context->app->is_resizing) { continue; }
         app_update(platform_context->app);
     }
 }

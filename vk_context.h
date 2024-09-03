@@ -4,17 +4,6 @@
 #include <vector>
 #include <vk_mem_alloc.h>
 
-#define FRAMES_IN_FLIGHT 2
-
-struct Frame {
-    VkCommandPool command_pool;
-    VkCommandBuffer command_buffer;
-
-    VkSemaphore image_acquired_semaphore;
-    VkSemaphore render_finished_semaphore;
-    VkFence in_flight_fence;
-};
-
 struct VkContext {
     uint32_t api_version;
     bool is_debugging_mode;
@@ -34,6 +23,4 @@ struct VkContext {
     std::vector<VkImageView> swapchain_image_views;
 
     VkCommandPool command_pool;
-
-    Frame frames[FRAMES_IN_FLIGHT];
 };

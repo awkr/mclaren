@@ -3,6 +3,11 @@
 
 layout (location = 0) out vec4 out_color;
 
+layout (set = 0, binding = 0) uniform GlobalState {
+    mat4 view;
+    mat4 projection;
+} global_state;
+
 struct Vertex {
     vec3 position;
     vec4 color;

@@ -8,6 +8,7 @@
 #include "vk_fence.h"
 #include "vk_semaphore.h"
 #include "vk_allocator.h"
+#include "vk_descriptor_allocator.h"
 #include "core/logging.h"
 #include <SDL3/SDL_vulkan.h>
 
@@ -19,31 +20,11 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
     vk_create_device(vk_context);
     vk_create_allocator(vk_context);
     vk_create_swapchain(vk_context, width, height);
-
-    ASSERT(vk_context->swapchain_image_count >= FRAMES_IN_FLIGHT);
-
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index,
-                               &vk_context->frames[i].command_pool);
-        vk_alloc_command_buffers(vk_context->device, vk_context->frames[i].command_pool, 1,
-                                 &vk_context->frames[i].command_buffer);
-
-        vk_create_fence(vk_context->device, true, &vk_context->frames[i].in_flight_fence);
-        vk_create_semaphore(vk_context->device, &vk_context->frames[i].image_acquired_semaphore);
-        vk_create_semaphore(vk_context->device, &vk_context->frames[i].render_finished_semaphore);
-    }
-
     vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &vk_context->command_pool);
 }
 
 void vk_terminate(VkContext *vk_context) {
     vk_destroy_command_pool(vk_context->device, vk_context->command_pool);
-    for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].render_finished_semaphore);
-        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].image_acquired_semaphore);
-        vk_destroy_fence(vk_context->device, vk_context->frames[i].in_flight_fence);
-        vk_destroy_command_pool(vk_context->device, vk_context->frames[i].command_pool);
-    }
     vk_destroy_swapchain(vk_context);
     vk_destroy_allocator(vk_context);
     vk_destroy_device(vk_context);
@@ -52,19 +33,9 @@ void vk_terminate(VkContext *vk_context) {
 }
 
 void vk_resize(VkContext *vk_context, uint32_t width, uint32_t height) {
+    vk_wait_idle(vk_context);
     vk_destroy_swapchain(vk_context);
     vk_create_swapchain(vk_context, width, height);
-    for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].render_finished_semaphore);
-        vk_destroy_semaphore(vk_context->device, vk_context->frames[i].image_acquired_semaphore);
-        vk_destroy_fence(vk_context->device, vk_context->frames[i].in_flight_fence);
-
-        vk_create_semaphore(vk_context->device, &vk_context->frames[i].image_acquired_semaphore);
-        vk_create_semaphore(vk_context->device, &vk_context->frames[i].render_finished_semaphore);
-        vk_create_fence(vk_context->device, true, &vk_context->frames[i].in_flight_fence);
-
-        vk_reset_command_pool(vk_context->device, vk_context->frames[i].command_pool);
-    }
 }
 
 void vk_wait_idle(VkContext *vk_context) { vkDeviceWaitIdle(vk_context->device); }

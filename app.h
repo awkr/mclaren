@@ -9,12 +9,28 @@
 struct VkContext;
 struct SDL_Window;
 struct ImGuiContext;
+struct DescriptorAllocator;
+
+#define FRAMES_IN_FLIGHT 2
+
+struct RenderFrame {
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+
+    VkSemaphore image_acquired_semaphore;
+    VkSemaphore render_finished_semaphore;
+    VkFence in_flight_fence;
+
+    DescriptorAllocator *descriptor_allocator;
+};
 
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
     uint64_t frame_number;
     uint32_t frame_index;
+
+    RenderFrame frames[FRAMES_IN_FLIGHT];
 
     VkImage color_image;
     VmaAllocation color_image_allocation;
@@ -24,9 +40,8 @@ struct App {
     VmaAllocation depth_image_allocation;
     VkImageView depth_image_view;
 
-    VkDescriptorPool descriptor_pool;
-    VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorSet descriptor_set;
+    VkDescriptorSetLayout single_image_descriptor_set_layout;
+    VkDescriptorSetLayout global_state_descriptor_set_layout;
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
@@ -40,11 +55,9 @@ struct App {
     Camera camera;
 
     ImGuiContext *gui_context;
-
-    bool is_resizing;
 };
 
-void app_create(SDL_Window *window, App **app);
+void app_create(SDL_Window *window, App **out_app);
 
 void app_destroy(App *app);
 
