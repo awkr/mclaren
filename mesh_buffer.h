@@ -16,16 +16,6 @@ struct MeshBuffer {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
-struct MeshPushConstants {
-    glm::mat4 model;
-
-    // todo these two should be passed via global uniform buffer object
-    glm::mat4 view;
-    glm::mat4 projection;
-
-    VkDeviceAddress vertex_buffer_device_address;
-};
-
 void create_mesh_buffer(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
                         const void *indices, uint32_t index_count, uint32_t index_stride, MeshBuffer *mesh_buffer);
 

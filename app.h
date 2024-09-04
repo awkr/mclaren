@@ -22,6 +22,18 @@ struct RenderFrame {
     VkFence in_flight_fence;
 
     DescriptorAllocator *descriptor_allocator;
+
+    Buffer global_state_buffer;
+};
+
+struct GlobalState {
+    glm::mat4 view;
+    glm::mat4 projection;
+};
+
+struct InstanceState {
+    glm::mat4 model;
+    VkDeviceAddress vertex_buffer_device_address;
 };
 
 struct App {
@@ -53,6 +65,7 @@ struct App {
     MeshBuffer mesh_buffer;
 
     Camera camera;
+    GlobalState global_state;
 
     ImGuiContext *gui_context;
 };

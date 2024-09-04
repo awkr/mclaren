@@ -21,18 +21,13 @@
 
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
-        // clang-format off
-        1.0f, 0.0f, 0.0f, 0.0f, // 1st column
-        0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
-        0.0f, 0.0f, 0.5f, 0.5f, // 3rd column
-        0.0f, 0.0f, 0.0f, 1.0f  // 4th column
-        // clang-format on
+    // clang-format off
+    1.0f,  0.0f, 0.0f, 0.0f, // 1st column
+    0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
+    0.0f,  0.0f, 0.5f, 0.5f, // 3rd column
+    0.0f,  0.0f, 0.0f, 1.0f  // 4th column
+    // clang-format on
 );
-
-struct GlobalState {
-    glm::mat4 view;
-    glm::mat4 projection;
-};
 
 void create_color_image(App *app, VkFormat format) {
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -78,8 +73,6 @@ void create_depth_image(App *app, VkFormat format) {
     vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 }
 
-void create_pipelines() {}
-
 void app_create(SDL_Window *window, App **out_app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
@@ -103,11 +96,14 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 1; // ??
+        uint32_t max_sets = 2; // ??
         std::vector<DescriptorPoolSizeRatio> size_ratios;
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
         vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
+
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                         VMA_MEMORY_USAGE_CPU_TO_GPU, &frame->global_state_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -148,9 +144,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(MeshPushConstants);
+        push_constant_range.size = sizeof(InstanceState);
 
-        vk_create_pipeline_layout(vk_context->device, VK_NULL_HANDLE, &push_constant_range,
+        vk_create_pipeline_layout(vk_context->device, app->global_state_descriptor_set_layout, &push_constant_range,
                                   &app->mesh_pipeline_layout);
         vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format,
                                     depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
@@ -164,19 +160,17 @@ void app_create(SDL_Window *window, App **out_app) {
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
-    // load_gltf((*app)->vk_context, "models/cube.gltf", &(*app)->geometry);
+    // load_gltf(app->vk_context, "models/cube.gltf", &app->geometry);
     load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->geometry);
 
     {
         Vertex vertices[4];
-        vertices[0] = {{-0.5f, -0.5f, 0.0f},
-                       {1.0f,  0.0f,  0.0f, 0.5f}};
-        vertices[1] = {{0.5f, -0.5f, 0.0f},
-                       {1.0f, 0.0f,  0.0f, 0.5f}};
-        vertices[2] = {{-0.5f, 0.5f, 0.0f},
-                       {1.0f,  0.0f, 0.0f, 0.5f}};
-        vertices[3] = {{0.5f, 0.5f, 0.0f},
-                       {1.0f, 0.0f, 0.0f, 0.5f}};
+        // clang-format off
+        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        // clang-format on
         uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
         create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t),
                            &app->mesh_buffer);
@@ -215,6 +209,7 @@ void app_destroy(App *app) {
     vk_destroy_image(app->vk_context, app->color_image, app->color_image_allocation);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+        vk_destroy_buffer(app->vk_context, &app->frames[i].global_state_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, app->frames[i].descriptor_allocator);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
@@ -228,28 +223,30 @@ void app_destroy(App *app) {
 }
 
 void draw_background(const App *app, VkCommandBuffer command_buffer) {
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
-
     const RenderFrame *frame = &app->frames[app->frame_index];
+
+    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
 
     VkDescriptorSet descriptor_set;
     vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
                                   app->single_image_descriptor_set_layout, &descriptor_set);
 
     VkDescriptorImageInfo image_info = {};
-    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     image_info.imageView = app->color_image_view;
+    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                              &image_info);
 
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
-                                    &descriptor_set, 0, nullptr);
+                                    &descriptor_set);
     vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
 void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
+    const RenderFrame *frame = &app->frames[app->frame_index];
+
     VkRenderingAttachmentInfo color_attachment = {};
     color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     color_attachment.imageView = image_view;
@@ -274,27 +271,33 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
-    glm::mat4 view = app->camera.view_matrix;
+    vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
-    glm::mat4 projection = glm::mat4(1.0f);
-    float z_near = 0.1f, z_far = 1000.0f;
-    projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width /
-                                                       (float) app->vk_context->swapchain_extent.height,
-                                  z_near, z_far);
-    projection = clip * projection;
+    VkDescriptorSet descriptor_set;
+    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
+                                  app->global_state_descriptor_set_layout, &descriptor_set);
+
+    VkDescriptorBufferInfo buffer_info = {};
+    buffer_info.buffer = frame->global_state_buffer.handle;
+    buffer_info.offset = 0;
+    buffer_info.range = sizeof(GlobalState);
+
+    vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                             &buffer_info);
+
+    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, 0, 1,
+                                    &descriptor_set);
 
     for (const Mesh &mesh: app->geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
 
-        MeshPushConstants mesh_instance_state{};
-        mesh_instance_state.model = model;
-        mesh_instance_state.view = view;
-        mesh_instance_state.projection = projection;
-        mesh_instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+        InstanceState instance_state{};
+        instance_state.model = model;
+        instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
         vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                                  sizeof(MeshPushConstants), &mesh_instance_state);
+                                  sizeof(InstanceState), &instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
             vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
@@ -306,13 +309,12 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 1.0f));
 
-        MeshPushConstants mesh_instance_state{};
-        mesh_instance_state.model = model;
-        mesh_instance_state.view = view;
-        mesh_instance_state.projection = projection;
-        mesh_instance_state.vertex_buffer_device_address = app->mesh_buffer.vertex_buffer_device_address;
+        InstanceState instance_state{};
+        instance_state.model = model;
+        instance_state.vertex_buffer_device_address = app->mesh_buffer.vertex_buffer_device_address;
+
         vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                                  sizeof(MeshPushConstants), &mesh_instance_state);
+                                  sizeof(InstanceState), &instance_state);
         vk_command_bind_index_buffer(command_buffer, app->mesh_buffer.index_buffer.handle, 0);
         vk_command_draw_indexed(command_buffer, 6);
     }
@@ -320,10 +322,23 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
     vk_command_end_rendering(command_buffer);
 }
 
-void app_update(App *app) {
-    app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
-
+void update_scene(App *app) {
     camera_update(&app->camera);
+
+    app->global_state.view = app->camera.view_matrix;
+
+    glm::mat4 projection = glm::mat4(1.0f);
+    float z_near = 0.1f, z_far = 200.0f;
+    projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
+    projection = clip * projection;
+
+    app->global_state.projection = projection;
+}
+
+void app_update(App *app) {
+    update_scene(app);
+
+    app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
 
     RenderFrame *frame = &app->frames[app->frame_index];
 

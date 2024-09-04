@@ -34,7 +34,7 @@ set(VK_SRCS
 
 add_executable(mclaren main.cc ${PLATFORM_SRCS} ${APP_SRCS} ${CORE_SRCS} ${VK_SRCS})
 target_include_directories(mclaren PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(mclaren PRIVATE volk SDL3-static VulkanMemoryAllocator imgui glm cgltf)
+target_link_libraries(mclaren PRIVATE volk SDL3-static VulkanMemoryAllocator imgui glm cgltf microprofile)
 target_compile_definitions(mclaren PRIVATE VK_NO_PROTOTYPES)
 
 if (IOS)

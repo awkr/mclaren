@@ -64,3 +64,15 @@ vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32
     write_descriptor_set.pImageInfo = image_info;
     vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
 }
+
+void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding,
+                              VkDescriptorType descriptor_type, const VkDescriptorBufferInfo *buffer_info) {
+    VkWriteDescriptorSet write_descriptor_set = {};
+    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set.dstSet = descriptor_set;
+    write_descriptor_set.dstBinding = binding;
+    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.descriptorType = descriptor_type;
+    write_descriptor_set.pBufferInfo = buffer_info;
+    vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
+}
