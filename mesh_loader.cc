@@ -60,6 +60,8 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
                     indices[index_offset + index] = *(uint8_t *) idx;
                 } else if (primitive->indices->component_type == cgltf_component_type_r_16u) {
                     indices[index_offset + index] = *(uint16_t *) idx;
+                } else if (primitive->indices->component_type == cgltf_component_type_r_32u) {
+                    indices[index_offset + index] = *(uint32_t *) idx;
                 } else {
                     ASSERT_MESSAGE(false, "unsupported index component type - %d", primitive->indices->component_type);
                 }

@@ -18,6 +18,7 @@
 #include "vk_buffer.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
+#include <microprofile.h>
 
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
@@ -162,6 +163,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     // load_gltf(app->vk_context, "models/cube.gltf", &app->geometry);
     load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->geometry);
+    // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->geometry);
 
     {
         Vertex vertices[4];
@@ -244,12 +246,12 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView image_view) {
+void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
     const RenderFrame *frame = &app->frames[app->frame_index];
 
     VkRenderingAttachmentInfo color_attachment = {};
     color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color_attachment.imageView = image_view;
+    color_attachment.imageView = app->color_image_view;
     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -290,7 +292,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
 
     for (const Mesh &mesh: app->geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
+        model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f));
 
         InstanceState instance_state{};
         instance_state.model = model;
@@ -307,7 +309,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer, VkImageView i
 
     {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 1.0f));
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
 
         InstanceState instance_state{};
         instance_state.model = model;
@@ -377,7 +379,7 @@ void app_update(App *app) {
                                    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        draw_geometry(app, command_buffer, app->color_image_view);
+        draw_geometry(app, command_buffer);
 
         vk_transition_image_layout(command_buffer, app->color_image,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
