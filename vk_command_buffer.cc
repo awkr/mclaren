@@ -1,5 +1,8 @@
 #include "vk_command_buffer.h"
+#include "vk_context.h"
+#include "vk_fence.h"
 #include "vk_image.h"
+#include "vk_queue.h"
 #include "core/logging.h"
 
 bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
@@ -73,6 +76,22 @@ VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaph
         submit_info.pSignalSemaphoreInfos = signal_semaphore;
     }
     return submit_info;
+}
+
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func) {
+    VkCommandBuffer command_buffer;
+    vk_alloc_command_buffers(vk_context->device, vk_context->command_pool, 1, &command_buffer);
+    vk_begin_one_flight_command_buffer(command_buffer);
+    func(command_buffer);
+    vk_end_command_buffer(command_buffer);
+
+    VkFence fence;
+    vk_create_fence(vk_context->device, false, &fence);
+
+    vk_queue_submit(vk_context->graphics_queue, command_buffer, fence); // todo: 区分 graphics queue 和 transfer queue
+
+    vk_wait_fence(vk_context->device, fence);
+    vk_destroy_fence(vk_context->device, fence);
 }
 
 void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
@@ -195,4 +214,20 @@ vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer ds
     buffer_copy_info.pRegions = &buffer_copy;
 
     vkCmdCopyBuffer2KHR(command_buffer, &buffer_copy_info);
+}
+
+void vk_command_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout,
+                                     uint32_t width, uint32_t height) {
+    VkBufferImageCopy buffer_image_copy{};
+    buffer_image_copy.bufferOffset = 0;
+    buffer_image_copy.bufferRowLength = 0;
+    buffer_image_copy.bufferImageHeight = 0;
+    buffer_image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    buffer_image_copy.imageSubresource.mipLevel = 0;
+    buffer_image_copy.imageSubresource.baseArrayLayer = 0;
+    buffer_image_copy.imageSubresource.layerCount = 1;
+    buffer_image_copy.imageOffset = {0, 0, 0};
+    buffer_image_copy.imageExtent = {width, height, 1};
+
+    vkCmdCopyBufferToImage(command_buffer, src, dst, layout, 1, &buffer_image_copy);
 }

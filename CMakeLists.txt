@@ -23,6 +23,7 @@ set(VK_SRCS
         vk_semaphore.cc
         vk_image.cc
         vk_image_view.cc
+        vk_sampler.cc
         vk_buffer.cc
         vk_queue.cc
         vk_descriptor.cc

@@ -14,6 +14,7 @@
 #include "vk_descriptor.h"
 #include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
+#include "vk_sampler.h"
 #include "vk_swapchain.h"
 #include "vk_buffer.h"
 #include <SDL3/SDL.h>
@@ -36,24 +37,23 @@ void create_color_image(App *app, VkFormat format) {
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height,
-                    format, usage, &app->color_image, &app->color_image_allocation);
-    vk_create_image_view(app->vk_context->device, app->color_image, format, VK_IMAGE_ASPECT_COLOR_BIT,
-                         &app->color_image_view);
+                    format, usage, false, &app->color_image);
+    vk_create_image_view(app->vk_context->device, app->color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT,
+                         app->color_image->mip_levels, &app->color_image_view);
 }
 
 void create_depth_image(App *app, VkFormat format) {
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height,
-                    format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &app->depth_image,
-                    &app->depth_image_allocation);
-    vk_create_image_view(app->vk_context->device, app->depth_image, format, VK_IMAGE_ASPECT_DEPTH_BIT,
-                         &app->depth_image_view);
+                    format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false, &app->depth_image);
+    vk_create_image_view(app->vk_context->device, app->depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT,
+                         app->depth_image->mip_levels, &app->depth_image_view);
 
     // transition depth image layout once and for all
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
     vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
 
     vk_begin_one_flight_command_buffer(command_buffer);
-    vk_transition_image_layout(command_buffer, app->depth_image,
+    vk_transition_image_layout(command_buffer, app->depth_image->image,
                                VK_PIPELINE_STAGE_2_NONE,
                                VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
                                VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -158,6 +158,27 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
+    {
+        // create default gray image
+        uint32_t gray = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1.0f));
+        vk_create_image_from_data(vk_context, &gray, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_gray_image);
+
+        // create default checkerboard image
+        uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+        uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+        uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
+        for (uint8_t x = 0; x < 16; ++x) {
+            for (uint8_t y = 0; y < 16; ++y) {
+                pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            }
+        }
+        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
+
+        // create default sampler(s)
+        vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
+        vk_create_sampler(vk_context->device, VK_FILTER_LINEAR, VK_FILTER_LINEAR, &app->default_sampler_linear);
+    }
+
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
@@ -193,6 +214,11 @@ void app_destroy(App *app) {
     destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
     destroy_geometry(app->vk_context, &app->geometry);
 
+    vk_destroy_sampler(app->vk_context->device, app->default_sampler_linear);
+    vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
+    vk_destroy_image(app->vk_context, app->default_checkerboard_image);
+    vk_destroy_image(app->vk_context, app->default_gray_image);
+
     vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
 
@@ -205,10 +231,10 @@ void app_destroy(App *app) {
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_image_descriptor_set_layout);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_allocation);
+    vk_destroy_image(app->vk_context, app->depth_image);
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-    vk_destroy_image(app->vk_context, app->color_image, app->color_image_allocation);
+    vk_destroy_image(app->vk_context, app->color_image);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_buffer(app->vk_context, &app->frames[i].global_state_buffer);
@@ -361,7 +387,7 @@ void app_update(App *app) {
     {
         vk_begin_one_flight_command_buffer(command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image,
+        vk_transition_image_layout(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                                    VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -372,7 +398,7 @@ void app_update(App *app) {
 
         draw_background(app, command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image,
+        vk_transition_image_layout(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
@@ -381,7 +407,7 @@ void app_update(App *app) {
 
         draw_geometry(app, command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image,
+        vk_transition_image_layout(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
@@ -396,7 +422,7 @@ void app_update(App *app) {
                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkExtent2D extent = {app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height};
-        vk_command_blit_image(command_buffer, app->color_image, swapchain_image, &extent);
+        vk_command_blit_image(command_buffer, app->color_image->image, swapchain_image, &extent);
 
         vk_transition_image_layout(command_buffer, swapchain_image,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -438,10 +464,10 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     }
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_allocation);
+    vk_destroy_image(app->vk_context, app->depth_image);
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-    vk_destroy_image(app->vk_context, app->color_image, app->color_image_allocation);
+    vk_destroy_image(app->vk_context, app->color_image);
 
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);

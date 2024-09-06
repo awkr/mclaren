@@ -33,7 +33,7 @@ BasedOnStyle: LLVM
 #BreakBeforeTernaryOperators: true
 #BreakConstructorInitializers: BeforeColon
 #BreakInheritanceList: BeforeColon
-ColumnLimit: 120
+ColumnLimit: 0
 #CompactNamespaces: false
 #ContinuationIndentWidth: 8
 #IndentCaseLabels: true

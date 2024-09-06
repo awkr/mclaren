@@ -19,3 +19,6 @@
 [submodule "third-party/microprofile"]
 	path = third-party/microprofile
 	url = git@github.com:jonasmr/microprofile.git
+[submodule "third-party/meshoptimizer"]
+	path = third-party/meshoptimizer
+	url = git@github.com:zeux/meshoptimizer.git

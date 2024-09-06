@@ -35,24 +35,10 @@ void create_mesh_buffer(VkContext *vk_context, const void *vertices, uint32_t ve
     memcpy(dst, vertices, vertex_buffer_size);
     memcpy((void *) ((uintptr_t) dst + vertex_buffer_size), indices, index_buffer_size);
 
-    VkCommandBuffer command_buffer;
-    vk_alloc_command_buffers(vk_context->device, vk_context->command_pool, 1, &command_buffer);
-    vk_begin_one_flight_command_buffer(command_buffer);
-
-    vk_command_copy_buffer(command_buffer, staging_buffer.handle, mesh_buffer->vertex_buffer.handle,
-                           vertex_buffer_size, 0, 0);
-    vk_command_copy_buffer(command_buffer, staging_buffer.handle, mesh_buffer->index_buffer.handle, index_buffer_size,
-                           vertex_buffer_size, 0);
-
-    vk_end_command_buffer(command_buffer);
-
-    VkFence fence;
-    vk_create_fence(vk_context->device, false, &fence);
-
-    vk_queue_submit(vk_context->graphics_queue, command_buffer, fence);
-
-    vk_wait_fence(vk_context->device, fence); // make sure data is copied before destroying staging buffer
-    vk_destroy_fence(vk_context->device, fence);
+    vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
+        vk_command_copy_buffer(command_buffer, staging_buffer.handle, mesh_buffer->vertex_buffer.handle, vertex_buffer_size, 0, 0);
+        vk_command_copy_buffer(command_buffer, staging_buffer.handle, mesh_buffer->index_buffer.handle, index_buffer_size, vertex_buffer_size, 0);
+    });
 
     vk_destroy_buffer(vk_context, &staging_buffer);
 }

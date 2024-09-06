@@ -1,6 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <volk.h>
+
+struct VkContext;
 
 bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
                               VkCommandBuffer *command_buffers);
@@ -24,6 +27,8 @@ VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer command_
 
 VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaphoreSubmitInfo *wait_semaphore,
                              VkSemaphoreSubmitInfo *signal_semaphore);
+
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func);
 
 void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
                                   VkClearColorValue *clear_color);
@@ -64,3 +69,6 @@ void vk_command_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_coun
 void
 vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset,
                        uint32_t dst_offset);
+
+void vk_command_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout,
+                                     uint32_t width, uint32_t height);

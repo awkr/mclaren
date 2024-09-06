@@ -9,6 +9,7 @@
 struct VkContext;
 struct SDL_Window;
 struct ImGuiContext;
+struct Image;
 struct DescriptorAllocator;
 
 #define FRAMES_IN_FLIGHT 2
@@ -44,12 +45,10 @@ struct App {
 
     RenderFrame frames[FRAMES_IN_FLIGHT];
 
-    VkImage color_image;
-    VmaAllocation color_image_allocation;
+    Image *color_image;
     VkImageView color_image_view;
 
-    VkImage depth_image;
-    VmaAllocation depth_image_allocation;
+    Image *depth_image;
     VkImageView depth_image_view;
 
     VkDescriptorSetLayout single_image_descriptor_set_layout;
@@ -60,6 +59,11 @@ struct App {
 
     VkPipelineLayout mesh_pipeline_layout;
     VkPipeline mesh_pipeline;
+
+    Image *default_gray_image;
+    Image *default_checkerboard_image;
+    VkSampler default_sampler_nearest;
+    VkSampler default_sampler_linear;
 
     Geometry geometry;
     MeshBuffer mesh_buffer;
