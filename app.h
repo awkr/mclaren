@@ -51,7 +51,8 @@ struct App {
     Image *depth_image;
     VkImageView depth_image_view;
 
-    VkDescriptorSetLayout single_image_descriptor_set_layout;
+    VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
+    VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
     VkDescriptorSetLayout global_state_descriptor_set_layout;
 
     VkPipelineLayout compute_pipeline_layout;
@@ -62,8 +63,8 @@ struct App {
 
     Image *default_gray_image;
     Image *default_checkerboard_image;
+    VkImageView default_checkerboard_image_view;
     VkSampler default_sampler_nearest;
-    VkSampler default_sampler_linear;
 
     Geometry geometry;
     MeshBuffer mesh_buffer;

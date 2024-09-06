@@ -2,6 +2,7 @@
 #extension GL_EXT_buffer_reference : require
 
 layout (location = 0) out vec4 out_color;
+layout (location = 1) out vec2 out_tex_coord;
 
 layout (set = 0, binding = 0) uniform GlobalState {
     mat4 view;
@@ -11,6 +12,7 @@ layout (set = 0, binding = 0) uniform GlobalState {
 struct Vertex {
     vec3 position;
     vec4 color;
+    vec2 tex_coord;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
@@ -26,4 +28,5 @@ void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
     gl_Position = global_state.projection * global_state.view * instance_state.model * vec4(vertex.position, 1.0);
     out_color = vertex.color;
+    out_tex_coord = vertex.tex_coord;
 }

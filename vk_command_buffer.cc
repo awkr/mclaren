@@ -134,8 +134,7 @@ void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoin
 void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
                                      VkPipelineLayout pipeline_layout, uint32_t first_set, uint32_t set_count,
                                      const VkDescriptorSet *descriptor_sets) {
-    vkCmdBindDescriptorSets(command_buffer, bind_point, pipeline_layout, first_set, set_count, descriptor_sets, 0,
-                            nullptr);
+    vkCmdBindDescriptorSets(command_buffer, bind_point, pipeline_layout, first_set, set_count, descriptor_sets, 0, nullptr);
 }
 
 void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {

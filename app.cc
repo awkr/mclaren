@@ -97,10 +97,11 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 2; // ??
+        uint32_t max_sets = 3;
         std::vector<DescriptorPoolSizeRatio> size_ratios;
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        size_ratios.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
         vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
 
         vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -116,20 +117,24 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_image_descriptor_set_layout);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_storage_image_descriptor_set_layout);
     }
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
         vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_state_descriptor_set_layout);
     }
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_combined_image_sampler_descriptor_set_layout);
+    }
 
     {// create compute pipeline
         VkShaderModule compute_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
-        vk_create_pipeline_layout(vk_context->device, app->single_image_descriptor_set_layout, nullptr,
-                                  &app->compute_pipeline_layout);
+        vk_create_pipeline_layout(vk_context->device, 1, &app->single_storage_image_descriptor_set_layout, nullptr, &app->compute_pipeline_layout);
         vk_create_compute_pipeline(vk_context->device, app->compute_pipeline_layout, compute_shader_module,
                                    &app->compute_pipeline);
 
@@ -147,8 +152,10 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(InstanceState);
 
-        vk_create_pipeline_layout(vk_context->device, app->global_state_descriptor_set_layout, &push_constant_range,
-                                  &app->mesh_pipeline_layout);
+        VkDescriptorSetLayout descriptor_set_layouts[2];
+        descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
+        descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
+        vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->mesh_pipeline_layout);
         vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format,
                                     depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT,   vert_shader},
                                                          {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
@@ -166,17 +173,17 @@ void app_create(SDL_Window *window, App **out_app) {
         // create default checkerboard image
         uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
         uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-        uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
-        for (uint8_t x = 0; x < 16; ++x) {
-            for (uint8_t y = 0; y < 16; ++y) {
-                pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+        uint32_t pixels[8 * 8]; // 8x8 checkerboard texture
+        for (uint8_t x = 0; x < 8; ++x) {
+            for (uint8_t y = 0; y < 8; ++y) {
+                pixels[y * 8 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
             }
         }
-        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
+        vk_create_image_from_data(vk_context, pixels, 8, 8, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
+        vk_create_image_view(vk_context->device, app->default_checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->default_checkerboard_image_view);
 
-        // create default sampler(s)
+        // create default sampler
         vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
-        vk_create_sampler(vk_context->device, VK_FILTER_LINEAR, VK_FILTER_LINEAR, &app->default_sampler_linear);
     }
 
     // create ui
@@ -189,10 +196,10 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         Vertex vertices[4];
         // clang-format off
-        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {0.0f, 0.0f}};
+        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {1.0f, 0.0f}};
+        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {0.0f, 1.0f}};
+        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {1.0f, 1.0f}};
         // clang-format on
         uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
         create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t),
@@ -214,8 +221,8 @@ void app_destroy(App *app) {
     destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
     destroy_geometry(app->vk_context, &app->geometry);
 
-    vk_destroy_sampler(app->vk_context->device, app->default_sampler_linear);
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
+    vk_destroy_image_view(app->vk_context->device, app->default_checkerboard_image_view);
     vk_destroy_image(app->vk_context, app->default_checkerboard_image);
     vk_destroy_image(app->vk_context, app->default_gray_image);
 
@@ -227,8 +234,9 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
 
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_state_descriptor_set_layout);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_image_descriptor_set_layout);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image);
@@ -257,7 +265,7 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
 
     VkDescriptorSet descriptor_set;
     vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
-                                  app->single_image_descriptor_set_layout, &descriptor_set);
+                                  app->single_storage_image_descriptor_set_layout, &descriptor_set);
 
     VkDescriptorImageInfo image_info = {};
     image_info.imageView = app->color_image_view;
@@ -299,22 +307,34 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
-    vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+    std::vector<VkDescriptorSet> descriptor_sets;
+    {
+        vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
-    VkDescriptorSet descriptor_set;
-    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
-                                  app->global_state_descriptor_set_layout, &descriptor_set);
+        VkDescriptorSet descriptor_set;
+        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
 
-    VkDescriptorBufferInfo buffer_info = {};
-    buffer_info.buffer = frame->global_state_buffer.handle;
-    buffer_info.offset = 0;
-    buffer_info.range = sizeof(GlobalState);
+        VkDescriptorBufferInfo buffer_info = {};
+        buffer_info.buffer = frame->global_state_buffer.handle;
+        buffer_info.offset = 0;
+        buffer_info.range = sizeof(GlobalState);
+        vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &buffer_info);
 
-    vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                             &buffer_info);
+        descriptor_sets.push_back(descriptor_set);
+    }
+    {
+        VkDescriptorSet descriptor_set;
+        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
 
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, 0, 1,
-                                    &descriptor_set);
+        VkDescriptorImageInfo image_info = {};
+        image_info.sampler = app->default_sampler_nearest;
+        image_info.imageView = app->default_checkerboard_image_view;
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_info);
+
+        descriptor_sets.push_back(descriptor_set);
+    }
+    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, 0, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh: app->geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);

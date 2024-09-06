@@ -36,15 +36,12 @@ void vk_destroy_shader_module(VkDevice device, VkShaderModule shader_module) {
     vkDestroyShaderModule(device, shader_module, nullptr);
 }
 
-void vk_create_pipeline_layout(VkDevice device, VkDescriptorSetLayout descriptor_set_layout,
+void vk_create_pipeline_layout(VkDevice device, uint32_t descriptor_set_layout_count, const VkDescriptorSetLayout *descriptor_set_layouts,
                                const VkPushConstantRange *push_constant, VkPipelineLayout *pipeline_layout) {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-    if (descriptor_set_layout) {
-        pipeline_layout_create_info.setLayoutCount = 1;
-        pipeline_layout_create_info.pSetLayouts = &descriptor_set_layout;
-    }
+    pipeline_layout_create_info.setLayoutCount = descriptor_set_layout_count;
+    pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
 
     if (push_constant) {
         pipeline_layout_create_info.pushConstantRangeCount = 1;
