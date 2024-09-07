@@ -28,6 +28,7 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
             log_debug("primitive index: %zu", primitive_index);
 
             geometry->meshes[mesh_index].primitives[primitive_index].index_offset = indices.size();
+            ASSERT(primitive->indices);
             geometry->meshes[mesh_index].primitives[primitive_index].index_count = primitive->indices->count;
 
             uint32_t vertex_offset = vertices.size();
@@ -48,6 +49,11 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
                                               attribute->data->buffer_view->offset +
                                               vertex_index * attribute->data->stride);
                         memcpy(vertices[vertex_offset + vertex_index].pos, pos, attribute->data->stride);
+                    }
+                } else if (strcmp(attribute->name, "TEXCOORD_0") == 0) {
+                    for (uint32_t vertex_index = 0; vertex_index < vertex_count; ++vertex_index) {
+                        void *tex_coord = (void *) ((uintptr_t) attribute->data->buffer_view->buffer->data + attribute->data->buffer_view->offset + vertex_index * attribute->data->stride);
+                        memcpy(vertices[vertex_offset + vertex_index].tex_coord, tex_coord, attribute->data->stride);
                     }
                 }
             }
