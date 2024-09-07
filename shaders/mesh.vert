@@ -1,5 +1,6 @@
 #version 460 core
 #extension GL_EXT_buffer_reference : require
+#extension GL_GOOGLE_include_directive : require
 
 layout (location = 0) out vec4 out_color;
 layout (location = 1) out vec2 out_tex_coord;
@@ -13,6 +14,7 @@ struct Vertex {
     vec3 position;
     vec4 color;
     vec2 tex_coord;
+    vec3 normal;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {

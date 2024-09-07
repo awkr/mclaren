@@ -9,6 +9,7 @@ struct Vertex {
     alignas(16) float pos[3];
     alignas(16) float color[4] = {1.0f, 1.0f, 1.0f, 1.0f}; // 默认白色
     alignas(16) float tex_coord[2];
+    alignas(16) float normal[3];
 };
 
 struct MeshBuffer {

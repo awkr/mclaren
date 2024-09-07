@@ -1,5 +1,7 @@
 #version 460 core
 
+#extension GL_GOOGLE_include_directive : require
+
 layout (location = 0) in  vec4 color;
 layout (location = 1) in  vec2 tex_coord;
 layout (location = 0) out vec4 frag_color;

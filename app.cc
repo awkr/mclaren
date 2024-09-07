@@ -21,6 +21,35 @@
 #include <imgui.h>
 #include <microprofile.h>
 
+// struct RenderEntity {
+//     // for `VkCmdDrawIndexed`
+//     uint32_t index_count;
+//     uint32_t index_offset;
+//     VkBuffer index_buffer;
+//
+//     struct MaterialInstance *material_instance; // points to the pipeline and descriptor set(s)
+//
+//     // per-entity dynamic data
+//     VkDeviceAddress vertex_buffer_device_address;
+//     glm::mat4 transform;
+// };
+//
+// struct MaterialPipeline {
+//     VkPipeline pipeline;
+//     VkPipelineLayout pipeline_layout;
+// };
+//
+// enum MaterialPassType {
+//     MATERIAL_PASS_TYPE_OPAQUE,
+//     MATERIAL_PASS_TYPE_TRANSPARENT,
+// };
+//
+// struct MaterialInstance {
+//     MaterialPipeline *pipeline;
+//     VkDescriptorSet descriptor_set;
+//     MaterialPassType pass_type;
+// };
+
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
     // clang-format off
@@ -284,15 +313,13 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
 void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
     const RenderFrame *frame = &app->frames[app->frame_index];
 
-    VkRenderingAttachmentInfo color_attachment = {};
-    color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
     color_attachment.imageView = app->color_image_view;
     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    VkRenderingAttachmentInfo depth_attachment = {};
-    depth_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    VkRenderingAttachmentInfo depth_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
     depth_attachment.imageView = app->depth_image_view;
     depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;

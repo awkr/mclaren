@@ -55,6 +55,11 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
                         void *tex_coord = (void *) ((uintptr_t) attribute->data->buffer_view->buffer->data + attribute->data->buffer_view->offset + vertex_index * attribute->data->stride);
                         memcpy(vertices[vertex_offset + vertex_index].tex_coord, tex_coord, attribute->data->stride);
                     }
+                } else if (strcmp(attribute->name, "NORMAL") == 0) {
+                    for (uint32_t vertex_index = 0; vertex_index < vertex_count; ++vertex_index) {
+                        void *normal = (void *) ((uintptr_t) attribute->data->buffer_view->buffer->data + attribute->data->buffer_view->offset + vertex_index * attribute->data->stride);
+                        memcpy(vertices[vertex_offset + vertex_index].normal, normal, attribute->data->stride);
+                    }
                 }
             }
 
