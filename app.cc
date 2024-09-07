@@ -173,13 +173,13 @@ void app_create(SDL_Window *window, App **out_app) {
         // create default checkerboard image
         uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
         uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-        uint32_t pixels[8 * 8]; // 8x8 checkerboard texture
-        for (uint8_t x = 0; x < 8; ++x) {
-            for (uint8_t y = 0; y < 8; ++y) {
-                pixels[y * 8 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+        uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
+        for (uint8_t x = 0; x < 16; ++x) {
+            for (uint8_t y = 0; y < 16; ++y) {
+                pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
             }
         }
-        vk_create_image_from_data(vk_context, pixels, 8, 8, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
+        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
         vk_create_image_view(vk_context->device, app->default_checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->default_checkerboard_image_view);
 
         // create default sampler
@@ -191,6 +191,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     // load_gltf(app->vk_context, "models/cube.gltf", &app->geometry);
     load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->geometry);
+    // load_gltf(app->vk_context, "models/Fox.glb", &app->geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->geometry);
 
     {
@@ -307,33 +308,51 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
-    std::vector<VkDescriptorSet> descriptor_sets;
+    std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+    std::deque<VkDescriptorBufferInfo> buffer_infos;
+    std::deque<VkDescriptorImageInfo> image_infos;
+    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     {
         vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
         VkDescriptorSet descriptor_set;
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        descriptor_sets.push_back(descriptor_set);
 
         VkDescriptorBufferInfo buffer_info = {};
         buffer_info.buffer = frame->global_state_buffer.handle;
         buffer_info.offset = 0;
         buffer_info.range = sizeof(GlobalState);
-        vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &buffer_info);
+        buffer_infos.push_back(buffer_info);
 
-        descriptor_sets.push_back(descriptor_set);
+        VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write_descriptor_set.dstBinding = 0;
+        write_descriptor_set.dstSet = descriptor_sets.back();
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write_descriptor_set.pBufferInfo = &buffer_infos.back();
+        write_descriptor_sets.push_back(write_descriptor_set);
     }
     {
         VkDescriptorSet descriptor_set;
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
+        descriptor_sets.push_back(descriptor_set);
 
         VkDescriptorImageInfo image_info = {};
         image_info.sampler = app->default_sampler_nearest;
         image_info.imageView = app->default_checkerboard_image_view;
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_info);
+        image_infos.push_back(image_info);
 
-        descriptor_sets.push_back(descriptor_set);
+        VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write_descriptor_set.dstBinding = 0;
+        write_descriptor_set.dstSet = descriptor_sets.back();
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write_descriptor_set.pImageInfo = &image_infos.back();
+        write_descriptor_sets.push_back(write_descriptor_set);
     }
+    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, 0, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh: app->geometry.meshes) {

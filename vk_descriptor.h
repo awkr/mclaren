@@ -30,3 +30,5 @@ void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, u
                               VkDescriptorType descriptor_type, const VkDescriptorBufferInfo *buffer_info);
 
 void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info);
+
+void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *descriptor_writes);

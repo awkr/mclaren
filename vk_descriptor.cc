@@ -96,3 +96,7 @@ void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, u
     write_descriptor_set.pImageInfo = image_info;
     vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
 }
+
+void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *descriptor_writes) {
+    vkUpdateDescriptorSets(device, descriptor_write_count, descriptor_writes, 0, nullptr);
+}
