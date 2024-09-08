@@ -346,11 +346,11 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorBufferInfo buffer_info = {};
-        buffer_info.buffer = frame->global_state_buffer.handle;
-        buffer_info.offset = 0;
-        buffer_info.range = sizeof(GlobalState);
-        buffer_infos.push_back(buffer_info);
+        VkDescriptorBufferInfo descriptor_buffer_info = {};
+        descriptor_buffer_info.buffer = frame->global_state_buffer.handle;
+        descriptor_buffer_info.offset = 0;
+        descriptor_buffer_info.range = sizeof(GlobalState);
+        buffer_infos.push_back(descriptor_buffer_info);
 
         VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
         write_descriptor_set.dstBinding = 0;
@@ -365,11 +365,11 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorImageInfo image_info = {};
-        image_info.sampler = app->default_sampler_nearest;
-        image_info.imageView = app->default_checkerboard_image_view;
-        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_infos.push_back(image_info);
+        VkDescriptorImageInfo descriptor_image_info = {};
+        descriptor_image_info.sampler = app->default_sampler_nearest;
+        descriptor_image_info.imageView = app->default_checkerboard_image_view;
+        descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        image_infos.push_back(descriptor_image_info);
 
         VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
         write_descriptor_set.dstBinding = 0;
@@ -427,6 +427,8 @@ void update_scene(App *app) {
     projection = clip * projection;
 
     app->global_state.projection = projection;
+
+    app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 }
 
 void app_update(App *app) {
