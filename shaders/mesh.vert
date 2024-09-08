@@ -2,19 +2,17 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_GOOGLE_include_directive : require
 
-layout (location = 0) out vec4 out_color;
-layout (location = 1) out vec2 out_tex_coord;
+#include "global_state.glsl"
 
-layout (set = 0, binding = 0) uniform GlobalState {
-    mat4 view;
-    mat4 projection;
-} global_state;
+layout (location = 0) out vec2 out_tex_coord;
+layout (location = 1) out vec3 out_normal;
+layout (location = 2) out vec4 out_color;
 
 struct Vertex {
     vec3 position;
-    vec4 color;
     vec2 tex_coord;
     vec3 normal;
+    vec4 color;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
@@ -29,6 +27,7 @@ layout (push_constant) uniform InstanceState {
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
     gl_Position = global_state.projection * global_state.view * instance_state.model * vec4(vertex.position, 1.0);
-    out_color = vertex.color;
     out_tex_coord = vertex.tex_coord;
+    out_normal = (instance_state.model * vec4(vertex.normal, 0.0)).xyz;
+    out_color = vertex.color;
 }

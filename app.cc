@@ -150,7 +150,7 @@ void app_create(SDL_Window *window, App **out_app) {
     }
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
-        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
         vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_state_descriptor_set_layout);
     }
     {
@@ -226,10 +226,10 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         Vertex vertices[4];
         // clang-format off
-        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {0.0f, 0.0f}};
-        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {1.0f, 0.0f}};
-        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {0.0f, 1.0f}};
-        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}, {1.0f, 1.0f}};
+        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
         // clang-format on
         uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
         create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t),
