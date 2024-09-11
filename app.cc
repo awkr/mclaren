@@ -103,6 +103,29 @@ void create_depth_image(App *app, VkFormat format) {
     vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 }
 
+void create_quad_geometry(const App *app, Geometry *geometry) {
+    Vertex vertices[4];
+    // clang-format off
+        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    // clang-format on
+    uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
+    MeshBuffer mesh_buffer;
+    create_mesh_buffer(app->vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t), &mesh_buffer);
+
+    Mesh mesh = {};
+    mesh.mesh_buffer = mesh_buffer;
+
+    Primitive primitive = {};
+    primitive.index_count = 6;
+    primitive.index_offset = 0;
+    mesh.primitives.push_back(primitive);
+
+    geometry->meshes.push_back(mesh);
+}
+
 void app_create(SDL_Window *window, App **out_app) {
     int width, height;
     SDL_GetWindowSizeInPixels(window, &width, &height);
@@ -218,23 +241,14 @@ void app_create(SDL_Window *window, App **out_app) {
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
-    // load_gltf(app->vk_context, "models/cube.gltf", &app->geometry);
-    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->geometry);
-    // load_gltf(app->vk_context, "models/Fox.glb", &app->geometry);
-    // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->geometry);
+    // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
+    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->gltf_model_geometry);
+    // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
+    // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
+    app->gltf_model_geometry.id = 1;
 
-    {
-        Vertex vertices[4];
-        // clang-format off
-        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        // clang-format on
-        uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
-        create_mesh_buffer(vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t),
-                           &app->mesh_buffer);
-    }
+    create_quad_geometry(app, &app->quad_geometry);
+    app->quad_geometry.id = 2;
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -248,8 +262,8 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    destroy_mesh_buffer(app->vk_context, &app->mesh_buffer);
-    destroy_geometry(app->vk_context, &app->geometry);
+    destroy_geometry(app->vk_context, &app->quad_geometry);
+    destroy_geometry(app->vk_context, &app->gltf_model_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->default_checkerboard_image_view);
@@ -381,7 +395,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    for (const Mesh &mesh: app->geometry.meshes) {
+    for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f));
 
@@ -389,8 +403,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                                  sizeof(InstanceState), &instance_state);
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
             vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
@@ -398,18 +411,20 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
         }
     }
 
-    {
+    for (const Mesh &mesh : app->quad_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
 
         InstanceState instance_state{};
         instance_state.model = model;
-        instance_state.vertex_buffer_device_address = app->mesh_buffer.vertex_buffer_device_address;
+        instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                                  sizeof(InstanceState), &instance_state);
-        vk_command_bind_index_buffer(command_buffer, app->mesh_buffer.index_buffer.handle, 0);
-        vk_command_draw_indexed(command_buffer, 6);
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+        for (const Primitive &primitive: mesh.primitives) {
+            vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+            vk_command_draw_indexed(command_buffer, primitive.index_count);
+        }
     }
 
     vk_command_end_rendering(command_buffer);

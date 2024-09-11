@@ -68,8 +68,8 @@ struct App {
     VkImageView default_checkerboard_image_view;
     VkSampler default_sampler_nearest;
 
-    Geometry geometry;
-    MeshBuffer mesh_buffer;
+    Geometry gltf_model_geometry;
+    Geometry quad_geometry;
 
     Camera camera;
     GlobalState global_state;

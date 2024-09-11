@@ -14,6 +14,7 @@ struct Mesh {
 };
 
 struct Geometry {
+    uint32_t id;
     std::vector<Mesh> meshes;
 };
 
