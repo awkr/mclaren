@@ -31,6 +31,7 @@ struct GlobalState {
     glm::mat4 view;
     glm::mat4 projection;
     glm::vec3 sunlight_dir; // in world space
+    // glm::vec4 sunlight_color; // sunlight color and intensity ( power )
 };
 
 struct InstanceState {

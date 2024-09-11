@@ -304,8 +304,7 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
     vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                              &image_info);
 
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 0, 1,
-                                    &descriptor_set);
+    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
     vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
@@ -380,7 +379,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, 0, descriptor_sets.size(), descriptor_sets.data());
+    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh: app->geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);

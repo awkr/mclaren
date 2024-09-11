@@ -38,8 +38,7 @@ void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage 
 void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
 void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
-                                     VkPipelineLayout pipeline_layout, uint32_t first_set, uint32_t set_count,
-                                     const VkDescriptorSet *descriptor_sets);
+                                     VkPipelineLayout pipeline_layout, uint32_t set_count, const VkDescriptorSet *descriptor_sets);
 
 void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
 
