@@ -106,10 +106,10 @@ void create_depth_image(App *app, VkFormat format) {
 void create_quad_geometry(const App *app, Geometry *geometry) {
     Vertex vertices[4];
     // clang-format off
-        vertices[0] = {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[2] = {{-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
-        vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[0] = {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[1] = {{ 0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[2] = {{-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
     // clang-format on
     uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
     MeshBuffer mesh_buffer;
@@ -149,7 +149,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 3;
+        uint32_t max_sets = 3; // 计算着色器一个 set，mesh pipeline 中 shader 两个 set
         std::vector<DescriptorPoolSizeRatio> size_ratios;
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
@@ -245,10 +245,8 @@ void app_create(SDL_Window *window, App **out_app) {
     load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
-    app->gltf_model_geometry.id = 1;
 
     create_quad_geometry(app, &app->quad_geometry);
-    app->quad_geometry.id = 2;
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -323,7 +321,7 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
                         std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
+void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     const RenderFrame *frame = &app->frames[app->frame_index];
 
     VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
@@ -397,7 +395,7 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
 
     for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f));
+        model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
 
         InstanceState instance_state{};
         instance_state.model = model;
@@ -429,6 +427,10 @@ void draw_geometry(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_end_rendering(command_buffer);
 }
+
+void draw_gizmos(const App *app, VkCommandBuffer command_buffer) {}
+
+void draw_gui(const App *app, VkCommandBuffer command_buffer) {}
 
 void update_scene(App *app) {
     camera_update(&app->camera);
@@ -487,7 +489,9 @@ void app_update(App *app) {
                                    VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        draw_geometry(app, command_buffer);
+        draw_geometries(app, command_buffer);
+        draw_gizmos(app, command_buffer);
+        draw_gui(app, command_buffer);
 
         vk_transition_image_layout(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,

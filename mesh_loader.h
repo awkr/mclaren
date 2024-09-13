@@ -9,12 +9,16 @@ struct Primitive {
 };
 
 struct Mesh {
+    uint32_t id;
     std::vector<Primitive> primitives;
     MeshBuffer mesh_buffer;
+
+    glm::vec3 translation;
+    glm::vec3 euler_angles; // in degrees, not radians
+    glm::vec3 scale;
 };
 
 struct Geometry {
-    uint32_t id;
     std::vector<Mesh> meshes;
 };
 

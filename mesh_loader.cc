@@ -13,17 +13,17 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
     geometry->meshes.resize(data->meshes_count);
 
     for (size_t mesh_index = 0; mesh_index < data->meshes_count; ++mesh_index) {
-        const cgltf_mesh *mesh = &data->meshes[mesh_index];
+        const cgltf_mesh *gltf_mesh = &data->meshes[mesh_index];
 
-        log_debug("mesh index: %d, name: %s", mesh_index, mesh->name);
+        log_debug("mesh index: %d, name: %s", mesh_index, gltf_mesh->name);
 
-        geometry->meshes[mesh_index].primitives.resize(mesh->primitives_count);
+        geometry->meshes[mesh_index].primitives.resize(gltf_mesh->primitives_count);
 
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;// 暂时只支持 u32 索引类型
 
-        for (size_t primitive_index = 0; primitive_index < mesh->primitives_count; ++primitive_index) {
-            const cgltf_primitive *primitive = &mesh->primitives[primitive_index];
+        for (size_t primitive_index = 0; primitive_index < gltf_mesh->primitives_count; ++primitive_index) {
+            const cgltf_primitive *primitive = &gltf_mesh->primitives[primitive_index];
 
             log_debug("primitive index: %zu", primitive_index);
 
@@ -79,8 +79,11 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
             }
         } // end looping primitives
 
-        create_mesh_buffer(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(),
-                           sizeof(uint32_t), &geometry->meshes[mesh_index].mesh_buffer);
+        Mesh *mesh = &geometry->meshes[mesh_index];
+
+        // todo parse node transform
+
+        create_mesh_buffer(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &mesh->mesh_buffer);
     } // end looping meshes
 
     cgltf_free(data);

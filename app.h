@@ -70,6 +70,7 @@ struct App {
 
     Geometry gltf_model_geometry;
     Geometry quad_geometry;
+    std::vector<Geometry *> geometries;
 
     Camera camera;
     GlobalState global_state;

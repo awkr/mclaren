@@ -4,6 +4,7 @@
 #include "event_system.h"
 #include "input_system.h"
 #include <SDL3/SDL.h>
+#include <thread>
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
     uint32_t flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
@@ -19,6 +20,10 @@ void platform_init(PlatformContext *platform_context) {
     create_window(platform_context, 640, 480);
     event_system_create(&platform_context->event_system_state);
     input_system_create(&platform_context->input_system_state);
+    {
+        unsigned int cpu_processors = std::thread::hardware_concurrency();
+        log_debug("number of cpu processors: %d", cpu_processors);
+    }
     app_create(platform_context->window, &platform_context->app);
 }
 

@@ -12,6 +12,12 @@
 #define WHITE "\033[37m"
 #define NORMAL "\033[0m"
 
+uint64_t get_thread_id() {
+    uint64_t thread_id;
+    pthread_threadid_np(nullptr, &thread_id);
+    return thread_id;
+}
+
 static void log_print(const char *level, const char *format, va_list args) {
 #if defined(PLATFORM_ANDROID)
 #else
@@ -21,9 +27,7 @@ static void log_print(const char *level, const char *format, va_list args) {
     struct tm *now = localtime(&tv.tv_sec);
 
     int32_t pid = getpid(); // process id
-
-    uint64_t thread_id;
-    pthread_threadid_np(nullptr, &thread_id);
+    uint64_t thread_id = get_thread_id();
 
     char buffer[1024];
     snprintf(buffer, sizeof(buffer), "%d/%02d/%02d %02d:%02d:%02d.%03d %d %llu %s > %s\n",
