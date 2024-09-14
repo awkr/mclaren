@@ -41,7 +41,6 @@ void vk_resize(VkContext *vk_context, uint32_t width, uint32_t height) {
 void vk_wait_idle(VkContext *vk_context) { vkDeviceWaitIdle(vk_context->device); }
 
 VkResult vk_acquire_next_image(VkContext *vk_context, VkSemaphore signal_semaphore, uint32_t *image_index) {
-    VkResult result = vkAcquireNextImageKHR(vk_context->device, vk_context->swapchain, UINT64_MAX, signal_semaphore,
-                                            VK_NULL_HANDLE, image_index);
+    VkResult result = vkAcquireNextImageKHR(vk_context->device, vk_context->swapchain, UINT64_MAX, signal_semaphore, VK_NULL_HANDLE, image_index);
     return result;
 }

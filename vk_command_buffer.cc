@@ -20,8 +20,7 @@ bool vk_alloc_command_buffer(VkDevice device, VkCommandPool command_pool, VkComm
     return vk_alloc_command_buffers(device, command_pool, 1, command_buffer);
 }
 
-void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
-                             VkCommandBuffer *command_buffers) {
+void vk_free_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count, VkCommandBuffer *command_buffers) {
     vkFreeCommandBuffers(device, command_pool, count, command_buffers);
 }
 
@@ -100,18 +99,18 @@ void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image,
     vkCmdClearColorImage(command_buffer, image, image_layout, clear_color, 1, &clear_range);
 }
 
-void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
+void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, uint32_t width, uint32_t height) {
     VkImageBlit2KHR image_blit_region{};
     image_blit_region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2_KHR;
     image_blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_blit_region.srcSubresource.layerCount = 1;
-    image_blit_region.srcOffsets[1].x = (int32_t) extent->width;
-    image_blit_region.srcOffsets[1].y = (int32_t) extent->height;
+    image_blit_region.srcOffsets[1].x = (int32_t) width;
+    image_blit_region.srcOffsets[1].y = (int32_t) height;
     image_blit_region.srcOffsets[1].z = 1;
     image_blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_blit_region.dstSubresource.layerCount = 1;
-    image_blit_region.dstOffsets[1].x = (int32_t) extent->width;
-    image_blit_region.dstOffsets[1].y = (int32_t) extent->height;
+    image_blit_region.dstOffsets[1].x = (int32_t) width;
+    image_blit_region.dstOffsets[1].y = (int32_t) height;
     image_blit_region.dstOffsets[1].z = 1;
 
     VkBlitImageInfo2 blit_image_info{};

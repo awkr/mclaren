@@ -2,6 +2,7 @@
 
 #include "camera.h"
 #include "mesh_loader.h"
+#include "input_system.h"
 #include <cstdint>
 #include <volk.h>
 #include <vk_mem_alloc.h>
@@ -86,6 +87,8 @@ void app_update(App *app);
 
 void app_resize(App *app, uint32_t width, uint32_t height);
 
-void app_key_up(App *app, uint32_t key);
+void app_key_up(App *app, Key key);
 
-void app_key_down(App *app, uint32_t key);
+void app_key_down(App *app, Key key);
+
+void app_capture(App *app);

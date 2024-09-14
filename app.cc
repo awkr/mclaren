@@ -447,6 +447,10 @@ void update_scene(App *app) {
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 }
 
+bool begin_frame(App *app) { return false; }
+
+void end_frame(App *app) {}
+
 void app_update(App *app) {
     update_scene(app);
 
@@ -482,14 +486,9 @@ void app_update(App *app) {
 
         draw_background(app, command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image->image,
-                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
-                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        draw_geometries(app, command_buffer);
+        draw_geometries(app, command_buffer); // draw scene
         draw_gizmos(app, command_buffer);
         draw_gui(app, command_buffer);
 
@@ -500,22 +499,11 @@ void app_update(App *app) {
                                    VK_ACCESS_2_TRANSFER_READ_BIT,
                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
-        vk_transition_image_layout(command_buffer, swapchain_image,
-                                   VK_PIPELINE_STAGE_2_NONE,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                   VK_ACCESS_2_NONE,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        VkExtent2D extent = {app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height};
-        vk_command_blit_image(command_buffer, app->color_image->image, swapchain_image, &extent);
+        vk_command_blit_image(command_buffer, app->color_image->image, swapchain_image, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
-        vk_transition_image_layout(command_buffer, swapchain_image,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                   VK_ACCESS_2_NONE,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
@@ -528,6 +516,7 @@ void app_update(App *app) {
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 
+    // end frame
     result = vk_queue_present(app->vk_context, image_index, frame->render_finished_semaphore);
     ASSERT(result == VK_SUCCESS);
 
@@ -559,70 +548,72 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);
 }
 
-void app_key_up(App *app, uint32_t key) {
-    if (key == SDLK_W) {
+void app_key_up(App *app, Key key) {
+    if (key == KEY_W) {
         Camera *camera = &app->camera;
         camera_forward(camera, 0.2f);
-    } else if (key == SDLK_S) {
+    } else if (key == KEY_S) {
         Camera *camera = &app->camera;
         camera_backward(camera, 0.2f);
-    } else if (key == SDLK_A) {
+    } else if (key == KEY_A) {
         Camera *camera = &app->camera;
         camera_left(camera, 0.2f);
-    } else if (key == SDLK_D) {
+    } else if (key == KEY_D) {
         Camera *camera = &app->camera;
         camera_right(camera, 0.2f);
-    } else if (key == SDLK_Q) {
+    } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);
-    } else if (key == SDLK_E) {
+    } else if (key == KEY_E) {
         Camera *camera = &app->camera;
         camera_down(camera, 0.2f);
-    } else if (key == SDLK_UP) {
+    } else if (key == KEY_UP) {
         Camera *camera = &app->camera;
         camera_pitch(camera, 2.0f);
-    } else if (key == SDLK_DOWN) {
+    } else if (key == KEY_DOWN) {
         Camera *camera = &app->camera;
         camera_pitch(camera, -2.0f);
-    } else if (key == SDLK_LEFT) {
+    } else if (key == KEY_LEFT) {
         Camera *camera = &app->camera;
         camera_yaw(camera, 2.0f);
-    } else if (key == SDLK_RIGHT) {
+    } else if (key == KEY_RIGHT) {
         Camera *camera = &app->camera;
         camera_yaw(camera, -2.0f);
     }
 }
 
-void app_key_down(App *app, uint32_t key) {
-    if (key == SDLK_W) {
+void app_key_down(App *app, Key key) {
+    if (key == KEY_W) {
         Camera *camera = &app->camera;
         camera_forward(camera, 0.2f);
-    } else if (key == SDLK_S) {
+    } else if (key == KEY_S) {
         Camera *camera = &app->camera;
         camera_backward(camera, 0.2f);
-    } else if (key == SDLK_A) {
+    } else if (key == KEY_A) {
         Camera *camera = &app->camera;
         camera_left(camera, 0.2f);
-    } else if (key == SDLK_D) {
+    } else if (key == KEY_D) {
         Camera *camera = &app->camera;
         camera_right(camera, 0.2f);
-    } else if (key == SDLK_Q) {
+    } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);
-    } else if (key == SDLK_E) {
+    } else if (key == KEY_E) {
         Camera *camera = &app->camera;
         camera_down(camera, 0.2f);
-    } else if (key == SDLK_UP) {
+    } else if (key == KEY_UP) {
         Camera *camera = &app->camera;
         camera_pitch(camera, 2.0f);
-    } else if (key == SDLK_DOWN) {
+    } else if (key == KEY_DOWN) {
         Camera *camera = &app->camera;
         camera_pitch(camera, -2.0f);
-    } else if (key == SDLK_LEFT) {
+    } else if (key == KEY_LEFT) {
         Camera *camera = &app->camera;
         camera_yaw(camera, 2.0f);
-    } else if (key == SDLK_RIGHT) {
+    } else if (key == KEY_RIGHT) {
         Camera *camera = &app->camera;
         camera_yaw(camera, -2.0f);
     }
 }
+
+void app_capture(App *app) {}

@@ -16,6 +16,7 @@ void main() {
     // frag_color = texture(tex, tex_coord);
 
     const vec3 base_color = vec3(0.9, 0.9, 0.9);
+    // const vec3 base_color = texture(tex, tex_coord).rgb;
     float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
     frag_color = vec4(base_color * diffuse, 1.0);
 }

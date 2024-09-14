@@ -33,7 +33,7 @@ void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(Vk
 void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
                                   VkClearColorValue *clear_color);
 
-void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent);
+void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, uint32_t width, uint32_t height);
 
 void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
