@@ -64,6 +64,9 @@ struct App {
     VkPipelineLayout mesh_pipeline_layout;
     VkPipeline mesh_pipeline;
 
+    VkPipelineLayout wireframe_pipeline_layout;
+    VkPipeline wireframe_pipeline;
+
     Image *default_gray_image;
     Image *default_checkerboard_image;
     VkImageView default_checkerboard_image_view;

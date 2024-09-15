@@ -2,9 +2,9 @@ object picking
 screenshots
 -------
 object bounding box
-wireframe on mesh
+solid wireframe
 gizmo
-优化 camera movement，调研 unity 与 unreal engine
+优化 camera behavior，调研 unity 与 unreal engine
 ttf based text rendering
 global illumination
 pbr

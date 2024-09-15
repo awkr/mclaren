@@ -25,6 +25,7 @@ bool vk_create_instance(VkContext *vk_context, const char *app_name, uint32_t ap
 #endif
     if (is_debugging) { required_extensions.push_back("VK_EXT_debug_utils"); }
     required_extensions.push_back("VK_KHR_portability_enumeration");
+    required_extensions.push_back("VK_KHR_get_physical_device_properties2");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);

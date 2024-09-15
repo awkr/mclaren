@@ -71,6 +71,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_extensions.push_back("VK_KHR_synchronization2");
     required_extensions.push_back("VK_KHR_copy_commands2");
     required_extensions.push_back("VK_KHR_buffer_device_address");
+    required_extensions.push_back("VK_KHR_fragment_shader_barycentric");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,
@@ -119,10 +120,17 @@ bool vk_create_device(VkContext *vk_context) {
 
     VkPhysicalDeviceFeatures required_device_features{};
     required_device_features.samplerAnisotropy = features.samplerAnisotropy;
+    required_device_features.fillModeNonSolid = features.fillModeNonSolid;
+    required_device_features.wideLines = features.wideLines;
+
+    VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR fragment_shader_barycentric_features{};
+    fragment_shader_barycentric_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
+    fragment_shader_barycentric_features.fragmentShaderBarycentric = VK_TRUE;
 
     VkPhysicalDeviceSynchronization2Features synchronization2_features{};
     synchronization2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
     synchronization2_features.synchronization2 = VK_TRUE;
+    synchronization2_features.pNext = &fragment_shader_barycentric_features;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features{};
     dynamic_rendering_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;

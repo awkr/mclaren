@@ -56,10 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format,
-                                 VkFormat depth_attachment_format,
-                                 const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
-                                 VkPipeline *pipeline) {
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_depth_test, bool enable_depth_write, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
     rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering_create_info.colorAttachmentCount = 1;
@@ -85,11 +82,11 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterization_state_create_info.depthClampEnable = VK_FALSE;
     rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
-    rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization_state_create_info.polygonMode = polygon_mode;
     rasterization_state_create_info.lineWidth = 1.0f;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = VK_FALSE;
+    rasterization_state_create_info.depthBiasEnable = VK_TRUE;
 
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info{};
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -99,8 +96,8 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info{};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
-    depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;
+    depth_stencil_state_create_info.depthTestEnable = enable_depth_test ? VK_TRUE : VK_FALSE;
+    depth_stencil_state_create_info.depthWriteEnable = enable_depth_write ? VK_TRUE : VK_FALSE;
     depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
     depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
@@ -131,12 +128,19 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     input_assembly_state_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_state_create_info.primitiveRestartEnable = VK_FALSE;
 
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    std::vector<VkDynamicState> dynamic_states = {};
+    dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+    dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    // dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+    if (polygon_mode == VK_POLYGON_MODE_LINE) {
+    } else {
+        dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS); // depth bias does not support line & point mode
+    }
 
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamic_state_create_info.dynamicStateCount = 2;
-    dynamic_state_create_info.pDynamicStates = dynamic_states;
+    dynamic_state_create_info.dynamicStateCount = dynamic_states.size();
+    dynamic_state_create_info.pDynamicStates = dynamic_states.data();
 
     VkGraphicsPipelineCreateInfo pipeline_create_info{};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
