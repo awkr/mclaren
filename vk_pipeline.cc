@@ -85,6 +85,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.polygonMode = polygon_mode;
     rasterization_state_create_info.lineWidth = 1.0f;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_TRUE;
 
@@ -131,11 +132,11 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    // dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
-    if (polygon_mode == VK_POLYGON_MODE_LINE) {
-    } else {
-        dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS); // depth bias does not support line & point mode
-    }
+    dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+    // if (polygon_mode == VK_POLYGON_MODE_LINE) {
+    // } else {
+    //     dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS); // depth bias does not support line & point mode
+    // }
 
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

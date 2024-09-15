@@ -361,7 +361,10 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vkCmdSetDepthBias(command_buffer, 1.0f, 0.0f, 1.0f);
+    {
+        float factor = 2.0;
+        vkCmdSetDepthBias(command_buffer, factor, 0.0f, factor);
+    }
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -426,24 +429,28 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         }
     }
 
-    for (const Mesh &mesh : app->quad_geometry.meshes) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
-
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
-
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-        for (const Primitive &primitive: mesh.primitives) {
-            vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
-            vk_command_draw_indexed(command_buffer, primitive.index_count);
-        }
-    }
+    // for (const Mesh &mesh : app->quad_geometry.meshes) {
+    //     glm::mat4 model = glm::mat4(1.0f);
+    //     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
+    //
+    //     InstanceState instance_state{};
+    //     instance_state.model = model;
+    //     instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+    //
+    //     vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+    //
+    //     for (const Primitive &primitive: mesh.primitives) {
+    //         vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+    //         vk_command_draw_indexed(command_buffer, primitive.index_count);
+    //     }
+    // }
 
     // draw wireframe on selected entity
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+    {
+        float factor = 1.0;
+        vkCmdSetDepthBias(command_buffer, factor, 0.0f, factor);
+    }
 
     for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -506,18 +513,14 @@ void update_scene(App *app) {
     app->global_state.view = app->camera.view_matrix;
 
     glm::mat4 projection = glm::mat4(1.0f);
-    float z_near = 0.1f, z_far = 200.0f;
+    float z_near = 0.01f, z_far = 100.0f;
     projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
-    projection = clip * projection;
+    // projection = clip * projection;
 
     app->global_state.projection = projection;
 
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 }
-
-bool begin_frame(App *app) { return false; }
-
-void end_frame(App *app) {}
 
 void app_update(App *app) {
     update_scene(app);
