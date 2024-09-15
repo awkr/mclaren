@@ -361,7 +361,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vkCmdSetDepthBias(command_buffer, 0.5f, 0.0f, 0.5f);
+    vkCmdSetDepthBias(command_buffer, 1.0f, 0.0f, 1.0f);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
