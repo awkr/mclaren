@@ -67,6 +67,7 @@ bool vk_create_device(VkContext *vk_context) {
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_swapchain");
     required_extensions.push_back("VK_KHR_portability_subset");
+    required_extensions.push_back("VK_EXT_descriptor_indexing");
     required_extensions.push_back("VK_KHR_dynamic_rendering");
     required_extensions.push_back("VK_KHR_synchronization2");
     required_extensions.push_back("VK_KHR_copy_commands2");
@@ -137,12 +138,13 @@ bool vk_create_device(VkContext *vk_context) {
     dynamic_rendering_features.dynamicRendering = VK_TRUE;
     dynamic_rendering_features.pNext = &synchronization2_features;
 
-    VkPhysicalDeviceVulkan12Features vulkan_12_features{};
-    vulkan_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    vulkan_12_features.timelineSemaphore = VK_TRUE;
-    vulkan_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
-    vulkan_12_features.bufferDeviceAddress = VK_TRUE;
-    vulkan_12_features.pNext = &dynamic_rendering_features;
+    VkPhysicalDeviceVulkan12Features vk_12_features{};
+    vk_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vk_12_features.timelineSemaphore = VK_TRUE;
+    vk_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
+    vk_12_features.bufferDeviceAddress = VK_TRUE;
+    vk_12_features.descriptorIndexing = VK_TRUE;
+    vk_12_features.pNext = &dynamic_rendering_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_create_info.queueCreateInfoCount = queue_create_infos.size();
@@ -150,7 +152,7 @@ bool vk_create_device(VkContext *vk_context) {
     device_create_info.enabledExtensionCount = required_extensions.size();
     device_create_info.ppEnabledExtensionNames = required_extensions.data();
     device_create_info.pEnabledFeatures = &required_device_features;
-    device_create_info.pNext = &vulkan_12_features;
+    device_create_info.pNext = &vk_12_features;
     result = vkCreateDevice(vk_context->physical_device, &device_create_info, nullptr, &vk_context->device);
     if (result != VK_SUCCESS) { return false; }
 
