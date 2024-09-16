@@ -361,7 +361,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vkCmdSetDepthBias(command_buffer, 0.5f, 0.0f, 0.5f);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -410,6 +409,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
+    vkCmdSetDepthBias(command_buffer, 0.5f, 0.0f, 0.5f);
     for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
@@ -426,6 +426,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         }
     }
 
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
     for (const Mesh &mesh : app->quad_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
@@ -444,11 +445,11 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     // draw wireframe on selected entity
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
 
     for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
         vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-        // vkCmdSetDepthBias(command_buffer, 0.5f, 0.0f, 0.5f);
 
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -508,7 +509,7 @@ void update_scene(App *app) {
     glm::mat4 projection = glm::mat4(1.0f);
     float z_near = 0.1f, z_far = 200.0f;
     projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
-    projection = clip * projection;
+    // projection = clip * projection;
 
     app->global_state.projection = projection;
 
