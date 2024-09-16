@@ -184,6 +184,10 @@ void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
+void vk_command_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor) {
+    vkCmdSetDepthBias(command_buffer, constant_factor, clamp, slope_factor);
+}
+
 void
 vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                 uint32_t first_instance) {

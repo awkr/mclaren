@@ -58,6 +58,7 @@ void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_
                              uint32_t h);
 
 void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+void vk_command_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor);
 
 void
 vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,

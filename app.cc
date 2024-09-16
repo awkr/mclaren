@@ -149,10 +149,10 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 3; // 计算着色器一个 set，mesh pipeline 中 shader 两个 set
+        uint32_t max_sets = 4; // 计算着色器一个 set，mesh pipeline 中 shader 两个 set，wireframe pipeline 一个 set
         std::vector<DescriptorPoolSizeRatio> size_ratios;
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
-        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2});
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
         vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
 
@@ -206,7 +206,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->mesh_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -224,7 +224,7 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -361,6 +361,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
+    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -409,7 +410,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    vkCmdSetDepthBias(command_buffer, 0.5f, 0.0f, 0.5f);
     for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
@@ -426,7 +426,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         }
     }
 
-    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
     for (const Mesh &mesh : app->quad_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
@@ -444,53 +443,54 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     }
 
     // draw wireframe on selected entity
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
+    if (static uint32_t n = 0; n++ % 200 < 100) {
+        vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
 
-    for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
-        vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
-        vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
+        for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
+            vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
+            vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
 
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::deque<VkDescriptorImageInfo> image_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+            std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+            std::deque<VkDescriptorBufferInfo> buffer_infos;
+            std::deque<VkDescriptorImageInfo> image_infos;
+            std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+            {
+                vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
+                VkDescriptorSet descriptor_set;
+                vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+                descriptor_sets.push_back(descriptor_set);
 
-            VkDescriptorBufferInfo descriptor_buffer_info = {};
-            descriptor_buffer_info.buffer = frame->global_state_buffer.handle;
-            descriptor_buffer_info.offset = 0;
-            descriptor_buffer_info.range = sizeof(GlobalState);
-            buffer_infos.push_back(descriptor_buffer_info);
+                VkDescriptorBufferInfo descriptor_buffer_info = {};
+                descriptor_buffer_info.buffer = frame->global_state_buffer.handle;
+                descriptor_buffer_info.offset = 0;
+                descriptor_buffer_info.range = sizeof(GlobalState);
+                buffer_infos.push_back(descriptor_buffer_info);
 
-            VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            write_descriptor_set.dstBinding = 0;
-            write_descriptor_set.dstSet = descriptor_sets.back();
-            write_descriptor_set.descriptorCount = 1;
-            write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            write_descriptor_set.pBufferInfo = &buffer_infos.back();
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-        vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+                VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                write_descriptor_set.dstBinding = 0;
+                write_descriptor_set.dstSet = descriptor_sets.back();
+                write_descriptor_set.descriptorCount = 1;
+                write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                write_descriptor_set.pBufferInfo = &buffer_infos.back();
+                write_descriptor_sets.push_back(write_descriptor_set);
+            }
+            vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+            vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
 
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+            InstanceState instance_state{};
+            instance_state.model = model;
+            instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
-        for (const Primitive &primitive: mesh.primitives) {
-            vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
-            vk_command_draw_indexed(command_buffer, primitive.index_count);
+            for (const Primitive &primitive : mesh.primitives) {
+                vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+                vk_command_draw_indexed(command_buffer, primitive.index_count);
+            }
         }
     }
 
@@ -507,9 +507,9 @@ void update_scene(App *app) {
     app->global_state.view = app->camera.view_matrix;
 
     glm::mat4 projection = glm::mat4(1.0f);
-    float z_near = 0.1f, z_far = 200.0f;
+    float z_near = 0.01f, z_far = 100.0f;
     projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
-    // projection = clip * projection;
+    projection = clip * projection;
 
     app->global_state.projection = projection;
 

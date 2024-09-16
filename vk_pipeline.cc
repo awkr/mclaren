@@ -56,7 +56,8 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_depth_test, bool enable_depth_write, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_depth_test,
+                                 bool enable_depth_write, bool enable_depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
     rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering_create_info.colorAttachmentCount = 1;
@@ -87,7 +88,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = VK_TRUE;
+    rasterization_state_create_info.depthBiasEnable = enable_depth_bias ? VK_TRUE : VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info{};
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -132,11 +133,9 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
-    // if (polygon_mode == VK_POLYGON_MODE_LINE) {
-    // } else {
-    //     dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
-    // }
+    if (enable_depth_bias) {
+        dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+    }
 
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
