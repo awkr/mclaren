@@ -56,8 +56,8 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_depth_test,
-                                 bool enable_depth_write, bool enable_depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test,
+                                 bool depth_write, bool depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
     rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering_create_info.colorAttachmentCount = 1;
@@ -86,9 +86,8 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.polygonMode = polygon_mode;
     rasterization_state_create_info.lineWidth = 1.0f;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = enable_depth_bias ? VK_TRUE : VK_FALSE;
+    rasterization_state_create_info.depthBiasEnable = depth_bias ? VK_TRUE : VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info{};
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -98,8 +97,8 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info{};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil_state_create_info.depthTestEnable = enable_depth_test ? VK_TRUE : VK_FALSE;
-    depth_stencil_state_create_info.depthWriteEnable = enable_depth_write ? VK_TRUE : VK_FALSE;
+    depth_stencil_state_create_info.depthTestEnable = depth_test ? VK_TRUE : VK_FALSE;
+    depth_stencil_state_create_info.depthWriteEnable = depth_write ? VK_TRUE : VK_FALSE;
     depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
     depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
@@ -133,7 +132,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    if (enable_depth_bias) {
+    if (depth_bias) {
         dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
     }
 

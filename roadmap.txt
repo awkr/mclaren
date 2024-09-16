@@ -2,7 +2,6 @@ object picking
 screenshots
 -------
 object bounding box
-solid wireframe
 gizmo
 优化 camera behavior，调研 unity 与 unreal engine
 ttf based text rendering
@@ -17,3 +16,4 @@ object outline
 DoF
 -------
 input system
+solid wireframe

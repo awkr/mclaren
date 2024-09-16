@@ -452,7 +452,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
             std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
             std::deque<VkDescriptorBufferInfo> buffer_infos;
-            std::deque<VkDescriptorImageInfo> image_infos;
             std::vector<VkWriteDescriptorSet> write_descriptor_sets;
             {
                 vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
@@ -488,6 +487,22 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
             vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
             for (const Primitive &primitive : mesh.primitives) {
+                vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+                vk_command_draw_indexed(command_buffer, primitive.index_count);
+            }
+        }
+
+        for (const Mesh &mesh : app->quad_geometry.meshes) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
+
+            InstanceState instance_state{};
+            instance_state.model = model;
+            instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+
+            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+            for (const Primitive &primitive: mesh.primitives) {
                 vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
                 vk_command_draw_indexed(command_buffer, primitive.index_count);
             }
