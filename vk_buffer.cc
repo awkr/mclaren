@@ -25,4 +25,6 @@ void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const v
     ASSERT(result == VK_SUCCESS);
     memcpy(mapped_ptr, data, size);
     vmaUnmapMemory(vk_context->allocator, buffer->allocation);
+    result = vmaFlushAllocation(vk_context->allocator, buffer->allocation, 0, size);
+    ASSERT(result == VK_SUCCESS);
 }
