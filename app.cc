@@ -206,7 +206,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->mesh_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -224,7 +224,7 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -322,15 +322,11 @@ void draw_background(const App *app, VkCommandBuffer command_buffer) {
     vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
 
     VkDescriptorSet descriptor_set;
-    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator,
-                                  app->single_storage_image_descriptor_set_layout, &descriptor_set);
+    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
 
-    VkDescriptorImageInfo image_info = {};
-    image_info.imageView = app->color_image_view;
-    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-    vk_update_descriptor_set(app->vk_context->device, descriptor_set, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                             &image_info);
+    VkDescriptorImageInfo image_info = vk_descriptor_image_info(VK_NULL_HANDLE, app->color_image_view, VK_IMAGE_LAYOUT_GENERAL);
+    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &image_info, nullptr);
+    vk_update_descriptor_sets(app->vk_context->device, 1, &write_descriptor_set);
 
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
     vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
@@ -361,7 +357,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f);
+    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -374,18 +370,10 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorBufferInfo descriptor_buffer_info = {};
-        descriptor_buffer_info.buffer = frame->global_state_buffer.handle;
-        descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(GlobalState);
+        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer.handle, sizeof(GlobalState));
         buffer_infos.push_back(descriptor_buffer_info);
 
-        VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        write_descriptor_set.dstBinding = 0;
-        write_descriptor_set.dstSet = descriptor_sets.back();
-        write_descriptor_set.descriptorCount = 1;
-        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write_descriptor_set.pBufferInfo = &buffer_infos.back();
+        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     {
@@ -393,18 +381,10 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorImageInfo descriptor_image_info = {};
-        descriptor_image_info.sampler = app->default_sampler_nearest;
-        descriptor_image_info.imageView = app->default_checkerboard_image_view;
-        descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->default_checkerboard_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         image_infos.push_back(descriptor_image_info);
 
-        VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        write_descriptor_set.dstBinding = 0;
-        write_descriptor_set.dstSet = descriptor_sets.back();
-        write_descriptor_set.descriptorCount = 1;
-        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_descriptor_set.pImageInfo = &image_infos.back();
+        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
@@ -460,18 +440,10 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
                 vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
                 descriptor_sets.push_back(descriptor_set);
 
-                VkDescriptorBufferInfo descriptor_buffer_info = {};
-                descriptor_buffer_info.buffer = frame->global_state_buffer.handle;
-                descriptor_buffer_info.offset = 0;
-                descriptor_buffer_info.range = sizeof(GlobalState);
+                VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer.handle, sizeof(GlobalState));
                 buffer_infos.push_back(descriptor_buffer_info);
 
-                VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-                write_descriptor_set.dstBinding = 0;
-                write_descriptor_set.dstSet = descriptor_sets.back();
-                write_descriptor_set.descriptorCount = 1;
-                write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                write_descriptor_set.pBufferInfo = &buffer_infos.back();
+                VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
                 write_descriptor_sets.push_back(write_descriptor_set);
             }
             vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());

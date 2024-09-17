@@ -44,6 +44,14 @@ static bool select_physical_device(VkContext *vk_context) {
              VK_VERSION_MAJOR(device_properties.apiVersion),
              VK_VERSION_MINOR(device_properties.apiVersion),
              VK_VERSION_PATCH(device_properties.apiVersion));
+    // log_info("max descriptor set samplers: %d\n"
+    //          "max descriptor set sampled images: %d\n"
+    //          "max descriptor set storage buffers: %d\n"
+    //          "max descriptor set storage images: %d",
+    //          device_properties.limits.maxDescriptorSetSamplers,
+    //          device_properties.limits.maxDescriptorSetSampledImages, // combined image samplers
+    //          device_properties.limits.maxDescriptorSetStorageBuffers,
+    //          device_properties.limits.maxDescriptorSetStorageImages);
 
     vk_context->physical_device = selected_physical_device;
     return true;
@@ -123,10 +131,12 @@ bool vk_create_device(VkContext *vk_context) {
     required_device_features.samplerAnisotropy = features.samplerAnisotropy;
     required_device_features.fillModeNonSolid = features.fillModeNonSolid;
     required_device_features.wideLines = features.wideLines;
+    required_device_features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
 
     VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR fragment_shader_barycentric_features{};
     fragment_shader_barycentric_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
     fragment_shader_barycentric_features.fragmentShaderBarycentric = VK_TRUE;
+    fragment_shader_barycentric_features.pNext = nullptr;
 
     VkPhysicalDeviceSynchronization2Features synchronization2_features{};
     synchronization2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
@@ -143,7 +153,19 @@ bool vk_create_device(VkContext *vk_context) {
     vk_12_features.timelineSemaphore = VK_TRUE;
     vk_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vk_12_features.bufferDeviceAddress = VK_TRUE;
+    // enable descriptor indexing feature(s)
     vk_12_features.descriptorIndexing = VK_TRUE;
+    vk_12_features.runtimeDescriptorArray = VK_TRUE;
+    vk_12_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.descriptorBindingPartiallyBound = VK_TRUE;
+    vk_12_features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    vk_12_features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
     vk_12_features.pNext = &dynamic_rendering_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};

@@ -56,8 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test,
-                                 bool depth_write, bool depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test, bool depth_write, bool depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPrimitiveTopology topology, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
     rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering_create_info.colorAttachmentCount = 1;
@@ -126,7 +125,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info{};
     input_assembly_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    input_assembly_state_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_state_create_info.topology = topology;
     input_assembly_state_create_info.primitiveRestartEnable = VK_FALSE;
 
     std::vector<VkDynamicState> dynamic_states = {};

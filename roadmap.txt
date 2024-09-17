@@ -1,19 +1,23 @@
-object picking
-screenshots
--------
 object bounding box
+-------
 gizmo
+object picking
 优化 camera behavior，调研 unity 与 unreal engine
+indirect draw
 ttf based text rendering
-global illumination
 pbr
+global illumination
+screenshots
 sdf based text rendering
-profiling
 ui
 animation
 physics
 object outline
 DoF
+curve editor
+profiling
+?meshlet?
+?bindless texture?
 -------
 input system
 solid wireframe

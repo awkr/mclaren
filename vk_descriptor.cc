@@ -19,7 +19,7 @@ void vk_create_descriptor_pool(VkDevice device, uint32_t max_sets, const std::ve
                                VkDescriptorPool *descriptor_pool) {
     VkDescriptorPoolCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    create_info.flags = 0;
+    create_info.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
     create_info.maxSets = max_sets;
     create_info.poolSizeCount = pool_sizes.size();
     create_info.pPoolSizes = pool_sizes.data();
@@ -61,42 +61,33 @@ void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, V
     ASSERT(result == VK_SUCCESS);
 }
 
-void
-vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, uint32_t descriptor_count,
-                         VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info) {
-    VkWriteDescriptorSet write_descriptor_set{};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.dstSet = descriptor_set;
-    write_descriptor_set.dstBinding = binding;
-    write_descriptor_set.descriptorCount = descriptor_count;
-    write_descriptor_set.descriptorType = descriptor_type;
-    write_descriptor_set.pImageInfo = image_info;
-    vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
-}
-
-void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding,
-                              VkDescriptorType descriptor_type, const VkDescriptorBufferInfo *buffer_info) {
-    VkWriteDescriptorSet write_descriptor_set = {};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.dstSet = descriptor_set;
-    write_descriptor_set.dstBinding = binding;
-    write_descriptor_set.descriptorCount = 1;
-    write_descriptor_set.descriptorType = descriptor_type;
-    write_descriptor_set.pBufferInfo = buffer_info;
-    vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
-}
-
-void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info) {
-    VkWriteDescriptorSet write_descriptor_set = {};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.dstSet = descriptor_set;
-    write_descriptor_set.dstBinding = binding;
-    write_descriptor_set.descriptorCount = 1;
-    write_descriptor_set.descriptorType = descriptor_type;
-    write_descriptor_set.pImageInfo = image_info;
-    vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
-}
-
 void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *descriptor_writes) {
     vkUpdateDescriptorSets(device, descriptor_write_count, descriptor_writes, 0, nullptr);
+}
+
+VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint32_t size) {
+    VkDescriptorBufferInfo descriptor_buffer_info = {};
+    descriptor_buffer_info.buffer = buffer;
+    descriptor_buffer_info.offset = 0;
+    descriptor_buffer_info.range = size;
+    return descriptor_buffer_info;
+}
+
+VkDescriptorImageInfo vk_descriptor_image_info(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout) {
+    VkDescriptorImageInfo descriptor_image_info = {};
+    descriptor_image_info.sampler = sampler;
+    descriptor_image_info.imageView = image_view;
+    descriptor_image_info.imageLayout = image_layout;
+    return descriptor_image_info;
+}
+
+VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info) {
+    VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    write_descriptor_set.dstSet = descriptor_set;
+    write_descriptor_set.dstBinding = binding;
+    write_descriptor_set.descriptorType = descriptor_type;
+    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.pImageInfo = image_info;
+    write_descriptor_set.pBufferInfo = buffer_info;
+    return write_descriptor_set;
 }

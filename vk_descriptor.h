@@ -22,13 +22,9 @@ VkResult vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descripto
 
 void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set);
 
-void
-vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, uint32_t descriptor_count,
-                         VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info);
-
-void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding,
-                              VkDescriptorType descriptor_type, const VkDescriptorBufferInfo *buffer_info);
-
-void vk_update_descriptor_set(VkDevice device, VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info);
-
 void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *descriptor_writes);
+
+VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint32_t size);
+VkDescriptorImageInfo vk_descriptor_image_info(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout);
+
+VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info);
