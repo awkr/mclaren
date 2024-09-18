@@ -17,6 +17,7 @@
 #include "vk_sampler.h"
 #include "vk_swapchain.h"
 #include "vk_buffer.h"
+#include "geometry.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
 #include <microprofile.h>
@@ -112,18 +113,97 @@ void create_quad_geometry(const App *app, Geometry *geometry) {
     vertices[3] = {{ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
     // clang-format on
     uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
-    MeshBuffer mesh_buffer;
-    create_mesh_buffer(app->vk_context, vertices, 4, sizeof(Vertex), indices, 6, sizeof(uint32_t), &mesh_buffer);
+    uint32_t index_count = sizeof(indices) / sizeof(uint32_t);
 
-    Mesh mesh = {};
-    mesh.mesh_buffer = mesh_buffer;
+    create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), indices, index_count, geometry);
+}
 
-    Primitive primitive = {};
-    primitive.index_count = 6;
-    primitive.index_offset = 0;
-    mesh.primitives.push_back(primitive);
+void create_cube_geometry(const App *app, Geometry *geometry) {
+    Vertex vertices[24];
+    // clang-format off
+    vertices[0] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // front
+    vertices[1] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[2] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[3] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
 
-    geometry->meshes.push_back(mesh);
+    vertices[4] = {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // back
+    vertices[5] = {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[6] = {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[7] = {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[8] = {{-0.5f, -0.5f,  -0.5f}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // left
+    vertices[9] = {{-0.5f, -0.5f,   0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[10] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[11] = {{-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[12] = {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // right
+    vertices[13] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[14] = {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[15] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[16] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // top
+    vertices[17] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[18] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[19] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[20] = {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // bottom
+    vertices[21] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[22] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[23] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    // clang-format on
+    uint32_t indices[36] = { 0,  1,  2,  2,  1,  3, // front
+                             4,  5,  6,  6,  5,  7, // back
+                             8,  9, 10, 10,  9, 11, // left
+                            12, 13, 14, 14, 13, 15, // right
+                            16, 17, 18, 18, 17, 19,
+                            20, 21, 22, 22, 21, 23,};
+    uint32_t index_count = sizeof(indices) / sizeof(uint32_t);
+
+    create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), indices, index_count, geometry);
+}
+
+void create_sphere_geometry(const App *app, Geometry *geometry) {
+    Vertex vertices[24];
+    // clang-format off
+    vertices[0] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // front
+    vertices[1] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[2] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[3] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f,  1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[4] = {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // back
+    vertices[5] = {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[6] = {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[7] = {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[8] = {{-0.5f, -0.5f,  -0.5f}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // left
+    vertices[9] = {{-0.5f, -0.5f,   0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[10] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[11] = {{-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[12] = {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // right
+    vertices[13] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[14] = {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[15] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[16] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // top
+    vertices[17] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[18] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[19] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+
+    vertices[20] = {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}}; // bottom
+    vertices[21] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[22] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    vertices[23] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.5f}};
+    // clang-format on
+    uint32_t indices[36] = { 0,  1,  2,  2,  1,  3, // front
+                             4,  5,  6,  6,  5,  7, // back
+                             8,  9, 10, 10,  9, 11, // left
+                            12, 13, 14, 14, 13, 15, // right
+                            16, 17, 18, 18, 17, 19, // top
+                            20, 21, 22, 22, 21, 23,};
+    uint32_t index_count = sizeof(indices) / sizeof(uint32_t);
+
+    create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), indices, index_count, geometry);
 }
 
 void app_create(SDL_Window *window, App **out_app) {
@@ -224,7 +304,7 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -260,6 +340,8 @@ void app_create(SDL_Window *window, App **out_app) {
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
 
     create_quad_geometry(app, &app->quad_geometry);
+    create_cube_geometry(app, &app->cube_geometry);
+    create_sphere_geometry(app, &app->sphere_geometry);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -273,6 +355,8 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
+    destroy_geometry(app->vk_context, &app->sphere_geometry);
+    destroy_geometry(app->vk_context, &app->cube_geometry);
     destroy_geometry(app->vk_context, &app->quad_geometry);
     destroy_geometry(app->vk_context, &app->gltf_model_geometry);
 
@@ -357,7 +441,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f); // 在非 reversed-z 情况下，使物体离相机更远
+    vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -390,9 +474,24 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
+    // for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
+    //     glm::mat4 model = glm::mat4(1.0f);
+    //     model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
+    //
+    //     InstanceState instance_state{};
+    //     instance_state.model = model;
+    //     instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+    //
+    //     vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+    //
+    //     for (const Primitive &primitive: mesh.primitives) {
+    //         vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+    //         vk_command_draw_indexed(command_buffer, primitive.index_count);
+    //     }
+    // }
+
+    for (const Mesh &mesh : app->cube_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
 
         InstanceState instance_state{};
         instance_state.model = model;
@@ -425,32 +524,48 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     // draw wireframe on selected entity
     if (static uint32_t n = 0; n++ % 200 < 100) {
         vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+        vk_command_set_depth_bias(command_buffer, -0.5f, 0.0f, -0.5f);
 
-        for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
-            vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
-            vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
+        // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
+        //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
+        //     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
+        //
+        //     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+        //     std::deque<VkDescriptorBufferInfo> buffer_infos;
+        //     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        //     {
+        //         vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+        //
+        //         VkDescriptorSet descriptor_set;
+        //         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        //         descriptor_sets.push_back(descriptor_set);
+        //
+        //         VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer.handle, sizeof(GlobalState));
+        //         buffer_infos.push_back(descriptor_buffer_info);
+        //
+        //         VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+        //         write_descriptor_sets.push_back(write_descriptor_set);
+        //     }
+        //     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        //     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+        //
+        //     glm::mat4 model = glm::mat4(1.0f);
+        //     model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
+        //
+        //     InstanceState instance_state{};
+        //     instance_state.model = model;
+        //     instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+        //
+        //     vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        //
+        //     for (const Primitive &primitive : mesh.primitives) {
+        //         vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+        //         vk_command_draw_indexed(command_buffer, primitive.index_count);
+        //     }
+        // }
 
-            std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-            std::deque<VkDescriptorBufferInfo> buffer_infos;
-            std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-            {
-                vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
-
-                VkDescriptorSet descriptor_set;
-                vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-                descriptor_sets.push_back(descriptor_set);
-
-                VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer.handle, sizeof(GlobalState));
-                buffer_infos.push_back(descriptor_buffer_info);
-
-                VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-                write_descriptor_sets.push_back(write_descriptor_set);
-            }
-            vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-            vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
+        for (const Mesh &mesh : app->cube_geometry.meshes) {
             glm::mat4 model = glm::mat4(1.0f);
-            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
 
             InstanceState instance_state{};
             instance_state.model = model;

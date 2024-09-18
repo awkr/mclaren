@@ -4,14 +4,6 @@
 #include "vk_buffer.h"
 #include <glm/glm.hpp>
 
-// 顶点结构，手动构造 mesh 或加载 gltf/glb 模型时，顶点数据需遵循此结构
-struct Vertex {
-    alignas(16) float pos[3];
-    alignas(16) float tex_coord[2];
-    alignas(16) float normal[3];
-    alignas(16) float color[4] = {1.0f, 1.0f, 1.0f, 1.0f}; // 默认白色
-};
-
 struct MeshBuffer {
     Buffer vertex_buffer;
     Buffer index_buffer;

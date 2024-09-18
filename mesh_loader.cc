@@ -88,9 +88,3 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
 
     cgltf_free(data);
 }
-
-void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
-    for (Mesh &mesh: geometry->meshes) { destroy_mesh(vk_context, &mesh); }
-}
-
-void destroy_mesh(VkContext *vk_context, Mesh *mesh) { destroy_mesh_buffer(vk_context, &mesh->mesh_buffer); }

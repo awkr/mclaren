@@ -9,6 +9,8 @@ set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc camera.cc)
 set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc mesh_buffer.cc
         mesh_loader.cc
+        mesh.cc
+        geometry.cc
         event_system.cc
         input_system.cc
 )
