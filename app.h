@@ -75,7 +75,9 @@ struct App {
     Geometry gltf_model_geometry;
     Geometry quad_geometry;
     Geometry cube_geometry;
-    Geometry sphere_geometry;
+    Geometry sphere_geometry; // todo Icosphere
+    Geometry circle_geometry;
+    Geometry cone_geometry;
     std::vector<Geometry *> geometries;
 
     Camera camera;
