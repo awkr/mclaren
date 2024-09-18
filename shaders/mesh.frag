@@ -7,13 +7,11 @@
 
 layout (location = 0) in  vec2 tex_coord;
 layout (location = 1) in  vec3 normal;
-layout (location = 2) in  vec4 color;
 layout (location = 0) out vec4 frag_color;
 
 layout (set = 1, binding = 0) uniform sampler2D tex;
 
 void main() {
-    // frag_color = color;
     // frag_color = texture(tex, tex_coord);
 
     const vec3 base_color = vec3(0.9, 0.9, 0.9);

@@ -237,9 +237,9 @@ void app_create(SDL_Window *window, App **out_app) {
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
 
-    create_quad_geometry(vk_context, &app->quad_geometry);
+    create_plane_geometry(vk_context, 1.5f, 1.0f, &app->plane_geometry);
     create_cube_geometry(vk_context, &app->cube_geometry);
-    create_sphere_geometry(vk_context, &app->sphere_geometry);
+    create_uv_sphere_geometry(vk_context, 1, 20, 20, &app->uv_sphere_geometry);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -253,9 +253,9 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    destroy_geometry(app->vk_context, &app->sphere_geometry);
+    destroy_geometry(app->vk_context, &app->uv_sphere_geometry);
     destroy_geometry(app->vk_context, &app->cube_geometry);
-    destroy_geometry(app->vk_context, &app->quad_geometry);
+    destroy_geometry(app->vk_context, &app->plane_geometry);
     destroy_geometry(app->vk_context, &app->gltf_model_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
@@ -339,7 +339,8 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f); // 在非 reversed-z 情况下，使物体离相机更远
+    // vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f); // 在非 reversed-z 情况下，使物体离相机更远
+    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -388,6 +389,22 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     //     }
     // }
 
+    for (const Mesh &mesh : app->uv_sphere_geometry.meshes) {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+
+        InstanceState instance_state{};
+        instance_state.model = model;
+        instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+
+        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+        for (const Primitive &primitive: mesh.primitives) {
+            vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+            vk_command_draw_indexed(command_buffer, primitive.index_count);
+        }
+    }
+
     for (const Mesh &mesh : app->cube_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
 
@@ -403,7 +420,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         }
     }
 
-    for (const Mesh &mesh : app->quad_geometry.meshes) {
+    for (const Mesh &mesh : app->plane_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
 
@@ -420,9 +437,10 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     }
 
     // draw wireframe on selected entity
-    if (static uint32_t n = 0; n++ % 200 < 100) {
+    if (static uint32_t n = 0; n++ % 1000 < 800) {
         vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-        vk_command_set_depth_bias(command_buffer, -0.5f, 0.0f, -0.5f);
+        // vk_command_set_depth_bias(command_buffer, -0.5f, 0.0f, -0.5f);
+        vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f);
 
         // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -462,6 +480,22 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
         //     }
         // }
 
+        for (const Mesh &mesh : app->uv_sphere_geometry.meshes) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+
+            InstanceState instance_state{};
+            instance_state.model = model;
+            instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
+
+            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+            for (const Primitive &primitive: mesh.primitives) {
+                vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
+                vk_command_draw_indexed(command_buffer, primitive.index_count);
+            }
+        }
+
         for (const Mesh &mesh : app->cube_geometry.meshes) {
             glm::mat4 model = glm::mat4(1.0f);
 
@@ -477,7 +511,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
             }
         }
 
-        for (const Mesh &mesh : app->quad_geometry.meshes) {
+        for (const Mesh &mesh : app->plane_geometry.meshes) {
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
 

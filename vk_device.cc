@@ -132,6 +132,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_device_features.fillModeNonSolid = features.fillModeNonSolid;
     required_device_features.wideLines = features.wideLines;
     required_device_features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+    required_device_features.depthBiasClamp = VK_TRUE;
 
     VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR fragment_shader_barycentric_features{};
     fragment_shader_barycentric_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;

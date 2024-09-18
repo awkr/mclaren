@@ -3,14 +3,8 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_GOOGLE_include_directive : require
 
+#include "vertex.glsl"
 #include "global_state.glsl"
-
-struct Vertex {
-    vec3 position;
-    vec2 tex_coord;
-    vec3 normal;
-    vec4 color;
-};
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
     Vertex vertices[];

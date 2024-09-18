@@ -73,10 +73,9 @@ struct App {
     VkSampler default_sampler_nearest;
 
     Geometry gltf_model_geometry;
-    Geometry quad_geometry;
+    Geometry plane_geometry;
     Geometry cube_geometry;
-    Geometry sphere_geometry; // todo Icosphere
-    Geometry circle_geometry;
+    Geometry uv_sphere_geometry;
     Geometry cone_geometry;
     std::vector<Geometry *> geometries;
 
