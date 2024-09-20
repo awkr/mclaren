@@ -202,7 +202,7 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -239,7 +239,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     create_plane_geometry(vk_context, 1.5f, 1.0f, &app->plane_geometry);
     create_cube_geometry(vk_context, &app->cube_geometry);
-    create_uv_sphere_geometry(vk_context, 1, 20, 20, &app->uv_sphere_geometry);
+    create_uv_sphere_geometry(vk_context, 1, 16, 16, &app->uv_sphere_geometry);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -339,7 +339,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
 
     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-    // vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f); // 在非 reversed-z 情况下，使物体离相机更远
     vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, 1.0f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
@@ -439,8 +438,6 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer) {
     // draw wireframe on selected entity
     if (static uint32_t n = 0; n++ % 1000 < 800) {
         vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-        // vk_command_set_depth_bias(command_buffer, -0.5f, 0.0f, -0.5f);
-        vk_command_set_depth_bias(command_buffer, 0.0f, 0.0f, 0.0f);
 
         // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -595,12 +592,7 @@ void app_update(App *app) {
         draw_gizmos(app, command_buffer);
         draw_gui(app, command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image->image,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                   VK_ACCESS_2_TRANSFER_READ_BIT,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
         vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 

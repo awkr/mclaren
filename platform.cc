@@ -8,7 +8,7 @@
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
     uint32_t flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-    // flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     platform_context->window = SDL_CreateWindow("mclaren", width, height, flags);
     ASSERT_MESSAGE(platform_context->window, "SDL_CreateWindow failed: %s", SDL_GetError());
     SDL_bool succeed = SDL_RaiseWindow(platform_context->window);

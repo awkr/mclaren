@@ -1,5 +1,6 @@
 #include "geometry.h"
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 void create_geometry(VkContext *vk_context, const Vertex *vertices, uint32_t vertex_count, const uint32_t *indices, uint32_t index_count, Geometry *geometry) {
     MeshBuffer mesh_buffer;
@@ -107,17 +108,14 @@ void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sec
             const float x = zx * sinf(sector_angle);
             const float z = zx * cosf(sector_angle);
 
-            const glm::vec3 &n = glm::normalize(glm::vec3(x, y, z));
+            const glm::vec3 &pos = glm::vec3(x, y, z);
+            const glm::vec3 &n = glm::normalize(pos);
 
             Vertex vertex = {};
-            vertex.pos[0] = x;
-            vertex.pos[1] = y;
-            vertex.pos[2] = z;
+            memcpy(vertex.pos, glm::value_ptr(pos), sizeof(float) * 3);
             vertex.tex_coord[0] = (float) j / (float) sectors;
             vertex.tex_coord[1] = (float) i / (float) stacks;
-            vertex.normal[0] = n.x;
-            vertex.normal[1] = n.y;
-            vertex.normal[2] = n.z;
+            memcpy(vertex.normal, glm::value_ptr(n), sizeof(float) * 3);
 
             vertices.push_back(vertex);
         }
@@ -150,5 +148,7 @@ void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sec
 
     create_geometry(vk_context, vertices.data(), vertices.size(), indices.data(), indices.size(), geometry);
 }
+
+void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}
 
 void create_cone_geometry(VkContext *vk_context, Geometry *geometry) {}

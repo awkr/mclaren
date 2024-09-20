@@ -1,6 +1,6 @@
-object bounding box
 -------
 gizmo
+object bounding box
 object picking
 优化 camera behavior，调研 unity 与 unreal engine
 indirect draw
@@ -16,6 +16,7 @@ object outline
 DoF
 curve editor
 profiling
+SMAA
 ?meshlet?
 ?bindless texture?
 -------
