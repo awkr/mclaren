@@ -99,18 +99,18 @@ void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image,
     vkCmdClearColorImage(command_buffer, image, image_layout, clear_color, 1, &clear_range);
 }
 
-void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, uint32_t width, uint32_t height) {
+void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
     VkImageBlit2KHR image_blit_region{};
     image_blit_region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2_KHR;
     image_blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_blit_region.srcSubresource.layerCount = 1;
-    image_blit_region.srcOffsets[1].x = (int32_t) width;
-    image_blit_region.srcOffsets[1].y = (int32_t) height;
+    image_blit_region.srcOffsets[1].x = (int32_t) extent->width;
+    image_blit_region.srcOffsets[1].y = (int32_t) extent->height;
     image_blit_region.srcOffsets[1].z = 1;
     image_blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_blit_region.dstSubresource.layerCount = 1;
-    image_blit_region.dstOffsets[1].x = (int32_t) width;
-    image_blit_region.dstOffsets[1].y = (int32_t) height;
+    image_blit_region.dstOffsets[1].x = (int32_t) extent->width;
+    image_blit_region.dstOffsets[1].y = (int32_t) extent->height;
     image_blit_region.dstOffsets[1].z = 1;
 
     VkBlitImageInfo2 blit_image_info{};
@@ -135,6 +135,10 @@ void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineB
     vkCmdBindDescriptorSets(command_buffer, bind_point, pipeline_layout, 0, set_count, descriptor_sets, 0, nullptr);
 }
 
+void vk_command_bind_vertex_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &buffer, &offset);
+}
+
 void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
     vkCmdBindIndexBuffer(command_buffer, buffer, offset, VK_INDEX_TYPE_UINT32);
 }
@@ -150,13 +154,13 @@ void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x,
 }
 
 void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
-                                const VkRenderingAttachmentInfo *attachments, uint32_t attachment_count,
+                                const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
                                 const VkRenderingAttachmentInfo *depth_attachment) {
     VkRenderingInfo rendering_info{};
     rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     rendering_info.renderArea.extent = *extent;
-    rendering_info.colorAttachmentCount = attachment_count;
-    rendering_info.pColorAttachments = attachments;
+    rendering_info.colorAttachmentCount = color_attachment_count;
+    rendering_info.pColorAttachments = color_attachments;
     rendering_info.pDepthAttachment = depth_attachment;
     rendering_info.layerCount = 1;
     vkCmdBeginRenderingKHR(command_buffer, &rendering_info);
@@ -188,9 +192,7 @@ void vk_command_set_depth_bias(VkCommandBuffer command_buffer, float constant_fa
     vkCmdSetDepthBias(command_buffer, constant_factor, clamp, slope_factor);
 }
 
-void
-vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
-                uint32_t first_instance) {
+void vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }
 

@@ -6,7 +6,9 @@ struct Geometry {
     std::vector<Mesh> meshes;
 };
 
-void create_geometry(VkContext *vk_context, const Vertex *vertices, uint32_t vertex_count, const uint32_t *indices, uint32_t index_count, Geometry *geometry);
+// create a geometry with a single mesh which contains only a primtive
+void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
+                     const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry);
 void destroy_geometry(VkContext *vk_context, Geometry *geometry);
 
 void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *geometry);

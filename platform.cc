@@ -8,16 +8,16 @@
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
     uint32_t flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-    flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    // flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     platform_context->window = SDL_CreateWindow("mclaren", width, height, flags);
     ASSERT_MESSAGE(platform_context->window, "SDL_CreateWindow failed: %s", SDL_GetError());
-    SDL_bool succeed = SDL_RaiseWindow(platform_context->window);
-    ASSERT_MESSAGE(succeed == SDL_TRUE, "SDL_RaiseWindow failed: %s", SDL_GetError());
+    bool succeed = SDL_RaiseWindow(platform_context->window);
+    ASSERT_MESSAGE(succeed, "SDL_RaiseWindow failed: %s", SDL_GetError());
 }
 
 void platform_init(PlatformContext *platform_context) {
-    SDL_bool succeed = SDL_Init(SDL_INIT_VIDEO);
-    ASSERT_MESSAGE(succeed == SDL_TRUE, "SDL_Init failed: %s", SDL_GetError());
+    bool succeed = SDL_Init(SDL_INIT_VIDEO);
+    ASSERT_MESSAGE(succeed, "SDL_Init failed: %s", SDL_GetError());
     create_window(platform_context, 640, 480);
     event_system_create(&platform_context->event_system_state);
     input_system_create(&platform_context->input_system_state);

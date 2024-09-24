@@ -7,12 +7,14 @@ add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc camera.cc)
-set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc mesh_buffer.cc
+set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc
         mesh_loader.cc
         mesh.cc
         geometry.cc
         event_system.cc
         input_system.cc
+        gizmo.cc
+        scene.cc
 )
 set(VK_SRCS
         vk.cc
@@ -49,4 +51,15 @@ elseif (__ANDROID__)
     target_compile_definitions(${PROJECT_NAME} PRIVATE PLATFORM_ANDROID)
 elseif (WIN32)
     target_compile_definitions(${PROJECT_NAME} PRIVATE PLATFORM_WINDOWS)
+endif ()
+
+if (IOS)
+elseif (APPLE)
+    if (NOT DEFINED ENV{VULKAN_SDK})
+        message(FATAL_ERROR "VULKAN_SDK environment variable is not set")
+    endif ()
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+            INSTALL_RPATH "$ENV{VULKAN_SDK}/lib"
+            BUILD_WITH_INSTALL_RPATH TRUE
+    )
 endif ()

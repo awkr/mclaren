@@ -15,8 +15,8 @@
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
     bool succeed = vk_create_instance(vk_context, "mclaren", VK_API_VERSION_1_2, true);
     ASSERT(succeed);
-    SDL_bool ok = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
-    ASSERT(ok == SDL_TRUE);
+    succeed = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
+    ASSERT(succeed);
     vk_create_device(vk_context);
     vk_create_allocator(vk_context);
     vk_create_swapchain(vk_context, width, height);

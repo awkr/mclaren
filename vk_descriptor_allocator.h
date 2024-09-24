@@ -27,3 +27,5 @@ void vk_descriptor_allocator_reset(VkDevice device, DescriptorAllocator *allocat
 
 void vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout,
                                    VkDescriptorSet *descriptor_set);
+
+void vk_descriptor_allocator_free(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout, VkDescriptorSet *descriptor_set);

@@ -1,17 +1,61 @@
 #include "geometry.h"
+#include "vk_command_buffer.h"
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-void create_geometry(VkContext *vk_context, const Vertex *vertices, uint32_t vertex_count, const uint32_t *indices, uint32_t index_count, Geometry *geometry) {
-    MeshBuffer mesh_buffer;
-    create_mesh_buffer(vk_context, vertices, vertex_count, sizeof(Vertex), indices, index_count, sizeof(uint32_t), &mesh_buffer);
-
+void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
+                     const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry) {
     Mesh mesh = {};
-    mesh.mesh_buffer = mesh_buffer;
+
+    // todo 一次性上传顶点和索引数据
+
+    { // vertex buffer
+        const size_t vertex_buffer_size = vertex_count * vertex_stride;
+        vk_create_buffer(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, &mesh.vertex_buffer);
+
+        VkBufferDeviceAddressInfo buffer_device_address_info{};
+        buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        buffer_device_address_info.buffer = mesh.vertex_buffer->handle;
+        mesh.vertex_buffer_device_address = vkGetBufferDeviceAddress(vk_context->device, &buffer_device_address_info);
+
+        // upload data to gpu
+        Buffer *staging_buffer = nullptr;
+        vk_create_buffer(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
+
+        VmaAllocationInfo staging_buffer_allocation_info;
+        vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
+
+        memcpy(staging_buffer_allocation_info.pMappedData, vertices, vertex_buffer_size);
+        vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
+            vk_command_copy_buffer(command_buffer, staging_buffer->handle, mesh.vertex_buffer->handle, vertex_buffer_size, 0, 0);
+        });
+        vk_destroy_buffer(vk_context, staging_buffer);
+    }
+
+    if (index_count > 0) { // index buffer
+        size_t index_buffer_size = index_count * index_stride;
+        vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, &mesh.index_buffer);
+
+        // upload data to gpu
+        Buffer *staging_buffer = nullptr;
+        vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
+
+        VmaAllocationInfo staging_buffer_allocation_info;
+        vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
+
+        memcpy(staging_buffer_allocation_info.pMappedData, indices, index_buffer_size);
+        vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
+            vk_command_copy_buffer(command_buffer, staging_buffer->handle, mesh.index_buffer->handle, index_buffer_size, 0, 0);
+        });
+        vk_destroy_buffer(vk_context, staging_buffer);
+    }
 
     Primitive primitive = {};
-    primitive.index_count = index_count;
     primitive.index_offset = 0;
+    primitive.index_count = index_count;
+    primitive.vertex_offset = 0;
+    primitive.vertex_count = vertex_count;
+
     mesh.primitives.push_back(primitive);
 
     geometry->meshes.push_back(mesh);
@@ -40,7 +84,7 @@ void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *ge
     uint32_t indices[6] = {0, 1, 2, 2, 1, 3};
     uint32_t index_count = sizeof(indices) / sizeof(uint32_t);
 
-    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), indices, index_count, geometry);
+    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), geometry);
 }
 
 void create_cube_geometry(VkContext *vk_context, Geometry *geometry) {
@@ -56,8 +100,8 @@ void create_cube_geometry(VkContext *vk_context, Geometry *geometry) {
     vertices[6] = {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
     vertices[7] = {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
 
-    vertices[8] = {{-0.5f, -0.5f,  -0.5f}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}}; // left
-    vertices[9] = {{-0.5f, -0.5f,   0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}};
+    vertices[ 8] = {{-0.5f, -0.5f,  -0.5f}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}}; // left
+    vertices[ 9] = {{-0.5f, -0.5f,   0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}};
     vertices[10] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
     vertices[11] = {{-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
 
@@ -85,7 +129,7 @@ void create_cube_geometry(VkContext *vk_context, Geometry *geometry) {
     // clang-format on
     uint32_t index_count = sizeof(indices) / sizeof(uint32_t);
 
-    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), indices, index_count, geometry);
+    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), geometry);
 }
 
 void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry) {
@@ -146,7 +190,7 @@ void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sec
         }
     }
 
-    create_geometry(vk_context, vertices.data(), vertices.size(), indices.data(), indices.size(), geometry);
+    create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), geometry);
 }
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}

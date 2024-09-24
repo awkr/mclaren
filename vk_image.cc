@@ -45,18 +45,18 @@ void vk_create_image_from_data(VkContext *vk_context, const void *data, uint32_t
                                VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image) {
     vk_create_image(vk_context, width, height, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT, enable_mipmap, out_image);
 
-    Buffer staging_buffer;
+    Buffer *staging_buffer = nullptr;
     size_t size = width * height * 4; // todo support other formats
     vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
-    vk_copy_data_to_buffer(vk_context, &staging_buffer, data, size);
+    vk_copy_data_to_buffer(vk_context, staging_buffer, data, size);
 
     vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_transition_image_layout(command_buffer, (*out_image)->image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vk_command_copy_buffer_to_image(command_buffer, staging_buffer.handle, (*out_image)->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, height);
+        vk_command_copy_buffer_to_image(command_buffer, staging_buffer->handle, (*out_image)->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, height);
         vk_transition_image_layout(command_buffer, (*out_image)->image, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
-    vk_destroy_buffer(vk_context, &staging_buffer);
+    vk_destroy_buffer(vk_context, staging_buffer);
 }
 
 void vk_destroy_image(VkContext *vk_context, Image *image) {

@@ -1,6 +1,6 @@
--------
 gizmo
-object bounding box
+    - axis
+-------
 object picking
 优化 camera behavior，调研 unity 与 unreal engine
 indirect draw
@@ -12,6 +12,7 @@ sdf based text rendering
 ui
 animation
 physics
+terrain
 object outline
 DoF
 curve editor
@@ -22,3 +23,4 @@ SMAA
 -------
 input system
 solid wireframe
+object bounding box

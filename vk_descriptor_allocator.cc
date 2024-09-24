@@ -2,7 +2,7 @@
 #include "vk_descriptor.h"
 #include "core/logging.h"
 
-static VkDescriptorPool create_pool(VkDevice device, DescriptorAllocator *allocator) {
+static VkDescriptorPool create_descriptor_pool(VkDevice device, DescriptorAllocator *allocator) {
     std::vector<VkDescriptorPoolSize> pool_sizes;
     for (const DescriptorPoolSizeRatio &ratio: allocator->size_ratios) {
         VkDescriptorPoolSize pool_size = {};
@@ -16,13 +16,13 @@ static VkDescriptorPool create_pool(VkDevice device, DescriptorAllocator *alloca
     return pool;
 }
 
-static VkDescriptorPool pop_or_create_pool(VkDevice device, DescriptorAllocator *allocator) {
+static VkDescriptorPool pop_or_create_descriptor_pool(VkDevice device, DescriptorAllocator *allocator) {
     if (!allocator->available_pools.empty()) {
         VkDescriptorPool pool = allocator->available_pools.back();
         allocator->available_pools.pop_back();
         return pool;
     }
-    VkDescriptorPool pool = create_pool(device, allocator);
+    VkDescriptorPool pool = create_descriptor_pool(device, allocator);
     return pool;
 }
 
@@ -35,7 +35,7 @@ void vk_descriptor_allocator_create(VkDevice device, uint32_t sets_per_pool,
     *out_allocator = allocator;
 
     // create initial pool
-    VkDescriptorPool pool = create_pool(device, allocator);
+    VkDescriptorPool pool = create_descriptor_pool(device, allocator);
     allocator->available_pools.push_back(pool);
 }
 
@@ -59,16 +59,18 @@ void vk_descriptor_allocator_reset(VkDevice device, DescriptorAllocator *allocat
 void
 vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout,
                               VkDescriptorSet *descriptor_set) {
-    VkDescriptorPool pool = pop_or_create_pool(device, allocator);
+    VkDescriptorPool pool = pop_or_create_descriptor_pool(device, allocator);
 
     VkResult result = vk_allocate_descriptor_set(device, pool, layout, descriptor_set);
     if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
         allocator->full_pools.push_back(pool);
 
-        pool = create_pool(device, allocator);
+        pool = create_descriptor_pool(device, allocator);
         result = vk_allocate_descriptor_set(device, pool, layout, descriptor_set);
     }
     ASSERT(result == VK_SUCCESS);
 
     allocator->available_pools.push_back(pool);
 }
+
+void vk_descriptor_allocator_free(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout, VkDescriptorSet *descriptor_set) {}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "camera.h"
+#include "gizmo.h"
 #include "mesh_loader.h"
 #include "input_system.h"
 #include <cstdint>
@@ -25,7 +26,7 @@ struct RenderFrame {
 
     DescriptorAllocator *descriptor_allocator;
 
-    Buffer global_state_buffer;
+    Buffer *global_state_buffer;
 };
 
 struct GlobalState {
@@ -38,6 +39,11 @@ struct GlobalState {
 struct InstanceState {
     glm::mat4 model;
     VkDeviceAddress vertex_buffer_device_address;
+};
+
+struct BoundingBox {
+    glm::vec3 min = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+    glm::vec3 max = glm::vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 };
 
 struct App {
@@ -67,7 +73,6 @@ struct App {
     VkPipelineLayout wireframe_pipeline_layout;
     VkPipeline wireframe_pipeline;
 
-    Image *default_gray_image;
     Image *default_checkerboard_image;
     VkImageView default_checkerboard_image_view;
     VkSampler default_sampler_nearest;
@@ -83,6 +88,12 @@ struct App {
     GlobalState global_state;
 
     ImGuiContext *gui_context;
+
+    VkPipelineLayout gizmo_pipeline_layout;
+    VkPipeline gizmo_pipeline;
+
+    BoundingBox bounding_box;
+    Geometry bounding_box_geometry;
 };
 
 void app_create(SDL_Window *window, App **out_app);
