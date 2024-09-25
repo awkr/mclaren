@@ -214,7 +214,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
+        push_constant_range.size = sizeof(BoundingBoxInstanceState);
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
@@ -597,11 +597,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
         // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
 
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        BoundingBoxInstanceState bounding_box_instance_state{};
+        bounding_box_instance_state.model = model;
+        bounding_box_instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        bounding_box_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(BoundingBoxInstanceState), &bounding_box_instance_state);
         vk_command_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive: mesh.primitives) {
             vk_command_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
