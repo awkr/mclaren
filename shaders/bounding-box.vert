@@ -7,6 +7,7 @@
 
 struct Vertex {
     vec4 position;
+    vec4 color;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
@@ -15,7 +16,6 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
 
 layout (push_constant) uniform InstanceState {
     mat4 model;
-    vec4 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;
 
@@ -24,5 +24,5 @@ layout (location = 0) out vec4 out_color;
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
     gl_Position = global_state.projection * global_state.view * instance_state.model * vec4(vertex.position.xyz, 1.0);
-    out_color = instance_state.color;
+    out_color = vertex.color;
 }

@@ -41,12 +41,6 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
-struct BoundingBoxInstanceState {
-    glm::mat4 model;
-    glm::vec4 color;
-    VkDeviceAddress vertex_buffer_device_address;
-};
-
 struct BoundingBox {
     glm::vec3 min = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
     glm::vec3 max = glm::vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -100,6 +94,7 @@ struct App {
 
     BoundingBox bounding_box;
     Geometry bounding_box_geometry;
+    Geometry axis_geometry;
 };
 
 void app_create(SDL_Window *window, App **out_app);

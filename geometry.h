@@ -4,6 +4,8 @@
 
 struct Geometry {
     std::vector<Mesh> meshes;
+    // Mesh *meshes;
+    // uint32_t mesh_count;
 };
 
 // create a geometry with a single mesh which contains only a primtive

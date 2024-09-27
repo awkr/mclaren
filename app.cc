@@ -214,7 +214,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(BoundingBoxInstanceState);
+        push_constant_range.size = sizeof(InstanceState);
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
@@ -264,43 +264,102 @@ void app_create(SDL_Window *window, App **out_app) {
         app->bounding_box.min = glm::vec3(-0.5f, -0.5f, -0.5f);
         app->bounding_box.max = glm::vec3(0.5f, 0.5f, 0.5f);
 
-        std::vector<glm::vec4> vertices(24); // 12 lines, 24 vertices
+        std::vector<ColoredVertex> vertices;
+        vertices.resize(24); // 12 lines, 24 vertices
         // clang-format off
         { // front
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f); // top line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f); // right line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f); // bottom line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f); // left line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f);
+            // top line
+            vertices[0].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[0].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[1].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[1].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            // right line
+            vertices[2].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[2].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[3].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[3].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            // bottom line
+            vertices[4].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[4].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[5].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[5].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            // left line
+            vertices[6].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[6].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[7].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[7].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         }
         { // back
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f); // top line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f); // right line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f); // bottom line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f); // left line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f);
+            // top line
+            vertices[8].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[8].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            vertices[9].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[9].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            // right line
+            vertices[10].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[10].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            vertices[11].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[11].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            // bottom line
+            vertices[12].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[12].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            vertices[13].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[13].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            // left line
+            vertices[14].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[14].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+            vertices[15].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[15].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
         }
         { // top
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f); // left line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z, 1.0f); // right line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z, 1.0f);
+            // left line
+            vertices[16].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[16].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[17].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[17].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            // right line
+            vertices[18].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
+            vertices[18].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[19].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
+            vertices[19].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         }
         { // bottom
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f); // left line
-            vertices.emplace_back(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f);
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z, 1.0f); // right line
-            vertices.emplace_back(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z, 1.0f);
+            // left line
+            vertices[20].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[20].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[21].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[21].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            // right line
+            vertices[22].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
+            vertices[22].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            vertices[23].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
+            vertices[23].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         }
         // clang-format on
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->bounding_box_geometry);
+    }
 
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(glm::vec4), nullptr, 0, 0, &app->bounding_box_geometry);
+    { // create a bounding box geometry
+        std::vector<ColoredVertex> vertices;
+        vertices.resize(6);
+        // clang-format off
+        // x-axis
+        vertices[0].position = glm::vec3(0.0f, 0.0f, 0.0f);
+        vertices[0].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        vertices[1].position = glm::vec3(1.0f, 0.0f, 0.0f);
+        vertices[1].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        // y-axis
+        vertices[2].position = glm::vec3(0.0f, 0.0f, 0.0f);
+        vertices[2].color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+        vertices[3].position = glm::vec3(0.0f, 1.0f, 0.0f);
+        vertices[3].color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+        // z-axis
+        vertices[4].position = glm::vec3(0.0f, 0.0f, 0.0f);
+        vertices[4].color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        vertices[5].position = glm::vec3(0.0f, 0.0f, 1.0f);
+        vertices[5].color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        // clang-format on
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->axis_geometry);
     }
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
@@ -315,6 +374,7 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
+    destroy_geometry(app->vk_context, &app->axis_geometry);
     destroy_geometry(app->vk_context, &app->bounding_box_geometry);
     destroy_geometry(app->vk_context, &app->uv_sphere_geometry);
     destroy_geometry(app->vk_context, &app->cube_geometry);
@@ -382,7 +442,7 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
 
     vk_command_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_command_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_command_set_depth_bias(command_buffer, .5f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
+    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -597,12 +657,26 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
         // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
 
-        BoundingBoxInstanceState bounding_box_instance_state{};
-        bounding_box_instance_state.model = model;
-        bounding_box_instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        bounding_box_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        InstanceState instance_state{};
+        instance_state.model = model;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(BoundingBoxInstanceState), &bounding_box_instance_state);
+        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_command_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
+        for (const Primitive &primitive: mesh.primitives) {
+            vk_command_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+        }
+    }
+
+    for (const Mesh &mesh : app->axis_geometry.meshes) {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 2.0f, 0.0f));
+
+        InstanceState instance_state{};
+        instance_state.model = model;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         vk_command_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive: mesh.primitives) {
             vk_command_draw(command_buffer, primitive.vertex_count, 1, 0, 0);

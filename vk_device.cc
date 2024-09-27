@@ -126,6 +126,7 @@ bool vk_create_device(VkContext *vk_context) {
 
     VkPhysicalDeviceFeatures features;
     vkGetPhysicalDeviceFeatures(vk_context->physical_device, &features);
+    // ASSERT_MESSAGE(features.wideLines == VK_TRUE, "wideLines feature is not supported");
 
     VkPhysicalDeviceFeatures required_device_features{};
     required_device_features.samplerAnisotropy = features.samplerAnisotropy;
@@ -133,6 +134,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_device_features.wideLines = features.wideLines;
     required_device_features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
     required_device_features.depthBiasClamp = VK_TRUE;
+    // required_device_features.wideLines = VK_TRUE;
 
     VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR fragment_shader_barycentric_features{};
     fragment_shader_barycentric_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
