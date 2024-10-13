@@ -84,48 +84,7 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
 
         // todo parse node transform
 
-        // todo 一次性上传顶点和索引数据
-
-        { // vertex buffer
-            const size_t vertex_buffer_size = vertices.size() * sizeof(Vertex);
-            vk_create_buffer(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, &mesh->vertex_buffer);
-
-            VkBufferDeviceAddressInfo buffer_device_address_info{};
-            buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-            buffer_device_address_info.buffer = mesh->vertex_buffer->handle;
-            mesh->vertex_buffer_device_address = vkGetBufferDeviceAddress(vk_context->device, &buffer_device_address_info);
-
-            // upload data to gpu
-            Buffer *staging_buffer = nullptr;
-            vk_create_buffer(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
-
-            VmaAllocationInfo staging_buffer_allocation_info;
-            vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
-
-            memcpy(staging_buffer_allocation_info.pMappedData, vertices.data(), vertex_buffer_size);
-            vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-                vk_command_copy_buffer(command_buffer, staging_buffer->handle, mesh->vertex_buffer->handle, vertex_buffer_size, 0, 0);
-            });
-            vk_destroy_buffer(vk_context, staging_buffer);
-        }
-
-        if (!indices.empty()) { // index buffer
-            size_t index_buffer_size = indices.size() * sizeof(uint32_t);
-            vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, &mesh->index_buffer);
-
-            // upload data to gpu
-            Buffer *staging_buffer = nullptr;
-            vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
-
-            VmaAllocationInfo staging_buffer_allocation_info;
-            vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
-
-            memcpy(staging_buffer_allocation_info.pMappedData, indices.data(), index_buffer_size);
-            vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-                vk_command_copy_buffer(command_buffer, staging_buffer->handle, mesh->index_buffer->handle, index_buffer_size, 0, 0);
-            });
-            vk_destroy_buffer(vk_context, staging_buffer);
-        }
+        create_mesh(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
     } // end looping meshes
 
     cgltf_free(data);

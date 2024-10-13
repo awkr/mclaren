@@ -30,46 +30,37 @@ VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaph
 
 void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func);
 
-void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
-                                  VkClearColorValue *clear_color);
+void vk_cmd_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout, VkClearColorValue *clear_color);
 
-void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent);
+void vk_cmd_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent);
 
-void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
+void vk_cmd_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
-void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
-                                     VkPipelineLayout pipeline_layout, uint32_t set_count, const VkDescriptorSet *descriptor_sets);
+void vk_cmd_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
+                                 VkPipelineLayout pipeline_layout, uint32_t set_count, const VkDescriptorSet *descriptor_sets);
 
-void vk_command_bind_vertex_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
-void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
+void vk_cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
+void vk_cmd_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset);
 
-void vk_command_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
-                               uint32_t size, const void *data);
+void vk_cmd_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
+                           uint32_t size, const void *data);
 
-void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
-                         uint32_t group_count_z);
+void vk_cmd_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
-void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
-                                const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
-                                const VkRenderingAttachmentInfo *depth_attachment);
+void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+                            const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
+                            const VkRenderingAttachmentInfo *depth_attachment);
+void vk_cmd_end_rendering(VkCommandBuffer command_buffer);
 
-void vk_command_end_rendering(VkCommandBuffer command_buffer);
+void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor);
 
-void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w,
-                             uint32_t h);
+void vk_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+                 uint32_t first_instance);
 
-void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-void vk_command_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor);
+void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count);
 
-void
-vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
-                uint32_t first_instance);
+void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
 
-void vk_command_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count);
-
-void
-vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset,
-                       uint32_t dst_offset);
-
-void vk_command_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout,
-                                     uint32_t width, uint32_t height);
+void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);

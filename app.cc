@@ -1,6 +1,7 @@
 #include "app.h"
 #include "core/deletion_queue.h"
 #include "core/logging.h"
+#include "mesh_loader.h"
 #include "vk.h"
 #include "vk_context.h"
 #include "vk_command_buffer.h"
@@ -17,39 +18,14 @@
 #include "vk_sampler.h"
 #include "vk_swapchain.h"
 #include "vk_buffer.h"
-#include "geometry.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
 #include <microprofile.h>
 
-// struct RenderEntity {
-//     // for `VkCmdDrawIndexed`
-//     uint32_t index_count;
-//     uint32_t index_offset;
-//     VkBuffer index_buffer;
-//
-//     struct MaterialInstance *material_instance; // points to the pipeline and descriptor set(s)
-//
-//     // per-entity dynamic data
-//     VkDeviceAddress vertex_buffer_device_address;
-//     glm::mat4 transform;
-// };
-//
-// struct MaterialPipeline {
-//     VkPipeline pipeline;
-//     VkPipelineLayout pipeline_layout;
-// };
-//
-// enum MaterialPassType {
-//     MATERIAL_PASS_TYPE_OPAQUE,
-//     MATERIAL_PASS_TYPE_TRANSPARENT,
-// };
-//
-// struct MaterialInstance {
-//     MaterialPipeline *pipeline;
-//     VkDescriptorSet descriptor_set;
-//     MaterialPassType pass_type;
-// };
+struct Ray {
+    glm::vec3 origin;
+    glm::vec3 direction;
+};
 
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
@@ -61,22 +37,35 @@ glm::mat4 clip = glm::mat4(
     // clang-format on
 );
 
-void create_color_image(App *app, VkFormat format) {
+glm::vec2 world_position_to_screen_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, uint16_t screen_width, uint16_t screen_height, const glm::vec3 &world_pos) {
+    glm::vec4 clip_pos = projection_matrix * view_matrix * glm::vec4(world_pos, 1.0f);
+    glm::vec3 ndc_pos = glm::vec3(clip_pos) / clip_pos.w;
+    glm::vec2 screen_pos = (glm::vec2(ndc_pos.x, ndc_pos.y) * 0.5f + 0.5f) * glm::vec2(screen_width, screen_height);
+    return screen_pos;
+}
+
+glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, const glm::vec2 &viewport_size, const glm::vec2 &screen_pos) {
+    float x_ndc = (2.0f * screen_pos.x) / viewport_size.x - 1.0f;
+    float y_ndc = 1.0f - (2.0f * screen_pos.y) / viewport_size.y;
+    float z_ndc = 1.0f; // 远平面，若为 0 则为近平面
+    glm::vec4 ndc_pos(x_ndc, y_ndc, z_ndc, 1.0f);
+    glm::vec4 world_pos = glm::inverse(projection_matrix * view_matrix) * ndc_pos;
+    world_pos /= world_pos.w;
+    return glm::vec3(world_pos);
+}
+
+void create_color_image(App *app, const VkFormat format) {
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
-    vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height,
-                    format, usage, false, &app->color_image);
-    vk_create_image_view(app->vk_context->device, app->color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT,
-                         app->color_image->mip_levels, &app->color_image_view);
+    vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, usage, false, &app->color_image);
+    vk_create_image_view(app->vk_context->device, app->color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT, app->color_image->mip_levels, &app->color_image_view);
 }
 
-void create_depth_image(App *app, VkFormat format) {
-    vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height,
-                    format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT , false, &app->depth_image);
-    vk_create_image_view(app->vk_context->device, app->depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT,
-                         app->depth_image->mip_levels, &app->depth_image_view);
+void create_depth_image(App *app, const VkFormat format) {
+    vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, false, &app->depth_image);
+    vk_create_image_view(app->vk_context->device, app->depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT, app->depth_image->mip_levels, &app->depth_image_view);
 
     // transition depth image layout once and for all
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
@@ -164,8 +153,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
         vk_create_pipeline_layout(vk_context->device, 1, &app->single_storage_image_descriptor_set_layout, nullptr, &app->compute_pipeline_layout);
-        vk_create_compute_pipeline(vk_context->device, app->compute_pipeline_layout, compute_shader_module,
-                                   &app->compute_pipeline);
+        vk_create_compute_pipeline(vk_context->device, app->compute_pipeline_layout, compute_shader_module, &app->compute_pipeline);
 
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
@@ -225,14 +213,13 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
 
         // todo create gizmo geometries
-        // three axis
-        // three circles
-        // three cones
-        // three dots
+        // [x] three axis
+        // [x] three spheres
+        // [ ] three cones
+        // [ ] three circles
     }
 
-    {
-        // create default checkerboard image
+    { // create checkerboard image
         uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
         uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
         uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
@@ -241,12 +228,27 @@ void app_create(SDL_Window *window, App **out_app) {
                 pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
             }
         }
-        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->default_checkerboard_image);
-        vk_create_image_view(vk_context->device, app->default_checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->default_checkerboard_image_view);
-
-        // create default sampler
-        vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
+        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->checkerboard_image);
+        vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->checkerboard_image_view);
     }
+
+    {
+        constexpr size_t texture_size = 8;
+        std::array<uint8_t, 32> palette = {
+            255, 102, 159, 255, 255, 159, 102, 255, 236, 255, 102, 255, 121, 255, 102, 255,
+            102, 255, 198, 255, 102, 198, 255, 255, 121, 102, 255, 255, 236, 102, 255, 255};
+        std::vector<uint8_t> texture_data(texture_size * texture_size * 4, 0);
+        for (size_t y = 0; y < texture_size; ++y) {
+            size_t offset = texture_size * y * 4;
+            std::copy(palette.begin(), palette.end(), texture_data.begin() + offset);
+            std::rotate(palette.rbegin(), palette.rbegin() + 4, palette.rend()); // 向右旋转4个元素
+        }
+
+        vk_create_image_from_data(vk_context, texture_data.data(), texture_size, texture_size, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->uv_debug_image);
+        vk_create_image_view(vk_context->device, app->uv_debug_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->uv_debug_image_view);
+    }
+
+    vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
 
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
@@ -339,28 +341,7 @@ void app_create(SDL_Window *window, App **out_app) {
         create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->bounding_box_geometry);
     }
 
-    { // create a bounding box geometry
-        std::vector<ColoredVertex> vertices;
-        vertices.resize(6);
-        // clang-format off
-        // x-axis
-        vertices[0].position = glm::vec3(0.0f, 0.0f, 0.0f);
-        vertices[0].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        vertices[1].position = glm::vec3(1.0f, 0.0f, 0.0f);
-        vertices[1].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        // y-axis
-        vertices[2].position = glm::vec3(0.0f, 0.0f, 0.0f);
-        vertices[2].color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-        vertices[3].position = glm::vec3(0.0f, 1.0f, 0.0f);
-        vertices[3].color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-        // z-axis
-        vertices[4].position = glm::vec3(0.0f, 0.0f, 0.0f);
-        vertices[4].color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-        vertices[5].position = glm::vec3(0.0f, 0.0f, 1.0f);
-        vertices[5].color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-        // clang-format on
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->axis_geometry);
-    }
+    create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -374,7 +355,7 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    destroy_geometry(app->vk_context, &app->axis_geometry);
+    destroy_geometry(app->vk_context, &app->translation_gizmo_geometry);
     destroy_geometry(app->vk_context, &app->bounding_box_geometry);
     destroy_geometry(app->vk_context, &app->uv_sphere_geometry);
     destroy_geometry(app->vk_context, &app->cube_geometry);
@@ -382,8 +363,10 @@ void app_destroy(App *app) {
     destroy_geometry(app->vk_context, &app->gltf_model_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
-    vk_destroy_image_view(app->vk_context->device, app->default_checkerboard_image_view);
-    vk_destroy_image(app->vk_context, app->default_checkerboard_image);
+    vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
+    vk_destroy_image(app->vk_context, app->uv_debug_image);
+    vk_destroy_image_view(app->vk_context->device, app->checkerboard_image_view);
+    vk_destroy_image(app->vk_context, app->checkerboard_image);
 
     // ImGui::DestroyContext(app->gui_context);
     vk_destroy_pipeline(app->vk_context->device, app->gizmo_pipeline);
@@ -423,7 +406,7 @@ void app_destroy(App *app) {
 }
 
 void draw_background(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
 
     VkDescriptorSet descriptor_set;
     vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
@@ -432,17 +415,16 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, const Rende
     VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &image_info, nullptr);
     vk_update_descriptor_sets(app->vk_context->device, 1, &write_descriptor_set);
 
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
-    vk_command_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0),
-                        std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
+    vk_cmd_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0), std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_geometries(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
+void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
 
-    vk_command_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_command_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_command_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
+    vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -466,14 +448,14 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->default_checkerboard_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         image_infos.push_back(descriptor_image_info);
 
         VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     // for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
     //     glm::mat4 model = glm::mat4(1.0f);
@@ -499,11 +481,11 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
-            vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_command_draw_indexed(command_buffer, primitive.index_count);
+            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
     }
 
@@ -514,11 +496,11 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
-            vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_command_draw_indexed(command_buffer, primitive.index_count);
+            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
     }
 
@@ -530,17 +512,17 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
         for (const Primitive &primitive: mesh.primitives) {
-            vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_command_draw_indexed(command_buffer, primitive.index_count);
+            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
     }
 
     // draw wireframe on selected entity
     if (static uint32_t n = 0; n++ % 1000 < 800) {
-        vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+        vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
 
         // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -588,11 +570,11 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
             instance_state.model = model;
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
             for (const Primitive &primitive: mesh.primitives) {
-                vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_command_draw_indexed(command_buffer, primitive.index_count);
+                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
             }
         }
 
@@ -603,11 +585,11 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
             instance_state.model = model;
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
             for (const Primitive &primitive : mesh.primitives) {
-                vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_command_draw_indexed(command_buffer, primitive.index_count);
+                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
             }
         }
 
@@ -619,21 +601,21 @@ void draw_geometries(const App *app, VkCommandBuffer command_buffer, const Rende
             instance_state.model = model;
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
             for (const Primitive &primitive: mesh.primitives) {
-                vk_command_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_command_draw_indexed(command_buffer, primitive.index_count);
+                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
             }
         }
     }
 }
 
 void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-    vk_command_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline);
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline);
 
-    vk_command_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_command_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -650,7 +632,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh : app->bounding_box_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
@@ -661,25 +643,37 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-        vk_command_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
+        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive: mesh.primitives) {
-            vk_command_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
     }
 
-    for (const Mesh &mesh : app->axis_geometry.meshes) {
+    for (const Mesh &mesh : app->translation_gizmo_geometry.meshes) {
+        glm::vec3 position = glm::vec3(0.0f, 2.0f, 0.0f);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 2.0f, 0.0f));
+        model = glm::translate(model, position);
+        {
+            float factor = 0.5f;
+            float scale = glm::length(app->camera.position - position) * factor;
+            model = glm::scale(model, glm::vec3(scale));
+        }
+        // {
+        //     float fov_y = 45.0f;
+        //     float dist = glm::length(app->camera.position - position);
+        //     float scale = ((2.0f * tan(fov_y * 0.5f)) * dist) * 0.5f;
+        //     model = glm::scale(model, glm::vec3(scale));
+        // }
 
         InstanceState instance_state{};
         instance_state.model = model;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_command_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-        vk_command_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
+        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive: mesh.primitives) {
-            vk_command_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
     }
 }
@@ -692,8 +686,9 @@ void update_scene(App *app) {
     app->global_state.view = app->camera.view_matrix;
 
     glm::mat4 projection = glm::mat4(1.0f);
+    float fov_y = 45.0f;
     float z_near = 0.01f, z_far = 100.0f;
-    projection = glm::perspective(glm::radians(60.0f), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
+    projection = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
     projection = clip * projection;
 
     app->global_state.projection = projection;
@@ -755,17 +750,17 @@ void app_update(App *app) {
         depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depth_attachment.clearValue.depthStencil.depth = 1.0f;
 
-        vk_command_begin_rendering(command_buffer, &app->vk_context->swapchain_extent, &color_attachment, 1, &depth_attachment);
-        draw_geometries(app, command_buffer, frame);
+        vk_cmd_begin_rendering(command_buffer, &app->vk_context->swapchain_extent, &color_attachment, 1, &depth_attachment);
+        draw_world(app, command_buffer, frame);
         draw_gizmo(app, command_buffer, frame);
         draw_gui(app, command_buffer, frame);
-        vk_command_end_rendering(command_buffer);
+        vk_cmd_end_rendering(command_buffer);
 
         vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
         vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        vk_command_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
+        vk_cmd_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
 
         vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
@@ -812,6 +807,40 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);
 }
 
+void app_key_down(App *app, Key key) {
+    if (key == KEY_W) {
+        Camera *camera = &app->camera;
+        camera_forward(camera, 0.2f);
+    } else if (key == KEY_S) {
+        Camera *camera = &app->camera;
+        camera_backward(camera, 0.2f);
+    } else if (key == KEY_A) {
+        Camera *camera = &app->camera;
+        camera_left(camera, 0.2f);
+    } else if (key == KEY_D) {
+        Camera *camera = &app->camera;
+        camera_right(camera, 0.2f);
+    } else if (key == KEY_Q) {
+        Camera *camera = &app->camera;
+        camera_up(camera, 0.2f);
+    } else if (key == KEY_E) {
+        Camera *camera = &app->camera;
+        camera_down(camera, 0.2f);
+    } else if (key == KEY_UP) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, 2.0f);
+    } else if (key == KEY_DOWN) {
+        Camera *camera = &app->camera;
+        camera_pitch(camera, -2.0f);
+    } else if (key == KEY_LEFT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, 2.0f);
+    } else if (key == KEY_RIGHT) {
+        Camera *camera = &app->camera;
+        camera_yaw(camera, -2.0f);
+    }
+}
+
 void app_key_up(App *app, Key key) {
     if (key == KEY_W) {
         Camera *camera = &app->camera;
@@ -846,38 +875,12 @@ void app_key_up(App *app, Key key) {
     }
 }
 
-void app_key_down(App *app, Key key) {
-    if (key == KEY_W) {
-        Camera *camera = &app->camera;
-        camera_forward(camera, 0.2f);
-    } else if (key == KEY_S) {
-        Camera *camera = &app->camera;
-        camera_backward(camera, 0.2f);
-    } else if (key == KEY_A) {
-        Camera *camera = &app->camera;
-        camera_left(camera, 0.2f);
-    } else if (key == KEY_D) {
-        Camera *camera = &app->camera;
-        camera_right(camera, 0.2f);
-    } else if (key == KEY_Q) {
-        Camera *camera = &app->camera;
-        camera_up(camera, 0.2f);
-    } else if (key == KEY_E) {
-        Camera *camera = &app->camera;
-        camera_down(camera, 0.2f);
-    } else if (key == KEY_UP) {
-        Camera *camera = &app->camera;
-        camera_pitch(camera, 2.0f);
-    } else if (key == KEY_DOWN) {
-        Camera *camera = &app->camera;
-        camera_pitch(camera, -2.0f);
-    } else if (key == KEY_LEFT) {
-        Camera *camera = &app->camera;
-        camera_yaw(camera, 2.0f);
-    } else if (key == KEY_RIGHT) {
-        Camera *camera = &app->camera;
-        camera_yaw(camera, -2.0f);
-    }
+void app_mouse_button_down(App *app, MouseButton mouse_button) {}
+
+void app_mouse_button_up(App *app, MouseButton mouse_button) {
+    // fire a ray from camera position to the world position of the mouse cursor
 }
+
+void app_mouse_move(App *app, float x, float y) {}
 
 void app_capture(App *app) {}

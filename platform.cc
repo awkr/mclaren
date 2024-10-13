@@ -6,9 +6,12 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
+bool app_on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context);
+bool app_on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context);
+
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
     uint32_t flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-    // flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     platform_context->window = SDL_CreateWindow("mclaren", width, height, flags);
     ASSERT_MESSAGE(platform_context->window, "SDL_CreateWindow failed: %s", SDL_GetError());
     bool succeed = SDL_RaiseWindow(platform_context->window);
@@ -20,12 +23,15 @@ void platform_init(PlatformContext *platform_context) {
     ASSERT_MESSAGE(succeed, "SDL_Init failed: %s", SDL_GetError());
     create_window(platform_context, 640, 480);
     event_system_create(&platform_context->event_system_state);
-    input_system_create(&platform_context->input_system_state);
+    input_system_create(platform_context->event_system_state, &platform_context->input_system_state);
     {
         unsigned int cpu_processors = std::thread::hardware_concurrency();
         log_debug("number of cpu processors: %d", cpu_processors);
     }
     app_create(platform_context->window, &platform_context->app);
+
+    event_register(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, app_on_key_down);
+    event_register(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, app_on_key_up);
 }
 
 static Key sdl_key_to_key(SDL_Keycode key) {
@@ -53,36 +59,55 @@ void platform_main_loop(PlatformContext *platform_context) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 quit = true;
-                break;
             } else if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
                 quit = true;
-                break;
             } else if (event.type == SDL_EVENT_KEY_UP) {
-                Key key = sdl_key_to_key(event.key.key);
-                input_process_key(platform_context->input_system_state, key, false);
-                if (key == KEY_ESC) {
+                if (const Key key = sdl_key_to_key(event.key.key); key == KEY_ESC) {
                     quit = true;
-                    break;
+                } else {
+                    input_process_key(platform_context->input_system_state, key, false);
                 }
-                app_key_up(platform_context->app, key);
             } else if (event.type == SDL_EVENT_KEY_DOWN) {
-                Key key = sdl_key_to_key(event.key.key);
+                const Key key = sdl_key_to_key(event.key.key);
                 input_process_key(platform_context->input_system_state, key, true);
-                app_key_down(platform_context->app, key);
+            } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                const MouseButton mouse_button = event.button.button == 1 ? MOUSE_BUTTON_LEFT : MOUSE_BUTTON_RIGHT;
+                input_process_mouse_button(platform_context->input_system_state, mouse_button, true, event.button.x, event.button.y);
+                app_mouse_button_down(platform_context->app, mouse_button);
+            } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+                const MouseButton mouse_button = event.button.button == 1 ? MOUSE_BUTTON_LEFT : MOUSE_BUTTON_RIGHT;
+                input_process_mouse_button(platform_context->input_system_state, mouse_button, false, event.button.x, event.button.y);
+                app_mouse_button_up(platform_context->app, mouse_button);
+            } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                input_process_mouse_move(platform_context->input_system_state, event.motion.x, event.motion.y);
+                app_mouse_move(platform_context->app, event.motion.x, event.motion.y);
             } else if (event.type == SDL_EVENT_WINDOW_RESIZED) {
                 app_resize(platform_context->app, event.window.data1, event.window.data2);
             }
             if (quit) { break; }
         } // end polling events
 
+        event_system_update(platform_context->event_system_state);
         input_system_update(platform_context->input_system_state);
         app_update(platform_context->app);
     }
 }
 
 void platform_terminate(PlatformContext *platform_context) {
+    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, app_on_key_down);
+    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, app_on_key_up);
     app_destroy(platform_context->app);
     input_system_destroy(platform_context->input_system_state);
     event_system_destroy(platform_context->event_system_state);
     SDL_DestroyWindow(platform_context->window);
+}
+
+bool app_on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+    app_key_down((App *) listener, (Key) event_context.data.u32[0]);
+    return true;
+}
+
+bool app_on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+    app_key_up((App *) listener, (Key) event_context.data.u32[0]);
+    return true;
 }

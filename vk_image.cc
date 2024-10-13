@@ -52,7 +52,7 @@ void vk_create_image_from_data(VkContext *vk_context, const void *data, uint32_t
 
     vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_transition_image_layout(command_buffer, (*out_image)->image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vk_command_copy_buffer_to_image(command_buffer, staging_buffer->handle, (*out_image)->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, height);
+        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, (*out_image)->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, height);
         vk_transition_image_layout(command_buffer, (*out_image)->image, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 

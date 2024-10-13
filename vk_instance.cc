@@ -9,8 +9,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityF
                                                     void *user_data);
 
 bool vk_create_instance(VkContext *vk_context, const char *app_name, uint32_t api_version, bool is_debugging) {
-    volkInitialize();
-
     // set and check required instance extensions
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_surface");

@@ -93,13 +93,12 @@ void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(Vk
     vk_destroy_fence(vk_context->device, fence);
 }
 
-void vk_command_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout,
-                                  VkClearColorValue *clear_color) {
+void vk_cmd_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout, VkClearColorValue *clear_color) {
     VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
     vkCmdClearColorImage(command_buffer, image, image_layout, clear_color, 1, &clear_range);
 }
 
-void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
+void vk_cmd_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage dst, const VkExtent2D *extent) {
     VkImageBlit2KHR image_blit_region{};
     image_blit_region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2_KHR;
     image_blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -126,36 +125,35 @@ void vk_command_blit_image(VkCommandBuffer command_buffer, VkImage src, VkImage 
     vkCmdBlitImage2KHR(command_buffer, &blit_image_info);
 }
 
-void vk_command_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline) {
+void vk_cmd_bind_pipeline(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline) {
     vkCmdBindPipeline(command_buffer, bind_point, pipeline);
 }
 
-void vk_command_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
-                                     VkPipelineLayout pipeline_layout, uint32_t set_count, const VkDescriptorSet *descriptor_sets) {
+void vk_cmd_bind_descriptor_sets(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point,
+                                 VkPipelineLayout pipeline_layout, uint32_t set_count, const VkDescriptorSet *descriptor_sets) {
     vkCmdBindDescriptorSets(command_buffer, bind_point, pipeline_layout, 0, set_count, descriptor_sets, 0, nullptr);
 }
 
-void vk_command_bind_vertex_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
+void vk_cmd_bind_vertex_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &buffer, &offset);
 }
 
-void vk_command_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
+void vk_cmd_bind_index_buffer(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset) {
     vkCmdBindIndexBuffer(command_buffer, buffer, offset, VK_INDEX_TYPE_UINT32);
 }
 
-void vk_command_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
-                               uint32_t size, const void *data) {
+void vk_cmd_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags,
+                           uint32_t size, const void *data) {
     vkCmdPushConstants(command_buffer, layout, stage_flags, 0, size, data);
 }
 
-void vk_command_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y,
-                         uint32_t group_count_z) {
+void vk_cmd_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z) {
     vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z);
 }
 
-void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
-                                const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
-                                const VkRenderingAttachmentInfo *depth_attachment) {
+void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+                            const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
+                            const VkRenderingAttachmentInfo *depth_attachment) {
     VkRenderingInfo rendering_info{};
     rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     rendering_info.renderArea.extent = *extent;
@@ -166,9 +164,9 @@ void vk_command_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D
     vkCmdBeginRenderingKHR(command_buffer, &rendering_info);
 }
 
-void vk_command_end_rendering(VkCommandBuffer command_buffer) { vkCmdEndRenderingKHR(command_buffer); }
+void vk_cmd_end_rendering(VkCommandBuffer command_buffer) { vkCmdEndRenderingKHR(command_buffer); }
 
-void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     VkViewport viewport{};
     viewport.x = (float) x;
     viewport.y = (float) y;
@@ -179,7 +177,7 @@ void vk_command_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 }
 
-void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     VkRect2D scissor{};
     scissor.offset.x = x;
     scissor.offset.y = y;
@@ -188,21 +186,19 @@ void vk_command_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
-void vk_command_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor) {
+void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor) {
     vkCmdSetDepthBias(command_buffer, constant_factor, clamp, slope_factor);
 }
 
-void vk_command_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
+void vk_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }
 
-void vk_command_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count) {
+void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count) {
     vkCmdDrawIndexed(command_buffer, index_count, 1, 0, 0, 0);
 }
 
-void
-vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset,
-                       uint32_t dst_offset) {
+void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset) {
     VkBufferCopy2 buffer_copy{};
     buffer_copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
     buffer_copy.size = size;
@@ -219,8 +215,7 @@ vk_command_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer ds
     vkCmdCopyBuffer2KHR(command_buffer, &buffer_copy_info);
 }
 
-void vk_command_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout,
-                                     uint32_t width, uint32_t height) {
+void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height) {
     VkBufferImageCopy buffer_image_copy{};
     buffer_image_copy.bufferOffset = 0;
     buffer_image_copy.bufferRowLength = 0;

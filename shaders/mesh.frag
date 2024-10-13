@@ -14,8 +14,8 @@ layout (set = 1, binding = 0) uniform sampler2D tex;
 void main() {
     // frag_color = texture(tex, tex_coord);
 
-    const vec3 base_color = vec3(0.9, 0.9, 0.9);
-    // const vec3 base_color = texture(tex, tex_coord).rgb;
+    // const vec3 base_color = vec3(0.9, 0.9, 0.9);
+    const vec3 base_color = texture(tex, tex_coord).rgb;
     float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
     vec4 color = vec4(base_color * diffuse, 1.0);
     frag_color = color;

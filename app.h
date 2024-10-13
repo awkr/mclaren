@@ -1,8 +1,8 @@
 #pragma once
 
 #include "camera.h"
+#include "geometry.h"
 #include "gizmo.h"
-#include "mesh_loader.h"
 #include "input_system.h"
 #include <cstdint>
 #include <volk.h>
@@ -41,11 +41,6 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
-struct BoundingBox {
-    glm::vec3 min = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-    glm::vec3 max = glm::vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-};
-
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
@@ -73,8 +68,10 @@ struct App {
     VkPipelineLayout wireframe_pipeline_layout;
     VkPipeline wireframe_pipeline;
 
-    Image *default_checkerboard_image;
-    VkImageView default_checkerboard_image_view;
+    Image *checkerboard_image;
+    VkImageView checkerboard_image_view;
+    Image *uv_debug_image;
+    VkImageView uv_debug_image_view;
     VkSampler default_sampler_nearest;
 
     Geometry gltf_model_geometry;
@@ -94,7 +91,11 @@ struct App {
 
     BoundingBox bounding_box;
     Geometry bounding_box_geometry;
-    Geometry axis_geometry;
+
+    Gizmo gizmo;
+    Geometry translation_gizmo_geometry;
+    Geometry rotation_gizmo_geometry;
+    Geometry scale_gizmo_geometry;
 };
 
 void app_create(SDL_Window *window, App **out_app);
@@ -105,8 +106,11 @@ void app_update(App *app);
 
 void app_resize(App *app, uint32_t width, uint32_t height);
 
+void app_key_down(App *app, Key key);
 void app_key_up(App *app, Key key);
 
-void app_key_down(App *app, Key key);
+void app_mouse_button_down(App *app, MouseButton mouse_button);
+void app_mouse_button_up(App *app, MouseButton mouse_button);
+void app_mouse_move(App *app, float x, float y);
 
 void app_capture(App *app);
