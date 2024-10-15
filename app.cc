@@ -207,7 +207,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_POLYGON_MODE_LINE, &app->gizmo_pipeline);
+        app->gizmo_pipeline_supported_primitive_topologies.reserve(2);
+        app->gizmo_pipeline_supported_primitive_topologies.push_back(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+        app->gizmo_pipeline_supported_primitive_topologies.push_back(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+                                    VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_POLYGON_MODE_LINE, &app->gizmo_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -343,6 +347,20 @@ void app_create(SDL_Window *window, App **out_app) {
 
     create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
 
+    {
+        std::vector<ColoredVertex> vertices;
+        vertices.resize(2);
+        // clang-format off
+        vertices[0].position = glm::vec3(1, 0,  1);
+        vertices[0].color    = glm::vec4(1, 1,  1, 1);
+        vertices[1].position = glm::vec3(1, 0, -1);
+        vertices[1].color    = glm::vec4(1, 1,  1, 1);
+        // clang-format on
+        Geometry geometry;
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
+        app->geometries.push_back(geometry);
+    }
+
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
     app->frame_number = 0;
@@ -355,6 +373,7 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
+    for (auto &geometry : app->geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_geometry(app->vk_context, &app->translation_gizmo_geometry);
     destroy_geometry(app->vk_context, &app->bounding_box_geometry);
     destroy_geometry(app->vk_context, &app->uv_sphere_geometry);
@@ -424,6 +443,7 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
@@ -523,6 +543,7 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
     // draw wireframe on selected entity
     if (static uint32_t n = 0; n++ % 1000 < 800) {
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+        vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
         // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -609,6 +630,46 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
             }
         }
     }
+
+    {
+        // draw lines
+        for (const auto &geometry : app->geometries) {
+            vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline);
+            vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+            vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+            vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+            std::vector<VkDescriptorSet> descriptor_sets;
+            std::deque<VkDescriptorBufferInfo> buffer_infos;
+            std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+            {
+                VkDescriptorSet descriptor_set;
+                vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+                descriptor_sets.push_back(descriptor_set);
+
+                VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+                buffer_infos.push_back(descriptor_buffer_info);
+
+                VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+                write_descriptor_sets.push_back(write_descriptor_set);
+            }
+            vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+            vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+            for (const Mesh &mesh : geometry.meshes) {
+                glm::mat4 model = glm::mat4(1.0f);
+
+                InstanceState instance_state{};
+                instance_state.model = model;
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+                vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+                vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
+                for (const Primitive &primitive: mesh.primitives) {
+                    vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+                }
+            }
+        }
+    }
 }
 
 void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
@@ -616,6 +677,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
     std::deque<VkDescriptorBufferInfo> buffer_infos;

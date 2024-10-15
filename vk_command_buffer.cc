@@ -186,6 +186,10 @@ void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, 
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
+void vk_cmd_set_primitive_topology(VkCommandBuffer command_buffer, VkPrimitiveTopology primitive_topology) {
+    vkCmdSetPrimitiveTopologyEXT(command_buffer, primitive_topology);
+}
+
 void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor) {
     vkCmdSetDepthBias(command_buffer, constant_factor, clamp, slope_factor);
 }

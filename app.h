@@ -4,6 +4,7 @@
 #include "geometry.h"
 #include "gizmo.h"
 #include "input_system.h"
+#include "vk_pipeline.h"
 #include <cstdint>
 #include <volk.h>
 #include <vk_mem_alloc.h>
@@ -79,7 +80,7 @@ struct App {
     Geometry cube_geometry;
     Geometry uv_sphere_geometry;
     Geometry cone_geometry;
-    std::vector<Geometry *> geometries;
+    std::vector<Geometry> geometries;
 
     Camera camera;
     GlobalState global_state;
@@ -87,6 +88,7 @@ struct App {
     ImGuiContext *gui_context;
 
     VkPipelineLayout gizmo_pipeline_layout;
+    std::vector<VkPrimitiveTopology> gizmo_pipeline_supported_primitive_topologies;
     VkPipeline gizmo_pipeline;
 
     BoundingBox bounding_box;

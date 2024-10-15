@@ -131,6 +131,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    dynamic_states.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY);
     if (depth_bias) {
         dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
     }
@@ -159,8 +160,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module,
-                                VkPipeline *pipeline) {
+void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module, VkPipeline *pipeline) {
     VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info{};
     pipeline_shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipeline_shader_stage_create_info.stage = VK_SHADER_STAGE_COMPUTE_BIT;

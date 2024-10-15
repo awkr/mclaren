@@ -14,7 +14,6 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
 
 void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test, bool depth_write, bool depth_bias, VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, VkPrimitiveTopology topology, VkPolygonMode polygon_mode, VkPipeline *pipeline);
 
-void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module,
-                                VkPipeline *pipeline);
+void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module, VkPipeline *pipeline);
 
 void vk_destroy_pipeline(VkDevice device, VkPipeline pipeline);
