@@ -31,8 +31,8 @@ struct RenderFrame {
 };
 
 struct GlobalState {
-    glm::mat4 view;
-    glm::mat4 projection;
+    glm::mat4 view_matrix;
+    glm::mat4 projection_matrix;
     glm::vec3 sunlight_dir; // in world space
     // glm::vec4 sunlight_color; // sunlight color and intensity ( power )
 };
@@ -64,9 +64,11 @@ struct App {
     VkPipeline compute_pipeline;
 
     VkPipelineLayout mesh_pipeline_layout;
+    std::vector<VkPrimitiveTopology> mesh_pipeline_primitive_topologies;
     VkPipeline mesh_pipeline;
 
     VkPipelineLayout wireframe_pipeline_layout;
+    std::vector<VkPrimitiveTopology> wireframe_pipeline_primitive_topologies;
     VkPipeline wireframe_pipeline;
 
     Image *checkerboard_image;
@@ -83,12 +85,13 @@ struct App {
     std::vector<Geometry> geometries;
 
     Camera camera;
+    glm::mat4 projection_matrix;
     GlobalState global_state;
 
     ImGuiContext *gui_context;
 
     VkPipelineLayout gizmo_pipeline_layout;
-    std::vector<VkPrimitiveTopology> gizmo_pipeline_supported_primitive_topologies;
+    std::vector<VkPrimitiveTopology> gizmo_pipeline_primitive_topologies;
     VkPipeline gizmo_pipeline;
 
     BoundingBox bounding_box;
@@ -111,8 +114,8 @@ void app_resize(App *app, uint32_t width, uint32_t height);
 void app_key_down(App *app, Key key);
 void app_key_up(App *app, Key key);
 
-void app_mouse_button_down(App *app, MouseButton mouse_button);
-void app_mouse_button_up(App *app, MouseButton mouse_button);
+void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y);
+void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y);
 void app_mouse_move(App *app, float x, float y);
 
 void app_capture(App *app);

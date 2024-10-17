@@ -24,6 +24,7 @@ enum Key {
 enum MouseButton {
     MOUSE_BUTTON_UNKNOWN = 0,
     MOUSE_BUTTON_LEFT,
+    MOUSE_BUTTON_MIDDLE,
     MOUSE_BUTTON_RIGHT,
 };
 

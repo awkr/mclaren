@@ -11,7 +11,7 @@ static VkDescriptorPool create_descriptor_pool(VkDevice device, DescriptorAlloca
         pool_sizes.push_back(pool_size);
     }
 
-    VkDescriptorPool pool;
+    VkDescriptorPool pool = VK_NULL_HANDLE;
     vk_create_descriptor_pool(device, allocator->sets_per_pool, pool_sizes, &pool);
     return pool;
 }
@@ -56,9 +56,7 @@ void vk_descriptor_allocator_reset(VkDevice device, DescriptorAllocator *allocat
     allocator->full_pools.clear();
 }
 
-void
-vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout,
-                              VkDescriptorSet *descriptor_set) {
+void vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout, VkDescriptorSet *descriptor_set) {
     VkDescriptorPool pool = pop_or_create_descriptor_pool(device, allocator);
 
     VkResult result = vk_allocate_descriptor_set(device, pool, layout, descriptor_set);
@@ -73,4 +71,6 @@ vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocator, V
     allocator->available_pools.push_back(pool);
 }
 
-void vk_descriptor_allocator_free(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout, VkDescriptorSet *descriptor_set) {}
+void vk_descriptor_allocator_free(VkDevice device, DescriptorAllocator *allocator, VkDescriptorSetLayout layout, VkDescriptorSet *descriptor_set) {
+    // todo
+}

@@ -22,18 +22,13 @@
 #include <imgui.h>
 #include <microprofile.h>
 
-struct Ray {
-    glm::vec3 origin;
-    glm::vec3 direction;
-};
-
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
     // clang-format off
     1.0f,  0.0f, 0.0f, 0.0f, // 1st column
     0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
-    0.0f,  0.0f, 0.5f, 0.5f, // 3rd column
-    0.0f,  0.0f, 0.0f, 1.0f  // 4th column
+    0.0f,  0.0f, 0.5f, 0.0f, // 3rd column
+    0.0f,  0.0f, 0.5f, 1.0f  // 4th column
     // clang-format on
 );
 
@@ -44,10 +39,11 @@ glm::vec2 world_position_to_screen_position(const glm::mat4 &projection_matrix, 
     return screen_pos;
 }
 
-glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, const glm::vec2 &viewport_size, const glm::vec2 &screen_pos) {
-    float x_ndc = (2.0f * screen_pos.x) / viewport_size.x - 1.0f;
-    float y_ndc = 1.0f - (2.0f * screen_pos.y) / viewport_size.y;
-    float z_ndc = 1.0f; // 远平面，若为 0 则为近平面
+// z_ndc: 0 for near plane, 1 for far plane
+glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, float viewport_size_width, float viewport_size_height, float z_ndc, float screen_pos_x, float screen_pos_y) {
+    // return glm::unProject(glm::vec3(screen_pos_x, viewport_size_height - screen_pos_y, z_ndc), view_matrix, projection_matrix, glm::vec4(0, 0, viewport_size_width, viewport_size_height));
+    const float x_ndc = (2.0f * screen_pos_x) / viewport_size_width - 1.0f;
+    const float y_ndc = (2.0f * (viewport_size_height - screen_pos_y)) / viewport_size_height - 1.0f;
     glm::vec4 ndc_pos(x_ndc, y_ndc, z_ndc, 1.0f);
     glm::vec4 world_pos = glm::inverse(projection_matrix * view_matrix) * ndc_pos;
     world_pos /= world_pos.w;
@@ -171,7 +167,10 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->mesh_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
+        app->mesh_pipeline_primitive_topologies.resize(1);
+        app->mesh_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, app->mesh_pipeline_primitive_topologies, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -189,7 +188,10 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        app->wireframe_pipeline_primitive_topologies.resize(1);
+        app->wireframe_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, app->wireframe_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -207,11 +209,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
-        app->gizmo_pipeline_supported_primitive_topologies.reserve(2);
-        app->gizmo_pipeline_supported_primitive_topologies.push_back(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-        app->gizmo_pipeline_supported_primitive_topologies.push_back(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        app->gizmo_pipeline_primitive_topologies.resize(2);
+        app->gizmo_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        app->gizmo_pipeline_primitive_topologies[1] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
-                                    VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_POLYGON_MODE_LINE, &app->gizmo_pipeline);
+                                    app->gizmo_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->gizmo_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -347,20 +349,6 @@ void app_create(SDL_Window *window, App **out_app) {
 
     create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
 
-    {
-        std::vector<ColoredVertex> vertices;
-        vertices.resize(2);
-        // clang-format off
-        vertices[0].position = glm::vec3(1, 0,  1);
-        vertices[0].color    = glm::vec4(1, 1,  1, 1);
-        vertices[1].position = glm::vec3(1, 0, -1);
-        vertices[1].color    = glm::vec4(1, 1,  1, 1);
-        // clang-format on
-        Geometry geometry;
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
-        app->geometries.push_back(geometry);
-    }
-
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
     app->frame_number = 0;
@@ -443,7 +431,6 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
@@ -543,7 +530,6 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
     // draw wireframe on selected entity
     if (static uint32_t n = 0; n++ % 1000 < 800) {
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-        vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
         // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
         //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
@@ -745,15 +731,15 @@ void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame 
 void update_scene(App *app) {
     camera_update(&app->camera);
 
-    app->global_state.view = app->camera.view_matrix;
+    app->global_state.view_matrix = app->camera.view_matrix;
 
-    glm::mat4 projection = glm::mat4(1.0f);
+    glm::mat4 projection_matrix = glm::mat4(1.0f);
     float fov_y = 45.0f;
-    float z_near = 0.01f, z_far = 100.0f;
-    projection = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
-    projection = clip * projection;
+    float z_near = 0.05f, z_far = 100.0f;
+    projection_matrix = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
+    app->projection_matrix = projection_matrix;
 
-    app->global_state.projection = projection;
+    app->global_state.projection_matrix = clip * projection_matrix;
 
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 }
@@ -937,10 +923,40 @@ void app_key_up(App *app, Key key) {
     }
 }
 
-void app_mouse_button_down(App *app, MouseButton mouse_button) {}
+void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y) {
+    if (mouse_button != MOUSE_BUTTON_LEFT) {
+        return;
+    }
+}
 
-void app_mouse_button_up(App *app, MouseButton mouse_button) {
-    // fire a ray from camera position to the world position of the mouse cursor
+struct Ray {
+    glm::vec3 origin;
+    glm::vec3 direction;
+};
+
+void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
+    if (mouse_button != MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    {
+        // fire a ray from camera position to the world position of the mouse cursor
+        const glm::vec3 near_pos = screen_position_to_world_position(app->projection_matrix, app->camera.view_matrix, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, 0.0f, x, y); // z 为近平面
+
+        Ray ray;
+        ray.origin = app->camera.position;
+        ray.direction = glm::normalize(near_pos - app->camera.position);
+
+        ColoredVertex vertices[2];
+        // clang-format off
+        vertices[0].position = ray.origin;
+        vertices[0].color    = glm::vec4(1, 0,  0, 1);
+        vertices[1].position = ray.origin + ray.direction * 100.0f;
+        vertices[1].color    = glm::vec4(0, 1,  0, 1);
+        // clang-format on
+        Geometry geometry;
+        create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(ColoredVertex), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
+        app->geometries.push_back(geometry);
+    }
 }
 
 void app_mouse_move(App *app, float x, float y) {}
