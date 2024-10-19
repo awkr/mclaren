@@ -16,6 +16,7 @@ void create_camera(Camera *camera, const glm::vec3 &pos, const glm::vec3 &dir);
 void destroy_camera(Camera *camera);
 
 void camera_set_position(Camera *camera, const glm::vec3 &position);
+const glm::vec3 &camera_get_position(const Camera *camera) noexcept;
 
 void camera_forward(Camera *camera, float delta);
 

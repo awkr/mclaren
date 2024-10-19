@@ -28,6 +28,8 @@ void camera_set_position(Camera *camera, const glm::vec3 &position) {
     camera->is_dirty = true;
 }
 
+const glm::vec3 &camera_get_position(const Camera *camera) noexcept { return camera->position; }
+
 void camera_forward(Camera *camera, float delta) {
     const glm::vec3 &forward = glm::normalize(glm::vec3(-camera->view_matrix[0][2], // 第 0 行第 2 列
                                                         -camera->view_matrix[1][2],
