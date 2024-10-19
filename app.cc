@@ -265,8 +265,12 @@ void app_create(SDL_Window *window, App **out_app) {
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
 
     create_plane_geometry(vk_context, 1.5f, 1.0f, &app->plane_geometry);
+    app->plane_geometry.position = glm::vec3(0.0f, 0.0f, 2.0f);
+
     create_cube_geometry(vk_context, &app->cube_geometry);
+
     create_uv_sphere_geometry(vk_context, 1, 16, 16, &app->uv_sphere_geometry);
+    app->uv_sphere_geometry.position = glm::vec3(0.0f, 0.0f, -5.0f);
 
     { // create a bounding box geometry
         app->bounding_box.min = glm::vec3(-0.5f, -0.5f, -0.5f);
@@ -345,9 +349,11 @@ void app_create(SDL_Window *window, App **out_app) {
         }
         // clang-format on
         create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->bounding_box_geometry);
+        app->bounding_box_geometry.position = glm::vec3(-2.0f, 0.0f, 0.0f);
     }
 
     create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
+    app->translation_gizmo_geometry.position = glm::vec3(0.0f, 2.0f, 0.0f);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -480,50 +486,26 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
     //     }
     // }
 
-    for (const Mesh &mesh : app->uv_sphere_geometry.meshes) {
+    std::vector<Geometry> geometries;
+    geometries.push_back(app->uv_sphere_geometry);
+    geometries.push_back(app->cube_geometry);
+    geometries.push_back(app->plane_geometry);
+
+    for (const Geometry &geometry : geometries) {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+        model = glm::translate(model, geometry.position);
 
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        for (const Mesh &mesh : geometry.meshes) {
+            InstanceState instance_state{};
+            instance_state.model = model;
+            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
-        for (const Primitive &primitive: mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-        }
-    }
-
-    for (const Mesh &mesh : app->cube_geometry.meshes) {
-        glm::mat4 model = glm::mat4(1.0f);
-
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-        for (const Primitive &primitive: mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-        }
-    }
-
-    for (const Mesh &mesh : app->plane_geometry.meshes) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
-
-        InstanceState instance_state{};
-        instance_state.model = model;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-        for (const Primitive &primitive: mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+            for (const Primitive &primitive : mesh.primitives) {
+                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+            }
         }
     }
 
@@ -571,38 +553,7 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
         for (const Mesh &mesh : app->uv_sphere_geometry.meshes) {
             glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
-
-            InstanceState instance_state{};
-            instance_state.model = model;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-            for (const Primitive &primitive: mesh.primitives) {
-                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
-        }
-
-        for (const Mesh &mesh : app->cube_geometry.meshes) {
-            glm::mat4 model = glm::mat4(1.0f);
-
-            InstanceState instance_state{};
-            instance_state.model = model;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-            for (const Primitive &primitive : mesh.primitives) {
-                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
-        }
-
-        for (const Mesh &mesh : app->plane_geometry.meshes) {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(0.0f, 0.0f, 2.0f));
+            model = glm::translate(model, app->uv_sphere_geometry.position);
 
             InstanceState instance_state{};
             instance_state.model = model;
@@ -644,8 +595,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
     for (const Mesh &mesh : app->bounding_box_geometry.meshes) {
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
-        // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+        model = glm::translate(model, app->bounding_box_geometry.position);
 
         InstanceState instance_state{};
         instance_state.model = model;
@@ -659,12 +609,11 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     }
 
     for (const Mesh &mesh : app->translation_gizmo_geometry.meshes) {
-        glm::vec3 position = glm::vec3(0.0f, 2.0f, 0.0f);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, position);
+        model = glm::translate(model, app->translation_gizmo_geometry.position);
         {
-            float factor = 0.5f;
-            float scale = glm::length(app->camera.position - position) * factor;
+            const float factor = 0.5f;
+            const float scale = glm::length(app->camera.position - app->translation_gizmo_geometry.position) * factor;
             model = glm::scale(model, glm::vec3(scale));
         }
         // {
@@ -931,6 +880,10 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
         Geometry geometry;
         create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(ColoredVertex), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
         app->geometries.push_back(geometry);
+
+        {
+            // loop through all geometries to find the cloest intersection point
+        }
     }
 }
 

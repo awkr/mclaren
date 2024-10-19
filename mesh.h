@@ -38,10 +38,6 @@ struct Mesh {
 
     std::vector<Primitive> primitives;
     BoundingBox bounding_box;
-
-    // glm::vec3 translation;
-    // glm::vec3 euler_angles; // in degrees, not radians
-    // glm::vec3 scale;
 };
 
 void create_mesh(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
