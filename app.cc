@@ -50,6 +50,19 @@ glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, 
     return glm::vec3(world_pos);
 }
 
+glm::mat4 calc_model_matrix_of_geometry(const Geometry *geometry) {
+    glm::mat4 model_matrix = glm::mat4(1.0f);
+    model_matrix = glm::translate(model_matrix, geometry->position);
+    {
+        glm::mat4 rotation_x = glm::rotate(glm::mat4(1.0f), glm::radians(geometry->rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        glm::mat4 rotation_y = glm::rotate(glm::mat4(1.0f), glm::radians(geometry->rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 rotation_z = glm::rotate(glm::mat4(1.0f), glm::radians(geometry->rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        model_matrix = rotation_z * rotation_y * rotation_x * model_matrix;
+    }
+    model_matrix = glm::scale(model_matrix, geometry->scale);
+    return model_matrix;
+}
+
 void create_color_image(App *app, const VkFormat format) {
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -112,10 +125,10 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 4; // 计算着色器一个 set，mesh pipeline 中 shader 两个 set，wireframe pipeline 一个 set
+        uint32_t max_sets = 5; // 计算着色器一个 set，lit pipeline 中 shader 两个 set，wireframe pipeline 一个 set，line pipeline 一个 set
         std::vector<DescriptorPoolSizeRatio> size_ratios;
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
-        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2});
+        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3});
         size_ratios.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
         vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
 
@@ -154,10 +167,10 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
 
-    { // create mesh pipeline
+    { // create lit pipeline
         VkShaderModule vert_shader, frag_shader;
-        vk_create_shader_module(vk_context->device, "shaders/mesh.vert.spv", &vert_shader);
-        vk_create_shader_module(vk_context->device, "shaders/mesh.frag.spv", &frag_shader);
+        vk_create_shader_module(vk_context->device, "shaders/lit.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/lit.frag.spv", &frag_shader);
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -166,11 +179,12 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorSetLayout descriptor_set_layouts[2];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
-        vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->mesh_pipeline_layout);
-        app->mesh_pipeline_primitive_topologies.resize(1);
-        app->mesh_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        vk_create_graphics_pipeline(vk_context->device, app->mesh_pipeline_layout, color_image_format, true, true, true, depth_image_format,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, app->mesh_pipeline_primitive_topologies, VK_POLYGON_MODE_FILL, &app->mesh_pipeline);
+        vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
+        app->lit_pipeline_primitive_topologies.resize(1);
+        app->lit_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, true, true, depth_image_format,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+                                    app->lit_pipeline_primitive_topologies, VK_POLYGON_MODE_FILL, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -190,8 +204,31 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
         app->wireframe_pipeline_primitive_topologies.resize(1);
         app->wireframe_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, false, false, depth_image_format,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, app->wireframe_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true /* endable deep test */, false /* disable deep write */, false, depth_image_format,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, 
+                                    app->wireframe_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
+
+        vk_destroy_shader_module(vk_context->device, frag_shader);
+        vk_destroy_shader_module(vk_context->device, vert_shader);
+    }
+
+    { // create line pipeline
+        VkShaderModule vert_shader, frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
+
+        VkPushConstantRange push_constant_range{};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.size = sizeof(InstanceState);
+
+        VkDescriptorSetLayout descriptor_set_layouts[1];
+        descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
+        vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->line_pipeline_layout);
+        app->line_pipeline_primitive_topologies.resize(1);
+        app->line_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, false, false, depth_image_format,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, 
+                                    app->line_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -259,18 +296,33 @@ void app_create(SDL_Window *window, App **out_app) {
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
+    Geometry gltf_model_geometry;
     // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
-    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &app->gltf_model_geometry);
+    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
+    gltf_model_geometry.position = glm::vec3(0.0f, -3.0f, 0.0f);
+    gltf_model_geometry.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
+    gltf_model_geometry.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+    app->lit_geometries.push_back(gltf_model_geometry);
 
-    create_plane_geometry(vk_context, 1.5f, 1.0f, &app->plane_geometry);
-    app->plane_geometry.position = glm::vec3(0.0f, 0.0f, 2.0f);
+    Geometry plane_geometry;
+    create_plane_geometry(vk_context, 1.5f, 1.0f, &plane_geometry);
+    plane_geometry.position = glm::vec3(0.0f, 0.0f, 2.0f);
+    plane_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+    app->lit_geometries.push_back(plane_geometry);
 
-    create_cube_geometry(vk_context, &app->cube_geometry);
+    Geometry cube_geometry;
+    create_cube_geometry(vk_context, &cube_geometry);
+    cube_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+    app->lit_geometries.push_back(cube_geometry);
 
-    create_uv_sphere_geometry(vk_context, 1, 16, 16, &app->uv_sphere_geometry);
-    app->uv_sphere_geometry.position = glm::vec3(0.0f, 0.0f, -5.0f);
+    Geometry uv_sphere_geometry;
+    create_uv_sphere_geometry(vk_context, 1, 16, 16, &uv_sphere_geometry);
+    uv_sphere_geometry.position = glm::vec3(0.0f, 0.0f, -5.0f);
+    uv_sphere_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+    app->lit_geometries.push_back(uv_sphere_geometry);
+    app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
 
     { // create a bounding box geometry
         app->bounding_box.min = glm::vec3(-0.5f, -0.5f, -0.5f);
@@ -350,10 +402,12 @@ void app_create(SDL_Window *window, App **out_app) {
         // clang-format on
         create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->bounding_box_geometry);
         app->bounding_box_geometry.position = glm::vec3(-2.0f, 0.0f, 0.0f);
+        app->bounding_box_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
 
     create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
     app->translation_gizmo_geometry.position = glm::vec3(0.0f, 2.0f, 0.0f);
+    app->translation_gizmo_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -367,13 +421,10 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    for (auto &geometry : app->geometries) { destroy_geometry(app->vk_context, &geometry); }
+    for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
+    for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_geometry(app->vk_context, &app->translation_gizmo_geometry);
     destroy_geometry(app->vk_context, &app->bounding_box_geometry);
-    destroy_geometry(app->vk_context, &app->uv_sphere_geometry);
-    destroy_geometry(app->vk_context, &app->cube_geometry);
-    destroy_geometry(app->vk_context, &app->plane_geometry);
-    destroy_geometry(app->vk_context, &app->gltf_model_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
@@ -385,11 +436,14 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->gizmo_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->gizmo_pipeline_layout);
 
+    vk_destroy_pipeline(app->vk_context->device, app->line_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->line_pipeline_layout);
+
     vk_destroy_pipeline(app->vk_context->device, app->wireframe_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->wireframe_pipeline_layout);
 
-    vk_destroy_pipeline(app->vk_context->device, app->mesh_pipeline);
-    vk_destroy_pipeline_layout(app->vk_context->device, app->mesh_pipeline_layout);
+    vk_destroy_pipeline(app->vk_context->device, app->lit_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->lit_pipeline_layout);
 
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
@@ -433,137 +487,137 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, const Rende
 }
 
 void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline);
+    { // lit pipeline
+        vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
 
-    vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-    vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
+        vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+        vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+        vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
-    std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
-    std::deque<VkDescriptorBufferInfo> buffer_infos;
-    std::deque<VkDescriptorImageInfo> image_infos;
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    {
-        vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+        std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
+        std::deque<VkDescriptorBufferInfo> buffer_infos;
+        std::deque<VkDescriptorImageInfo> image_infos;
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        {
+            vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
-        VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-        descriptor_sets.push_back(descriptor_set);
+            VkDescriptorSet descriptor_set;
+            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-        buffer_infos.push_back(descriptor_buffer_info);
+            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+            buffer_infos.push_back(descriptor_buffer_info);
 
-        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-        write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    {
-        VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
-        descriptor_sets.push_back(descriptor_set);
+            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+        {
+            VkDescriptorSet descriptor_set;
+            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
+            descriptor_sets.push_back(descriptor_set);
 
-        VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        image_infos.push_back(descriptor_image_info);
+            VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            image_infos.push_back(descriptor_image_info);
 
-        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
-        write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->mesh_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    // for (const Mesh &mesh: app->gltf_model_geometry.meshes) {
-    //     glm::mat4 model = glm::mat4(1.0f);
-    //     model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
-    //
-    //     InstanceState instance_state{};
-    //     instance_state.model = model;
-    //     instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
-    //
-    //     vk_command_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-    //
-    //     for (const Primitive &primitive: mesh.primitives) {
-    //         vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
-    //         vk_command_draw_indexed(command_buffer, primitive.index_count);
-    //     }
-    // }
+        for (const Geometry &geometry : app->lit_geometries) {
+            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
 
-    std::vector<Geometry> geometries;
-    geometries.push_back(app->uv_sphere_geometry);
-    geometries.push_back(app->cube_geometry);
-    geometries.push_back(app->plane_geometry);
+            for (const Mesh &mesh : geometry.meshes) {
+                InstanceState instance_state{};
+                instance_state.model_matrix = model_matrix;
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-    for (const Geometry &geometry : geometries) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, geometry.position);
+                vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
-        for (const Mesh &mesh : geometry.meshes) {
-            InstanceState instance_state{};
-            instance_state.model = model;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->mesh_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-            for (const Primitive &primitive : mesh.primitives) {
-                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+                for (const Primitive &primitive : mesh.primitives) {
+                    vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                    vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+                }
             }
         }
     }
 
-    // draw wireframe on selected entity
-    if (static uint32_t n = 0; n++ % 1000 < 800) {
+    { // wireframe pipeline
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
 
-        // for (const Mesh &mesh : app->gltf_model_geometry.meshes) {
-        //     vk_command_set_viewport(command_buffer, 0, 0, extent->width, extent->height);
-        //     vk_command_set_scissor(command_buffer, 0, 0, extent->width, extent->height);
-        //
-        //     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        //     std::deque<VkDescriptorBufferInfo> buffer_infos;
-        //     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        //     {
-        //         vk_copy_data_to_buffer(app->vk_context, &frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
-        //
-        //         VkDescriptorSet descriptor_set;
-        //         vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-        //         descriptor_sets.push_back(descriptor_set);
-        //
-        //         VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer.handle, sizeof(GlobalState));
-        //         buffer_infos.push_back(descriptor_buffer_info);
-        //
-        //         VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-        //         write_descriptor_sets.push_back(write_descriptor_set);
-        //     }
-        //     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-        //     vk_command_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-        //
-        //     glm::mat4 model = glm::mat4(1.0f);
-        //     model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f)); // todo use model matrix from mesh itself
-        //
-        //     InstanceState instance_state{};
-        //     instance_state.model = model;
-        //     instance_state.vertex_buffer_device_address = mesh.mesh_buffer.vertex_buffer_device_address;
-        //
-        //     vk_command_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-        //
-        //     for (const Primitive &primitive : mesh.primitives) {
-        //         vk_command_bind_index_buffer(command_buffer, mesh.mesh_buffer.index_buffer.handle, primitive.index_offset);
-        //         vk_command_draw_indexed(command_buffer, primitive.index_count);
-        //     }
-        // }
+        std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
+        std::deque<VkDescriptorBufferInfo> buffer_infos;
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        {
+            vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
-        for (const Mesh &mesh : app->uv_sphere_geometry.meshes) {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, app->uv_sphere_geometry.position);
+            VkDescriptorSet descriptor_set;
+            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            descriptor_sets.push_back(descriptor_set);
 
-            InstanceState instance_state{};
-            instance_state.model = model;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+            buffer_infos.push_back(descriptor_buffer_info);
 
-            vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-            for (const Primitive &primitive: mesh.primitives) {
-                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        for (const Geometry &geometry : app->wireframe_geometries) {
+            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
+
+            for (const Mesh &mesh : geometry.meshes) {
+                InstanceState instance_state{};
+                instance_state.model_matrix = model_matrix;
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+                vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+                for (const Primitive &primitive : mesh.primitives) {
+                    vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                    vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+                }
+            }
+        }
+    }
+
+    { // line pipeline
+        vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
+        vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+        vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+
+        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+        std::deque<VkDescriptorBufferInfo> buffer_infos;
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        {
+            VkDescriptorSet descriptor_set;
+            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            descriptor_sets.push_back(descriptor_set);
+
+            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+            buffer_infos.push_back(descriptor_buffer_info);
+
+            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+        for (const Geometry &geometry : app->line_geometries) {
+            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
+
+            for (const Mesh &mesh : geometry.meshes) {
+                InstanceState instance_state{};
+                instance_state.model_matrix = model_matrix;
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+                vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+                vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
+                for (const Primitive &primitive : mesh.primitives) {
+                    vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+                }
             }
         }
     }
@@ -594,11 +648,11 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh : app->bounding_box_geometry.meshes) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, app->bounding_box_geometry.position);
+        glm::mat4 model_matrix = glm::mat4(1.0f);
+        model_matrix = glm::translate(model_matrix, app->bounding_box_geometry.position);
 
         InstanceState instance_state{};
-        instance_state.model = model;
+        instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
         vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -609,12 +663,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     }
 
     for (const Mesh &mesh : app->translation_gizmo_geometry.meshes) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, app->translation_gizmo_geometry.position);
+        glm::mat4 model_matrix = glm::mat4(1.0f);
+        model_matrix = glm::translate(model_matrix, app->translation_gizmo_geometry.position);
         {
             const float factor = 0.5f;
             const float scale = glm::length(app->camera.position - app->translation_gizmo_geometry.position) * factor;
-            model = glm::scale(model, glm::vec3(scale));
+            model_matrix = glm::scale(model_matrix, glm::vec3(scale));
         }
         // {
         //     float fov_y = 45.0f;
@@ -624,29 +678,13 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         // }
 
         InstanceState instance_state{};
-        instance_state.model = model;
+        instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
         vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive: mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-        }
-    }
-
-    for (const auto &geometry : app->geometries) {
-        for (const Mesh &mesh : geometry.meshes) {
-            glm::mat4 model = glm::mat4(1.0f);
-
-            InstanceState instance_state{};
-            instance_state.model = model;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
-            for (const Primitive &primitive : mesh.primitives) {
-                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-            }
         }
     }
 }
@@ -658,10 +696,9 @@ void update_scene(App *app) {
 
     app->global_state.view_matrix = app->camera.view_matrix;
 
-    glm::mat4 projection_matrix = glm::mat4(1.0f);
     float fov_y = 45.0f;
     float z_near = 0.05f, z_far = 100.0f;
-    projection_matrix = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
+    glm::mat4 projection_matrix = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
     app->projection_matrix = projection_matrix;
 
     app->global_state.projection_matrix = clip * projection_matrix;
@@ -860,7 +897,7 @@ struct Ray {
 };
 
 void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
-    log_debug("mouse button %d up at screen position %f %f", mouse_button, x, y);
+    log_debug("mouse button %d up at screen position (%f, %f)", mouse_button, x, y);
     if (mouse_button != MOUSE_BUTTON_LEFT) {
         return;
     }
@@ -877,12 +914,13 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
         vertices[0].color = glm::vec4(1, 0, 0, 1);
         vertices[1].position = ray.origin + ray.direction * 100.0f;
         vertices[1].color = glm::vec4(0, 1, 0, 1);
-        Geometry geometry;
+        Geometry geometry{};
         create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(ColoredVertex), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
-        app->geometries.push_back(geometry);
+        geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        app->line_geometries.push_back(geometry);
 
         {
-            // loop through all geometries to find the cloest intersection point
+            // loop through all geometries to find the closest intersection point
         }
     }
 }

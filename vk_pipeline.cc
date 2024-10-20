@@ -8,7 +8,7 @@ void read_file(const char *filepath, bool binary, std::vector<char> *buffer) {
     if (binary) { mode |= std::ios::binary; }
 
     std::ifstream file(filepath, mode);
-    ASSERT(file.is_open());
+    ASSERT_MESSAGE(file.is_open(), "failed to open file: %s", filepath);
 
     long file_size = file.tellg();
     buffer->resize(file_size);
@@ -56,8 +56,9 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test, bool depth_write, bool depth_bias, VkFormat depth_attachment_format,
-                                 const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test, bool depth_write, bool depth_bias,
+                                 VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
+                                 const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
     rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering_create_info.colorAttachmentCount = 1;

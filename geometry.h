@@ -4,7 +4,9 @@
 
 struct Geometry {
     std::vector<Mesh> meshes;
-    glm::vec3 position; // position relative to its parent node
+    glm::vec3 position;
+    glm::vec3 rotation;
+    glm::vec3 scale;
 };
 
 void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry);

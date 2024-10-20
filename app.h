@@ -38,7 +38,7 @@ struct GlobalState {
 };
 
 struct InstanceState {
-    glm::mat4 model;
+    glm::mat4 model_matrix;
     VkDeviceAddress vertex_buffer_device_address;
 };
 
@@ -58,18 +58,22 @@ struct App {
 
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
-    VkDescriptorSetLayout global_state_descriptor_set_layout;
+    VkDescriptorSetLayout global_state_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
 
-    VkPipelineLayout mesh_pipeline_layout;
-    std::vector<VkPrimitiveTopology> mesh_pipeline_primitive_topologies;
-    VkPipeline mesh_pipeline;
+    VkPipelineLayout lit_pipeline_layout;
+    std::vector<VkPrimitiveTopology> lit_pipeline_primitive_topologies;
+    VkPipeline lit_pipeline;
 
     VkPipelineLayout wireframe_pipeline_layout;
     std::vector<VkPrimitiveTopology> wireframe_pipeline_primitive_topologies;
     VkPipeline wireframe_pipeline;
+
+    VkPipelineLayout line_pipeline_layout;
+    std::vector<VkPrimitiveTopology> line_pipeline_primitive_topologies;
+    VkPipeline line_pipeline;
 
     Image *checkerboard_image;
     VkImageView checkerboard_image_view;
@@ -77,12 +81,11 @@ struct App {
     VkImageView uv_debug_image_view;
     VkSampler default_sampler_nearest;
 
-    Geometry gltf_model_geometry;
-    Geometry plane_geometry;
-    Geometry cube_geometry;
-    Geometry uv_sphere_geometry;
     Geometry cone_geometry;
-    std::vector<Geometry> geometries;
+    
+    std::vector<Geometry> lit_geometries;
+    std::vector<Geometry> wireframe_geometries;
+    std::vector<Geometry> line_geometries;
 
     Camera camera;
     glm::mat4 projection_matrix;

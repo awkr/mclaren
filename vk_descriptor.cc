@@ -61,8 +61,8 @@ void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, V
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *descriptor_writes) {
-    vkUpdateDescriptorSets(device, descriptor_write_count, descriptor_writes, 0, nullptr);
+void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *writes) {
+    vkUpdateDescriptorSets(device, descriptor_write_count, writes, 0, nullptr);
 }
 
 VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint32_t size) {
