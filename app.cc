@@ -332,8 +332,7 @@ void app_create(SDL_Window *window, App **out_app) {
         geometry.position = glm::vec3(-4.0f, 0.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
-        free(config.indices);
-        free(config.vertices);
+        dispose_geometry_config(&config);
     }
 
     { // create a bounding box geometry

@@ -4,6 +4,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <microprofile.h>
 
+void dispose_geometry_config(GeometryConfig *config) noexcept {
+    if (config->vertices) {
+        free(config->vertices);
+    }
+    if (config->indices) {
+        free(config->indices);
+    }
+}
+
 void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
                      const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry) {
     Mesh mesh = {};

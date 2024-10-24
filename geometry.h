@@ -18,6 +18,8 @@ struct GeometryConfig {
     uint32_t *indices;
 };
 
+void dispose_geometry_config(GeometryConfig *config) noexcept;
+
 void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry);
 void destroy_geometry(VkContext *vk_context, Geometry *geometry);
 
