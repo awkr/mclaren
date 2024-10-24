@@ -296,7 +296,7 @@ void app_create(SDL_Window *window, App **out_app) {
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
-    Geometry gltf_model_geometry;
+    Geometry gltf_model_geometry{};
     // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
     load_gltf(app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
@@ -306,23 +306,35 @@ void app_create(SDL_Window *window, App **out_app) {
     gltf_model_geometry.scale = glm::vec3(0.25f, 0.25f, 0.25f);
     app->lit_geometries.push_back(gltf_model_geometry);
 
-    Geometry plane_geometry;
+    Geometry plane_geometry{};
     create_plane_geometry(vk_context, 1.5f, 1.0f, &plane_geometry);
     plane_geometry.position = glm::vec3(0.0f, 0.0f, 2.0f);
     plane_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(plane_geometry);
 
-    Geometry cube_geometry;
+    Geometry cube_geometry{};
     create_cube_geometry(vk_context, &cube_geometry);
     cube_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(cube_geometry);
 
-    Geometry uv_sphere_geometry;
+    Geometry uv_sphere_geometry{};
     create_uv_sphere_geometry(vk_context, 1, 16, 16, &uv_sphere_geometry);
     uv_sphere_geometry.position = glm::vec3(0.0f, 0.0f, -5.0f);
     uv_sphere_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(uv_sphere_geometry);
     app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
+
+    {
+        GeometryConfig config{};
+        generate_circle_geometry_config(0.5f, 16, &config);
+        Geometry geometry{};
+        create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, &geometry);
+        geometry.position = glm::vec3(-4.0f, 0.0f, 0.0f);
+        geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        app->lit_geometries.push_back(geometry);
+        free(config.indices);
+        free(config.vertices);
+    }
 
     { // create a bounding box geometry
         app->bounding_box.min = glm::vec3(-0.5f, -0.5f, -0.5f);

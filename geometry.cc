@@ -183,3 +183,55 @@ void create_axis_geometry(VkContext *vk_context, float length, Geometry *geometr
     // clang-format on
     create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, geometry);
 }
+
+void generate_cone_geometry_config(float base_radius, float height, uint16_t sector, uint16_t stack, GeometryConfig *config) {
+    // generate circle vertices
+    const float sector_step = 2 * glm::pi<float>() / (float) sector;
+    std::vector<glm::vec3> unit_circle_vertices;
+    unit_circle_vertices.emplace_back(0.0f, 0.0f, 0.0f);
+    for (size_t i = 0; i <= sector; ++i) {
+        float sector_angle = i * sector_step;
+        unit_circle_vertices.emplace_back(cos(sector_angle), 0, sin(sector_angle));
+    }
+    std::vector<uint32_t> unit_circle_indices;
+    for (size_t i = 0; i < sector; ++i) {
+        unit_circle_indices.push_back(0);
+        unit_circle_indices.push_back(i + 1);
+        unit_circle_indices.push_back(i + 2);
+    }
+}
+
+void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
+    const uint32_t vertex_count = (sector + 1) + 1 /* center vertex */;
+    Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
+    memset(vertices, 0, sizeof(Vertex) * vertex_count);
+
+    const uint32_t index_count = sector * 3;
+    uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+    memset(indices, 0, sizeof(uint32_t) * index_count);
+
+    const float sector_step = 2 * glm::pi<float>() / (float) sector;
+
+    // center vertex
+    vertices[0].pos[0] = 0.0f;
+    vertices[0].pos[1] = 0.0f;
+    vertices[0].pos[2] = 0.0f;
+
+    for (size_t i = 0; i <= sector; ++i) {
+        const float sector_angle = i * sector_step;
+        vertices[i + 1].pos[0] = cos(sector_angle) * radius; // x
+        vertices[i + 1].pos[1] = 0.0f; // y
+        vertices[i + 1].pos[2] = -sin(sector_angle) * radius; // z，因为 x-z 平面 z 是向下的，所以这里取负
+    }
+    for (size_t i = 0; i < sector; ++i) {
+        indices[0 + i * 3] = 0;
+        indices[1 + i * 3] = i + 1;
+        indices[2 + i * 3] = i + 2;
+    }
+    config->vertex_count = vertex_count;
+    config->vertex_stride = sizeof(Vertex);
+    config->vertices = vertices;
+    config->index_count = index_count;
+    config->index_stride = sizeof(uint32_t);
+    config->indices = indices;
+}

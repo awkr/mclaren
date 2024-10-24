@@ -1,5 +1,7 @@
 # Generated from CLion C/C++ Code Style settings
 BasedOnStyle: LLVM
+AlignTrailingComments:
+  Kind: Never
 #AccessModifierOffset: -4
 #AlignAfterOpenBracket: Align
 #AlignConsecutiveAssignments: None
