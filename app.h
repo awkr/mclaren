@@ -81,8 +81,6 @@ struct App {
     VkImageView uv_debug_image_view;
     VkSampler default_sampler_nearest;
 
-    Geometry cone_geometry;
-    
     std::vector<Geometry> lit_geometries;
     std::vector<Geometry> wireframe_geometries;
     std::vector<Geometry> line_geometries;

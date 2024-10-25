@@ -157,7 +157,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_combined_image_sampler_descriptor_set_layout);
     }
 
-    {// create compute pipeline
+    { // create compute pipeline
         VkShaderModule compute_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
@@ -205,7 +205,7 @@ void app_create(SDL_Window *window, App **out_app) {
         app->wireframe_pipeline_primitive_topologies.resize(1);
         app->wireframe_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true /* endable deep test */, false /* disable deep write */, false, depth_image_format,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, 
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     app->wireframe_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -227,7 +227,7 @@ void app_create(SDL_Window *window, App **out_app) {
         app->line_pipeline_primitive_topologies.resize(1);
         app->line_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
         vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, false, false, depth_image_format,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, 
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     app->line_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -325,11 +325,135 @@ void app_create(SDL_Window *window, App **out_app) {
     app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
 
     {
+        // GeometryConfig config{};
+        // generate_cone_geometry_config(0.5f, 1.0f, 8, 1, &config);
+        // Geometry geometry;
+        // create_geometry_from_config(vk_context, &config, &geometry);
+        // cone_geometry.position = glm::vec3(-3.0f, 0.0f, 0.0f);
+        // cone_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        // app->lit_geometries.push_back(cone_geometry);
+        // dispose_geometry_config(&config);
+
+        float radius = 0.5f;
+        float height = 1.0f;
+        uint32_t sector = 8;
+
+        std::vector<Vertex> vertices;
+        std::vector<uint32_t> indices;
+
+        const float sector_step = 2 * glm::pi<float>() / (float) sector;
+
+        // base circle
+
+        { // center vertex
+            Vertex vertex{};
+            vertex.pos[0] = 0.0f;
+            vertex.pos[1] = 0.0f;
+            vertex.pos[2] = 0.0f;
+            vertex.tex_coord[0] = 0.5f;
+            vertex.tex_coord[1] = 0.5f;
+            vertex.normal[0] = 0.0f;
+            vertex.normal[1] = -1.0f;
+            vertex.normal[2] = 0.0f;
+            vertices.push_back(vertex);
+        }
+
+        for (size_t i = 0; i <= sector; ++i) {
+            float sector_angle = i * sector_step;
+            float a = cos(sector_angle);
+            float b = sin(sector_angle);
+            Vertex vertex{};
+            vertex.pos[0] = a * radius; // x
+            vertex.pos[1] = 0.0f; // y
+            vertex.pos[2] = b * radius; // z
+            vertex.tex_coord[0] = a * 0.5f + 0.5f;
+            vertex.tex_coord[1] = b * 0.5f + 0.5f;
+            vertex.normal[0] = 0.0f;
+            vertex.normal[1] = -1.0f;
+            vertex.normal[2] = 0.0f;
+            vertices.push_back(vertex);
+        }
+
+        for (size_t i = 0; i < sector; ++i) {
+            indices.push_back(0);
+            indices.push_back(i + 1);
+            indices.push_back(i + 2);
+        }
+
+        // side
+
+        uint32_t base_index = vertices.size();
+        for (size_t i = 0; i < sector; ++i) {
+            /*  2
+             * |  \
+             * 0 - 1
+             */
+            float sector_angle = i * sector_step;
+
+            float face_angle = sector_angle + sector_step * 0.5f;
+            glm::vec3 normal;
+            normal.x = sin(atan(radius / height)) * height * cos(atan(radius / height)) * cos(face_angle);
+            normal.y = sin(atan(radius / height)) * height * sin(atan(radius / height));
+            normal.z = -sin(atan(radius / height)) * height * cos(atan(radius / height)) * sin(face_angle);
+            
+            { // 0
+                Vertex vertex{};
+                vertex.pos[0] = cos(sector_angle) * radius; // x
+                vertex.pos[1] = 0.0f; // y
+                vertex.pos[2] = -sin(sector_angle) * radius; // z
+                vertex.tex_coord[0] = (float) i / (float) sector;
+                vertex.tex_coord[1] = 0.0f;
+                vertex.normal[0] = normal.x;
+                vertex.normal[1] = normal.y;
+                vertex.normal[2] = normal.z;
+                vertices.push_back(vertex);
+            }
+            { // 1
+                Vertex vertex{};
+                vertex.pos[0] = cos(sector_angle + sector_step) * radius; // x
+                vertex.pos[1] = 0.0f; // y
+                vertex.pos[2] = -sin(sector_angle + sector_step) * radius; // z
+                vertex.tex_coord[0] = (float) (i + 1) / (float) sector;
+                vertex.tex_coord[1] = 0.0f;
+                vertex.normal[0] = normal.x;
+                vertex.normal[1] = normal.y;
+                vertex.normal[2] = normal.z;
+                vertices.push_back(vertex);
+            }
+            { // 2
+                Vertex vertex{};
+                vertex.pos[0] = 0.0f; // x
+                vertex.pos[1] = height; // y
+                vertex.pos[2] = 0.0f; // z
+                vertex.tex_coord[0] = ((float) i / (float) sector + (float) (i + 1) / (float) sector) * 0.5f;
+                vertex.tex_coord[1] = 1.0f;
+                vertex.normal[0] = normal.x;
+                vertex.normal[1] = normal.y;
+                vertex.normal[2] = normal.z;
+                vertices.push_back(vertex);
+            }
+        }
+
+        for (size_t i = 0; i < sector; ++i) {
+            indices.push_back(base_index + i * 3);
+            indices.push_back(base_index + i * 3 + 1);
+            indices.push_back(base_index + i * 3 + 2);
+        }
+
+        Geometry geometry{};
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &geometry);
+        geometry.position = glm::vec3(-3.0f, -2.0f, 0.0f);
+        geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        app->lit_geometries.push_back(geometry);
+    }
+
+    {
         GeometryConfig config{};
         generate_circle_geometry_config(0.5f, 16, &config);
         Geometry geometry{};
         create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, &geometry);
         geometry.position = glm::vec3(-4.0f, 0.0f, 0.0f);
+        geometry.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
         dispose_geometry_config(&config);
@@ -420,7 +544,7 @@ void app_create(SDL_Window *window, App **out_app) {
     app->translation_gizmo_geometry.position = glm::vec3(0.0f, 2.0f, 0.0f);
     app->translation_gizmo_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
-    create_camera(&app->camera, glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+    create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
     app->frame_number = 0;
 
@@ -668,7 +792,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
         vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
-        for (const Primitive &primitive: mesh.primitives) {
+        for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
     }
@@ -694,7 +818,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
         vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
-        for (const Primitive &primitive: mesh.primitives) {
+        for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
     }

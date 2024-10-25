@@ -15,6 +15,8 @@ void dispose_geometry_config(GeometryConfig *config) noexcept {
 
 void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride,
                      const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry) {
+    // memset(geometry, 0, sizeof(Geometry));
+
     Mesh mesh = {};
     create_mesh(vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
 
@@ -28,6 +30,8 @@ void create_geometry(VkContext *vk_context, const void *vertices, uint32_t verte
 
     geometry->meshes.push_back(mesh);
 }
+
+void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {}
 
 void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
     for (Mesh &mesh : geometry->meshes) {
@@ -194,20 +198,20 @@ void create_axis_geometry(VkContext *vk_context, float length, Geometry *geometr
 }
 
 void generate_cone_geometry_config(float base_radius, float height, uint16_t sector, uint16_t stack, GeometryConfig *config) {
-    // generate circle vertices
-    const float sector_step = 2 * glm::pi<float>() / (float) sector;
-    std::vector<glm::vec3> unit_circle_vertices;
-    unit_circle_vertices.emplace_back(0.0f, 0.0f, 0.0f);
-    for (size_t i = 0; i <= sector; ++i) {
-        float sector_angle = i * sector_step;
-        unit_circle_vertices.emplace_back(cos(sector_angle), 0, sin(sector_angle));
-    }
-    std::vector<uint32_t> unit_circle_indices;
-    for (size_t i = 0; i < sector; ++i) {
-        unit_circle_indices.push_back(0);
-        unit_circle_indices.push_back(i + 1);
-        unit_circle_indices.push_back(i + 2);
-    }
+    // // generate circle vertices
+    // const float sector_step = 2 * glm::pi<float>() / (float) sector;
+    // std::vector<glm::vec3> unit_circle_vertices;
+    // unit_circle_vertices.emplace_back(0.0f, 0.0f, 0.0f);
+    // for (size_t i = 0; i <= sector; ++i) {
+    //     float sector_angle = i * sector_step;
+    //     unit_circle_vertices.emplace_back(cos(sector_angle), 0, sin(sector_angle));
+    // }
+    // std::vector<uint32_t> unit_circle_indices;
+    // for (size_t i = 0; i < sector; ++i) {
+    //     unit_circle_indices.push_back(0);
+    //     unit_circle_indices.push_back(i + 1);
+    //     unit_circle_indices.push_back(i + 2);
+    // }
 }
 
 void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
@@ -221,22 +225,37 @@ void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConf
 
     const float sector_step = 2 * glm::pi<float>() / (float) sector;
 
-    // center vertex
-    vertices[0].pos[0] = 0.0f;
-    vertices[0].pos[1] = 0.0f;
-    vertices[0].pos[2] = 0.0f;
+    Vertex *vertex = &vertices[0]; // center vertex
+    vertex->pos[0] = 0.0f;
+    vertex->pos[1] = 0.0f;
+    vertex->pos[2] = 0.0f;
+    vertex->tex_coord[0] = 0.5f;
+    vertex->tex_coord[1] = 0.5f;
+    vertex->normal[0] = 0.0f;
+    vertex->normal[1] = 1.0f;
+    vertex->normal[2] = 0.0f;
 
     for (size_t i = 0; i <= sector; ++i) {
         const float sector_angle = i * sector_step;
-        vertices[i + 1].pos[0] = cos(sector_angle) * radius; // x
-        vertices[i + 1].pos[1] = 0.0f; // y
-        vertices[i + 1].pos[2] = -sin(sector_angle) * radius; // z，因为 x-z 平面 z 是向下的，所以这里取负
+        const float a = cos(sector_angle);
+        const float b = sin(sector_angle);
+        vertex = &vertices[i + 1];
+        vertex->pos[0] = a * radius; // x
+        vertex->pos[1] = 0.0f; // y
+        vertex->pos[2] = -b * radius; // z，因为 x-z 平面 z 是向下的，所以这里取负
+        vertex->tex_coord[0] = a * 0.5f + 0.5f;
+        vertex->tex_coord[1] = b * 0.5f + 0.5f;
+        vertex->normal[0] = 0.0f;
+        vertex->normal[1] = 1.0f;
+        vertex->normal[2] = 0.0f;
     }
+    
     for (size_t i = 0; i < sector; ++i) {
         indices[0 + i * 3] = 0;
         indices[1 + i * 3] = i + 1;
         indices[2 + i * 3] = i + 2;
     }
+
     config->vertex_count = vertex_count;
     config->vertex_stride = sizeof(Vertex);
     config->vertices = vertices;
@@ -244,3 +263,5 @@ void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConf
     config->index_stride = sizeof(uint32_t);
     config->indices = indices;
 }
+
+void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig *config) {}

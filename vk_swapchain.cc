@@ -112,6 +112,8 @@ bool vk_create_swapchain(VkContext *vk_context, uint32_t width, uint32_t height)
                                      vk_context->swapchain_images.data());
     if (result != VK_SUCCESS) { return false; }
 
+    log_debug("vk swapchain created");
+
     return true;
 }
 
@@ -120,4 +122,5 @@ void vk_destroy_swapchain(VkContext *vk_context) {
     //     vk_destroy_image_view(vk_context->device, vk_context->swapchain_image_views[i]);
     // }
     vkDestroySwapchainKHR(vk_context->device, vk_context->swapchain, nullptr);
+    log_debug("vk swapchain destroyed");
 }

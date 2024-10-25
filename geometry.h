@@ -5,7 +5,7 @@
 struct Geometry {
     std::vector<Mesh> meshes;
     glm::vec3 position;
-    glm::vec3 rotation;
+    glm::vec3 rotation; // 单位为角度
     glm::vec3 scale;
 };
 
@@ -21,6 +21,7 @@ struct GeometryConfig {
 void dispose_geometry_config(GeometryConfig *config) noexcept;
 
 void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Geometry *geometry);
+void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
 void destroy_geometry(VkContext *vk_context, Geometry *geometry);
 
 void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *geometry);
