@@ -103,14 +103,14 @@ void create_depth_image(App *app, const VkFormat format) {
 }
 
 void app_create(SDL_Window *window, App **out_app) {
-    int width, height;
-    SDL_GetWindowSizeInPixels(window, &width, &height);
+    int render_width, render_height;
+    SDL_GetWindowSizeInPixels(window, &render_width, &render_height);
 
     App *app = new App();
     app->window = window;
     app->vk_context = new VkContext();
 
-    vk_init(app->vk_context, window, width, height);
+    vk_init(app->vk_context, window, render_width, render_height);
 
     VkContext *vk_context = app->vk_context;
 
@@ -391,10 +391,12 @@ void app_create(SDL_Window *window, App **out_app) {
             float sector_angle = i * sector_step;
 
             float face_angle = sector_angle + sector_step * 0.5f;
+            float alpha = atan(radius / height); // 斜面与 Y 轴的夹角
             glm::vec3 normal;
-            normal.x = sin(atan(radius / height)) * height * cos(atan(radius / height)) * cos(face_angle);
-            normal.y = sin(atan(radius / height)) * height * sin(atan(radius / height));
-            normal.z = -sin(atan(radius / height)) * height * cos(atan(radius / height)) * sin(face_angle);
+            normal.x = sin(alpha) * height * cos(alpha) * cos(face_angle);
+            normal.y = sin(alpha) * height * sin(alpha);
+            normal.z = -sin(alpha) * height * cos(alpha) * sin(face_angle);
+            normal = glm::normalize(normal);
             
             { // 0
                 Vertex vertex{};
@@ -442,7 +444,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         Geometry geometry{};
         create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &geometry);
-        geometry.position = glm::vec3(-3.0f, -2.0f, 0.0f);
+        geometry.position = glm::vec3(-3.0f, -1.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
     }
