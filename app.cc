@@ -545,19 +545,14 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         std::vector<ColoredVertex> vertices;
         vertices.resize(2);
-
-        constexpr glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
         // clang-format off
         vertices[0].position = glm::vec3(-0.5f, 0.0f, 0.0f);
-        vertices[0].color = color;
         vertices[1].position = glm::vec3(0.5f, 0.0f, 0.0f);
-        vertices[1].color = color;
         // clang-format on
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->translation_gizmo_geometry);
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->gizmo_translation_axis_geometry);
+        app->gizmo_translation_axis_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
+        app->gizmo_translation_axis_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
-    app->translation_gizmo_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
-    app->translation_gizmo_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 
@@ -573,7 +568,7 @@ void app_destroy(App *app) {
 
     for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
     for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
-    destroy_geometry(app->vk_context, &app->translation_gizmo_geometry);
+    destroy_geometry(app->vk_context, &app->gizmo_translation_axis_geometry);
     destroy_geometry(app->vk_context, &app->bounding_box_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
@@ -812,12 +807,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         }
     }
 
-    for (const Mesh &mesh : app->translation_gizmo_geometry.meshes) {
+    for (const Mesh &mesh : app->gizmo_translation_axis_geometry.meshes) {
         glm::mat4 model_matrix = glm::mat4(1.0f);
-        model_matrix = glm::translate(model_matrix, app->translation_gizmo_geometry.position);
+        model_matrix = glm::translate(model_matrix, app->gizmo_translation_axis_geometry.position);
         {
             constexpr float factor = 0.25f;
-            const float scale = glm::length(app->camera.position - app->translation_gizmo_geometry.position) * factor;
+            const float scale = glm::length(app->camera.position - app->gizmo_translation_axis_geometry.position) * factor;
             model_matrix = glm::scale(model_matrix, glm::vec3(scale));
         }
         // {

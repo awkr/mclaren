@@ -105,7 +105,7 @@ struct App {
     Geometry bounding_box_geometry;
 
     Gizmo gizmo;
-    Geometry translation_gizmo_geometry;
+    Geometry gizmo_translation_axis_geometry;
     Geometry rotation_gizmo_geometry;
     Geometry scale_gizmo_geometry;
 };
