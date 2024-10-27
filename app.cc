@@ -241,7 +241,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
+        push_constant_range.size = sizeof(LineInstanceState);
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
@@ -542,8 +542,21 @@ void app_create(SDL_Window *window, App **out_app) {
         app->bounding_box_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
 
-    create_axis_geometry(vk_context, 1.0f, &app->translation_gizmo_geometry);
-    app->translation_gizmo_geometry.position = glm::vec3(0.0f, 2.0f, 0.0f);
+    {
+        std::vector<ColoredVertex> vertices;
+        vertices.resize(2);
+
+        constexpr glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+        // clang-format off
+        vertices[0].position = glm::vec3(-0.5f, 0.0f, 0.0f);
+        vertices[0].color = color;
+        vertices[1].position = glm::vec3(0.5f, 0.0f, 0.0f);
+        vertices[1].color = color;
+        // clang-format on
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->translation_gizmo_geometry);
+    }
+    app->translation_gizmo_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
     app->translation_gizmo_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
@@ -788,11 +801,11 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         glm::mat4 model_matrix = glm::mat4(1.0f);
         model_matrix = glm::translate(model_matrix, app->bounding_box_geometry.position);
 
-        InstanceState instance_state{};
-        instance_state.model_matrix = model_matrix;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        LineInstanceState line_instance_state{};
+        line_instance_state.model_matrix = model_matrix;
+        line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
         for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
@@ -803,7 +816,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         glm::mat4 model_matrix = glm::mat4(1.0f);
         model_matrix = glm::translate(model_matrix, app->translation_gizmo_geometry.position);
         {
-            const float factor = 0.5f;
+            constexpr float factor = 0.25f;
             const float scale = glm::length(app->camera.position - app->translation_gizmo_geometry.position) * factor;
             model_matrix = glm::scale(model_matrix, glm::vec3(scale));
         }
@@ -814,14 +827,48 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         //     model = glm::scale(model, glm::vec3(scale));
         // }
 
-        InstanceState instance_state{};
-        instance_state.model_matrix = model_matrix;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
-        for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+
+        { // x axis
+            glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.5f, 0.0f, 0.0f));
+
+            LineInstanceState line_instance_state{};
+            line_instance_state.model_matrix = model;
+            line_instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
+            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+            vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            for (const Primitive &primitive : mesh.primitives) {
+                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            }
+        }
+        { // y axis
+            glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.5f, 0.0f));
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+            LineInstanceState line_instance_state{};
+            line_instance_state.model_matrix = model;
+            line_instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
+            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+            vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            for (const Primitive &primitive : mesh.primitives) {
+                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            }
+        }
+        { // z axis
+            glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 0.5f));
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            LineInstanceState line_instance_state{};
+            line_instance_state.model_matrix = model;
+            line_instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
+            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+            vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            for (const Primitive &primitive : mesh.primitives) {
+                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            }
         }
     }
 }

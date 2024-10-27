@@ -42,6 +42,12 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
+struct LineInstanceState {
+    glm::mat4 model_matrix;
+    glm::vec3 color;
+    VkDeviceAddress vertex_buffer_device_address;
+};
+
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
