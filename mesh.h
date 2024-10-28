@@ -14,6 +14,7 @@ struct alignas(16) Vertex {
 struct alignas(16) ColoredVertex {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec4 color;
+    alignas(16) glm::vec3 normal;
 };
 
 // 可被渲染的最小粒度的实体，若 `index_count` 大于 0，则调用 vkCmdDrawIndexed，否则调用 vkCmdDraw

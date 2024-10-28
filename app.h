@@ -42,6 +42,7 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
+// model matrix, color, vertex buffer device address
 struct LineInstanceState {
     glm::mat4 model_matrix;
     glm::vec3 color;
@@ -97,15 +98,21 @@ struct App {
 
     ImGuiContext *gui_context;
 
-    VkPipelineLayout gizmo_pipeline_layout;
-    std::vector<VkPrimitiveTopology> gizmo_pipeline_primitive_topologies;
-    VkPipeline gizmo_pipeline;
+    VkPipelineLayout gizmo_line_pipeline_layout;
+    std::vector<VkPrimitiveTopology> gizmo_line_pipeline_primitive_topologies;
+    VkPipeline gizmo_line_pipeline;
+
+    VkPipelineLayout gizmo_triangle_pipeline_layout;
+    std::vector<VkPrimitiveTopology> gizmo_triangle_pipeline_primitive_topologies;
+    VkPipeline gizmo_triangle_pipeline;
 
     BoundingBox bounding_box;
     Geometry bounding_box_geometry;
 
     Gizmo gizmo;
-    Geometry gizmo_translation_axis_geometry;
+    // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines
+    Geometry gizmo_translation_line_geometry; // the body of the axes
+    Geometry gizmo_translation_cone_geometry; // the head of the axes
     Geometry rotation_gizmo_geometry;
     Geometry scale_gizmo_geometry;
 };

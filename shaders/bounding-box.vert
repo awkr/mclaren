@@ -8,6 +8,7 @@
 struct ColorVertex {
     vec3 position;
     vec4 color;
+    vec3 normal;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {

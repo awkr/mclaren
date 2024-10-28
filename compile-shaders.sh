@@ -11,6 +11,8 @@ glslangValidator -V shaders/wireframe.vert -o shaders/wireframe.vert.spv
 glslangValidator -V shaders/wireframe.frag -o shaders/wireframe.frag.spv
 glslangValidator -V shaders/line.vert -o shaders/line.vert.spv
 glslangValidator -V shaders/line.frag -o shaders/line.frag.spv
+glslangValidator -V shaders/gizmo-triangle.vert -o shaders/gizmo-triangle.vert.spv
+glslangValidator -V shaders/gizmo-triangle.frag -o shaders/gizmo-triangle.frag.spv
 glslangValidator -V shaders/gizmo.vert -o shaders/gizmo.vert.spv
 glslangValidator -V shaders/gizmo.frag -o shaders/gizmo.frag.spv
 glslangValidator -V shaders/bounding-box.vert -o shaders/bounding-box.vert.spv
