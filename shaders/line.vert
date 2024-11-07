@@ -5,14 +5,13 @@
 
 #include "global_state.glsl"
 
-struct Vertex {
+struct UnlitColoredVertex {
     vec3 position;
     vec4 color;
-    vec3 normal;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
-    Vertex vertices[];
+    UnlitColoredVertex vertices[];
 };
 
 layout (push_constant) uniform InstanceState {
@@ -23,7 +22,7 @@ layout (push_constant) uniform InstanceState {
 layout (location = 0) out vec3 out_color;
 
 void main() {
-    Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
+    UnlitColoredVertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
     gl_Position = global_state.projection * global_state.view * instance_state.model * vec4(vertex.position, 1.0);
     out_color = vertex.color.rgb;
 }

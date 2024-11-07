@@ -13,6 +13,8 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
 
     geometry->meshes.resize(data->meshes_count);
 
+    AABB aabb{};
+
     for (size_t mesh_index = 0; mesh_index < data->meshes_count; ++mesh_index) {
         const cgltf_mesh *gltf_mesh = &data->meshes[mesh_index];
 
@@ -51,7 +53,7 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
                         void *pos = (void *) ((uintptr_t) attribute->data->buffer_view->buffer->data +
                                               attribute->data->buffer_view->offset +
                                               vertex_index * attribute->data->stride);
-                        memcpy(vertices[vertex_offset + vertex_index].pos, pos, attribute->data->stride);
+                        memcpy(vertices[vertex_offset + vertex_index].position, pos, attribute->data->stride);
                     }
                 } else if (strcmp(attribute->name, "TEXCOORD_0") == 0) {
                     for (uint32_t vertex_index = 0; vertex_index < vertex_count; ++vertex_index) {
@@ -85,7 +87,12 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
         // todo parse node transform
 
         create_mesh(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
+
+        generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
     } // end looping meshes
+
+    geometry->aabb = aabb;
+    create_mesh_from_aabb(vk_context, aabb, geometry->aabb_mesh);
 
     cgltf_free(data);
 }

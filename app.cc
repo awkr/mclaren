@@ -40,14 +40,33 @@ glm::vec2 world_position_to_screen_position(const glm::mat4 &projection_matrix, 
 }
 
 // z_ndc: 0 for near plane, 1 for far plane
-glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, float viewport_size_width, float viewport_size_height, float z_ndc, float screen_pos_x, float screen_pos_y) {
+glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, const glm::mat4 &view_matrix, uint32_t viewport_size_width, uint32_t viewport_size_height, float z_ndc, float screen_pos_x, float screen_pos_y) {
     // return glm::unProject(glm::vec3(screen_pos_x, viewport_size_height - screen_pos_y, z_ndc), view_matrix, projection_matrix, glm::vec4(0, 0, viewport_size_width, viewport_size_height));
-    const float x_ndc = (2.0f * screen_pos_x) / viewport_size_width - 1.0f;
-    const float y_ndc = (2.0f * (viewport_size_height - screen_pos_y)) / viewport_size_height - 1.0f;
+    const float x_ndc = (2.0f * screen_pos_x) / (float) viewport_size_width - 1.0f;
+    const float y_ndc = (2.0f * (viewport_size_height - screen_pos_y)) / (float) viewport_size_height - 1.0f;
     glm::vec4 ndc_pos(x_ndc, y_ndc, z_ndc, 1.0f);
     glm::vec4 world_pos = glm::inverse(projection_matrix * view_matrix) * ndc_pos;
     world_pos /= world_pos.w;
     return glm::vec3(world_pos);
+}
+
+struct RaycastHit {
+    Geometry *geometry;
+    glm::vec3 position;
+    float distance;
+};
+
+struct RaycastResult {
+    std::vector<RaycastHit> hits; // sorted by distance
+};
+
+Ray ray_from_screen(const glm::vec2 &screen_pos, const VkExtent2D &viewport_extent, const glm::vec3 &origin, const glm::mat4 &view_matrix, const glm::mat4 &projection_matrix) {
+    // fire a ray from `origin` to the world position of the `screen_pos`
+    const glm::vec3 near_pos = screen_position_to_world_position(projection_matrix, view_matrix, viewport_extent.width, viewport_extent.height, 0.0f, screen_pos.x, screen_pos.y);
+    Ray ray{};
+    ray.origin = origin;
+    ray.direction = glm::normalize(near_pos - origin);
+    return ray;
 }
 
 glm::mat4 calc_model_matrix_of_geometry(const Geometry *geometry) {
@@ -368,9 +387,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
         { // center vertex
             Vertex vertex{};
-            vertex.pos[0] = 0.0f;
-            vertex.pos[1] = 0.0f;
-            vertex.pos[2] = 0.0f;
+            vertex.position[0] = 0.0f;
+            vertex.position[1] = 0.0f;
+            vertex.position[2] = 0.0f;
             vertex.tex_coord[0] = 0.5f;
             vertex.tex_coord[1] = 0.5f;
             vertex.normal[0] = 0.0f;
@@ -384,9 +403,9 @@ void app_create(SDL_Window *window, App **out_app) {
             float a = cos(sector_angle);
             float b = sin(sector_angle);
             Vertex vertex{};
-            vertex.pos[0] = a * radius; // x
-            vertex.pos[1] = 0.0f; // y
-            vertex.pos[2] = b * radius; // z
+            vertex.position[0] = a * radius; // x
+            vertex.position[1] = 0.0f; // y
+            vertex.position[2] = b * radius; // z
             vertex.tex_coord[0] = a * 0.5f + 0.5f;
             vertex.tex_coord[1] = b * 0.5f + 0.5f;
             vertex.normal[0] = 0.0f;
@@ -421,9 +440,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
             { // 0
                 Vertex vertex{};
-                vertex.pos[0] = cos(sector_angle) * radius; // x
-                vertex.pos[1] = 0.0f; // y
-                vertex.pos[2] = -sin(sector_angle) * radius; // z
+                vertex.position[0] = cos(sector_angle) * radius; // x
+                vertex.position[1] = 0.0f; // y
+                vertex.position[2] = -sin(sector_angle) * radius; // z
                 vertex.tex_coord[0] = (float) i / (float) sector;
                 vertex.tex_coord[1] = 0.0f;
                 vertex.normal[0] = normal.x;
@@ -433,9 +452,9 @@ void app_create(SDL_Window *window, App **out_app) {
             }
             { // 1
                 Vertex vertex{};
-                vertex.pos[0] = cos(sector_angle + sector_step) * radius; // x
-                vertex.pos[1] = 0.0f; // y
-                vertex.pos[2] = -sin(sector_angle + sector_step) * radius; // z
+                vertex.position[0] = cos(sector_angle + sector_step) * radius; // x
+                vertex.position[1] = 0.0f; // y
+                vertex.position[2] = -sin(sector_angle + sector_step) * radius; // z
                 vertex.tex_coord[0] = (float) (i + 1) / (float) sector;
                 vertex.tex_coord[1] = 0.0f;
                 vertex.normal[0] = normal.x;
@@ -445,9 +464,9 @@ void app_create(SDL_Window *window, App **out_app) {
             }
             { // 2
                 Vertex vertex{};
-                vertex.pos[0] = 0.0f; // x
-                vertex.pos[1] = height; // y
-                vertex.pos[2] = 0.0f; // z
+                vertex.position[0] = 0.0f; // x
+                vertex.position[1] = height; // y
+                vertex.position[2] = 0.0f; // z
                 vertex.tex_coord[0] = ((float) i / (float) sector + (float) (i + 1) / (float) sector) * 0.5f;
                 vertex.tex_coord[1] = 1.0f;
                 vertex.normal[0] = normal.x;
@@ -463,8 +482,11 @@ void app_create(SDL_Window *window, App **out_app) {
             indices.push_back(base_index + i * 3 + 2);
         }
 
+        AABB aabb{};
+        generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
+
         Geometry geometry{};
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &geometry);
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &geometry);
         geometry.position = glm::vec3(-3.0f, -1.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
@@ -474,7 +496,7 @@ void app_create(SDL_Window *window, App **out_app) {
         GeometryConfig config{};
         generate_circle_geometry_config(0.5f, 16, &config);
         Geometry geometry{};
-        create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, &geometry);
+        create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, config.aabb, &geometry);
         geometry.position = glm::vec3(-4.0f, 0.0f, 0.0f);
         geometry.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -482,97 +504,20 @@ void app_create(SDL_Window *window, App **out_app) {
         dispose_geometry_config(&config);
     }
 
-    { // create a bounding box geometry
-        app->bounding_box.min = glm::vec3(-0.5f, -0.5f, -0.5f);
-        app->bounding_box.max = glm::vec3(0.5f, 0.5f, 0.5f);
-
-        std::vector<ColoredVertex> vertices;
-        vertices.resize(24); // 12 lines, 24 vertices
-        // clang-format off
-        { // front
-            // top line
-            vertices[0].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[0].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[1].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[1].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // right line
-            vertices[2].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[2].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[3].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[3].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // bottom line
-            vertices[4].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[4].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[5].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[5].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // left line
-            vertices[6].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[6].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[7].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[7].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        }
-        { // back
-            // top line
-            vertices[8].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[8].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            vertices[9].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[9].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            // right line
-            vertices[10].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[10].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            vertices[11].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[11].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            // bottom line
-            vertices[12].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[12].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            vertices[13].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[13].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            // left line
-            vertices[14].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[14].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            vertices[15].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[15].color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-        }
-        { // top
-            // left line
-            vertices[16].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[16].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[17].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[17].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // right line
-            vertices[18].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.max.z);
-            vertices[18].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[19].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.max.y, app->bounding_box.min.z);
-            vertices[19].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        }
-        { // bottom
-            // left line
-            vertices[20].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[20].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[21].position = glm::vec3(app->bounding_box.min.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[21].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // right line
-            vertices[22].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.max.z);
-            vertices[22].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            vertices[23].position = glm::vec3(app->bounding_box.max.x, app->bounding_box.min.y, app->bounding_box.min.z);
-            vertices[23].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        }
-        // clang-format on
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->bounding_box_geometry);
-        app->bounding_box_geometry.position = glm::vec3(-2.0f, 0.0f, 0.0f);
-        app->bounding_box_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
-    }
-
     {
-        std::vector<ColoredVertex> vertices;
+        std::vector<UnlitColoredVertex> vertices;
         vertices.resize(2);
-        // clang-format off
         vertices[0].position = glm::vec3(-0.5f, 0.0f, 0.0f);
         vertices[1].position = glm::vec3(0.5f, 0.0f, 0.0f);
-        // clang-format on
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), nullptr, 0, 0, &app->gizmo_translation_line_geometry);
-        app->gizmo_translation_line_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
-        app->gizmo_translation_line_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        AABB aabb{};
+        for (size_t i = 0; i < 4; ++i) {
+            const UnlitColoredVertex &vertex = vertices[i];
+            aabb.min = glm::min(aabb.min, vertex.position);
+            aabb.max = glm::max(aabb.max, vertex.position);
+        }
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(UnlitColoredVertex), nullptr, 0, 0, aabb, &app->gizmo_line_geometry);
+        app->gizmo_line_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
+        app->gizmo_line_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
 
     {
@@ -580,7 +525,7 @@ void app_create(SDL_Window *window, App **out_app) {
         constexpr float height = 0.16f * 0.6f;
         constexpr uint32_t sector = 8;
 
-        std::vector<ColoredVertex> vertices;
+        std::vector<LitColoredVertex> vertices;
         std::vector<uint32_t> indices;
 
         const float sector_step = 2 * glm::pi<float>() / (float) sector;
@@ -588,7 +533,7 @@ void app_create(SDL_Window *window, App **out_app) {
         // base circle
 
         { // center vertex
-            ColoredVertex vertex{};
+            LitColoredVertex vertex{};
             vertex.position = glm::vec3(0.0f);
             vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
             vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -599,7 +544,7 @@ void app_create(SDL_Window *window, App **out_app) {
             float sector_angle = i * sector_step;
             float a = cos(sector_angle);
             float b = sin(sector_angle);
-            ColoredVertex vertex{};
+            LitColoredVertex vertex{};
             vertex.position = glm::vec3(a * radius, 0.0f, b * radius);
             vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
             vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -631,21 +576,21 @@ void app_create(SDL_Window *window, App **out_app) {
             normal = glm::normalize(normal);
 
             { // 0
-                ColoredVertex vertex{};
+                LitColoredVertex vertex{};
                 vertex.position = glm::vec3(cos(sector_angle) * radius, 0.0f, -sin(sector_angle) * radius);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
                 vertices.push_back(vertex);
             }
             { // 1
-                ColoredVertex vertex{};
+                LitColoredVertex vertex{};
                 vertex.position = glm::vec3(cos(sector_angle + sector_step) * radius, 0.0f, -sin(sector_angle + sector_step) * radius);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
                 vertices.push_back(vertex);
             }
             { // 2
-                ColoredVertex vertex{};
+                LitColoredVertex vertex{};
                 vertex.position = glm::vec3(0.0f, height, 0.0f);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
@@ -659,7 +604,14 @@ void app_create(SDL_Window *window, App **out_app) {
             indices.push_back(base_index + i * 3 + 2);
         }
 
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), &app->gizmo_translation_cone_geometry);
+        AABB aabb{};
+        for (size_t i = 0; i < 4; ++i) {
+            const LitColoredVertex &vertex = vertices[i];
+            aabb.min = glm::min(aabb.min, vertex.position);
+            aabb.max = glm::max(aabb.max, vertex.position);
+        }
+
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_translation_cone_geometry);
         app->gizmo_translation_cone_geometry.position = glm::vec3(-3.0f, -1.0f, 0.0f);
         app->gizmo_translation_cone_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
@@ -679,8 +631,7 @@ void app_destroy(App *app) {
     for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
     for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_geometry(app->vk_context, &app->gizmo_translation_cone_geometry);
-    destroy_geometry(app->vk_context, &app->gizmo_translation_line_geometry);
-    destroy_geometry(app->vk_context, &app->bounding_box_geometry);
+    destroy_geometry(app->vk_context, &app->gizmo_line_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
@@ -879,6 +830,20 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
                 }
             }
         }
+
+        for (const Geometry &geometry : app->lit_geometries) {
+            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
+
+            InstanceState instance_state{};
+            instance_state.model_matrix = model_matrix;
+            instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
+
+            vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_bind_vertex_buffer(command_buffer, geometry.aabb_mesh.vertex_buffer->handle, 0);
+            for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
+                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            }
+        }
     }
 }
 
@@ -906,35 +871,14 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    for (const Mesh &mesh : app->bounding_box_geometry.meshes) {
+    for (const Mesh &mesh : app->gizmo_line_geometry.meshes) {
         glm::mat4 model_matrix = glm::mat4(1.0f);
-        model_matrix = glm::translate(model_matrix, app->bounding_box_geometry.position);
-
-        LineInstanceState line_instance_state{};
-        line_instance_state.model_matrix = model_matrix;
-        line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
-        vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
-        for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-        }
-    }
-
-    for (const Mesh &mesh : app->gizmo_translation_line_geometry.meshes) {
-        glm::mat4 model_matrix = glm::mat4(1.0f);
-        model_matrix = glm::translate(model_matrix, app->gizmo_translation_line_geometry.position);
+        model_matrix = glm::translate(model_matrix, app->gizmo_line_geometry.position);
         {
             constexpr float factor = 0.2f;
-            const float scale = glm::length(app->camera.position - app->gizmo_translation_line_geometry.position) * factor;
+            const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
             model_matrix = glm::scale(model_matrix, glm::vec3(scale));
         }
-        // {
-        //     float fov_y = 45.0f;
-        //     float dist = glm::length(app->camera.position - position);
-        //     float scale = ((2.0f * tan(fov_y * 0.5f)) * dist) * 0.5f;
-        //     model = glm::scale(model, glm::vec3(scale));
-        // }
 
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
 
@@ -1003,10 +947,10 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
         for (const Mesh &mesh : app->gizmo_translation_cone_geometry.meshes) {
             glm::mat4 model_matrix = glm::mat4(1.0f);
-            model_matrix = glm::translate(model_matrix, app->gizmo_translation_line_geometry.position);
+            model_matrix = glm::translate(model_matrix, app->gizmo_line_geometry.position);
             {
                 constexpr float factor = 0.2f;
-                const float scale = glm::length(app->camera.position - app->gizmo_translation_line_geometry.position) * factor;
+                const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
                 model_matrix = glm::scale(model_matrix, glm::vec3(scale));
             }
             { // x axis
@@ -1058,6 +1002,17 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 }
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
+
+void scene_raycast(App *app, const Ray *ray, RaycastResult *result) {
+    // todo need some sort spatial partitioning to speed this up
+    for (const Geometry &geometry : app->lit_geometries) {
+        const glm::mat4 model = calc_model_matrix_of_geometry(&geometry); // todo 不需要每次都计算 model matrix
+        if (float distance; raycast_obb(*ray, geometry.aabb, model, &distance)) {
+            log_debug("hit geometry, distance: %f", distance);
+        }
+    }
+    // sort the hit results by distance
+}
 
 void update_scene(App *app) {
     camera_update(&app->camera);
@@ -1145,10 +1100,8 @@ void app_update(App *app) {
         vk_end_command_buffer(command_buffer);
     }
 
-    VkSemaphoreSubmitInfo wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore,
-                                                                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
-    VkSemaphoreSubmitInfo signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore,
-                                                                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    VkSemaphoreSubmitInfo wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
+    VkSemaphoreSubmitInfo signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     VkCommandBufferSubmitInfo command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
@@ -1259,31 +1212,23 @@ void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y)
     }
 }
 
-struct Ray {
-    glm::vec3 origin;
-    glm::vec3 direction;
-};
-
 void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     log_debug("mouse button %d up at screen position (%f, %f)", mouse_button, x, y);
     if (mouse_button != MOUSE_BUTTON_LEFT) {
         return;
     }
     {
-        // fire a ray from camera position to the world position of the mouse cursor
-        const glm::vec3 near_pos = screen_position_to_world_position(app->projection_matrix, app->camera.view_matrix, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, 0.0f, x, y);
+        Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
 
-        Ray ray;
-        ray.origin = camera_get_position(&app->camera);
-        ray.direction = glm::normalize(near_pos - app->camera.position);
-
-        ColoredVertex vertices[2];
+        UnlitColoredVertex vertices[2];
         vertices[0].position = ray.origin;
         vertices[0].color = glm::vec4(1, 0, 0, 1);
         vertices[1].position = ray.origin + ray.direction * 100.0f;
         vertices[1].color = glm::vec4(0, 1, 0, 1);
+        AABB aabb{};
+        generate_aabb_from_unlit_colored_vertices(vertices, sizeof(vertices) / sizeof(UnlitColoredVertex), &aabb);
         Geometry geometry{};
-        create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(ColoredVertex), sizeof(ColoredVertex), nullptr, 0, 0, &geometry);
+        create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(UnlitColoredVertex), sizeof(UnlitColoredVertex), nullptr, 0, 0, aabb, &geometry);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->line_geometries.push_back(geometry);
 
@@ -1293,6 +1238,12 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     }
 }
 
-void app_mouse_move(App *app, float x, float y) {}
+void app_mouse_move(App *app, float x, float y) {
+    log_debug("mouse moving %f, %f", x, y);
+    const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+    RaycastResult result{};
+    scene_raycast(app, &ray, &result);
+    // todo handle result
+}
 
 void app_capture(App *app) {}
