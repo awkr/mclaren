@@ -13,13 +13,14 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
 };
 
 layout (push_constant) uniform InstanceState {
-    mat4 model;
+    mat4 model_matrix;
+    vec3 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;
 
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
-    gl_Position = global_state.projection * global_state.view * instance_state.model * vec4(vertex.position, 1.0);
+    gl_Position = global_state.projection * global_state.view * instance_state.model_matrix * vec4(vertex.position, 1.0);
     out_tex_coord = vertex.tex_coord;
-    out_normal = (instance_state.model * vec4(vertex.normal, 0.0)).xyz;
+    out_normal = (instance_state.model_matrix * vec4(vertex.normal, 0.0)).xyz;
 }

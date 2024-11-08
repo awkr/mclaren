@@ -176,7 +176,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_combined_image_sampler_descriptor_set_layout);
     }
 
-    { // create compute pipeline
+    {
         VkShaderModule compute_shader_module;
         vk_create_shader_module(vk_context->device, "shaders/gradient.comp.spv", &compute_shader_module);
 
@@ -186,7 +186,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, compute_shader_module);
     }
 
-    { // create lit pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/lit.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/lit.frag.spv", &frag_shader);
@@ -209,7 +209,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create wireframe pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/wireframe.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/wireframe.frag.spv", &frag_shader);
@@ -231,14 +231,14 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create line pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
+        push_constant_range.size = sizeof(LineInstanceState);
 
         VkDescriptorSetLayout descriptor_set_layouts[1];
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
@@ -253,23 +253,23 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create gizmo line pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
-        vk_create_shader_module(vk_context->device, "shaders/bounding-box.vert.spv", &vert_shader);
-        vk_create_shader_module(vk_context->device, "shaders/bounding-box.frag.spv", &frag_shader);
+        vk_create_shader_module(vk_context->device, "shaders/colored-line.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/colored-line.frag.spv", &frag_shader);
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(LineInstanceState);
+        push_constant_range.size = sizeof(InstanceState);
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
-        vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_line_pipeline_layout);
-        app->gizmo_line_pipeline_primitive_topologies.resize(2);
-        app->gizmo_line_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-        app->gizmo_line_pipeline_primitive_topologies[1] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        vk_create_graphics_pipeline(vk_context->device, app->gizmo_line_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
-                                    app->gizmo_line_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->gizmo_line_pipeline);
+        vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->colored_line_pipeline_layout);
+        app->colored_line_pipeline_primitive_topologies.resize(2);
+        app->colored_line_pipeline_primitive_topologies[0] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        app->colored_line_pipeline_primitive_topologies[1] = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        vk_create_graphics_pipeline(vk_context->device, app->colored_line_pipeline_layout, color_image_format, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+                                    app->colored_line_pipeline_primitive_topologies, VK_POLYGON_MODE_LINE, &app->colored_line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -277,7 +277,7 @@ void app_create(SDL_Window *window, App **out_app) {
         // todo create gizmo geometries
         // [x] three axis
         // [x] three spheres
-        // [ ] three cones
+        // [x] three cones
         // [ ] three circles
     }
 
@@ -288,7 +288,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(LineInstanceState);
+        push_constant_range.size = sizeof(InstanceState);
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
@@ -643,8 +643,8 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->gizmo_triangle_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->gizmo_triangle_pipeline_layout);
 
-    vk_destroy_pipeline(app->vk_context->device, app->gizmo_line_pipeline);
-    vk_destroy_pipeline_layout(app->vk_context->device, app->gizmo_line_pipeline_layout);
+    vk_destroy_pipeline(app->vk_context->device, app->colored_line_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->colored_line_pipeline_layout);
 
     vk_destroy_pipeline(app->vk_context->device, app->line_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->line_pipeline_layout);
@@ -697,11 +697,12 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, const Rende
 }
 
 void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+    vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+    vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+
     { // lit pipeline
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
 
-        vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-        vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
         vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
         std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
@@ -793,10 +794,45 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
         }
     }
 
-    { // line pipeline
+    { // draw aabbs
+        vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->colored_line_pipeline);
+        vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+
+        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+        std::deque<VkDescriptorBufferInfo> buffer_infos;
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        {
+            VkDescriptorSet descriptor_set;
+            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            descriptor_sets.push_back(descriptor_set);
+
+            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+            buffer_infos.push_back(descriptor_buffer_info);
+
+            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+            write_descriptor_sets.push_back(write_descriptor_set);
+        }
+        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->colored_line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+        for (const Geometry &geometry : app->lit_geometries) {
+            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
+
+            InstanceState instance_state{};
+            instance_state.model_matrix = model_matrix;
+            instance_state.color = glm::vec3(1, 1, 1);
+            instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
+
+            vk_cmd_push_constants(command_buffer, app->colored_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+            vk_cmd_bind_vertex_buffer(command_buffer, geometry.aabb_mesh.vertex_buffer->handle, 0);
+            for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
+                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+            }
+        }
+    }
+
+    { // draw lines
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
-        vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
-        vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -819,39 +855,25 @@ void draw_world(const App *app, VkCommandBuffer command_buffer, const RenderFram
             glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
 
             for (const Mesh &mesh : geometry.meshes) {
-                InstanceState instance_state{};
+                LineInstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-                vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+                vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &instance_state);
                 vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
                 for (const Primitive &primitive : mesh.primitives) {
                     vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
                 }
             }
         }
-
-        for (const Geometry &geometry : app->lit_geometries) {
-            glm::mat4 model_matrix = calc_model_matrix_of_geometry(&geometry);
-
-            InstanceState instance_state{};
-            instance_state.model_matrix = model_matrix;
-            instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            vk_cmd_bind_vertex_buffer(command_buffer, geometry.aabb_mesh.vertex_buffer->handle, 0);
-            for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
-                vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-            }
-        }
     }
 }
 
 void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_line_pipeline);
-
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->colored_line_pipeline);
     vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
 
     std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
@@ -869,7 +891,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->colored_line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     for (const Mesh &mesh : app->gizmo_line_geometry.meshes) {
         glm::mat4 model_matrix = glm::mat4(1.0f);
@@ -885,12 +907,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         { // x axis
             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.5f, 0.0f, 0.0f));
 
-            LineInstanceState line_instance_state{};
-            line_instance_state.model_matrix = model;
-            line_instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
-            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+            InstanceState instance_state{};
+            instance_state.model_matrix = model;
+            instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
+            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            vk_cmd_push_constants(command_buffer, app->colored_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
             for (const Primitive &primitive : mesh.primitives) {
                 vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
             }
@@ -899,12 +921,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.5f, 0.0f));
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-            LineInstanceState line_instance_state{};
-            line_instance_state.model_matrix = model;
-            line_instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
-            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+            InstanceState instance_state{};
+            instance_state.model_matrix = model;
+            instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
+            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            vk_cmd_push_constants(command_buffer, app->colored_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
             for (const Primitive &primitive : mesh.primitives) {
                 vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
             }
@@ -913,12 +935,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 0.5f));
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-            LineInstanceState line_instance_state{};
-            line_instance_state.model_matrix = model;
-            line_instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
-            line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+            InstanceState instance_state{};
+            instance_state.model_matrix = model;
+            instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
+            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_cmd_push_constants(command_buffer, app->gizmo_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+            vk_cmd_push_constants(command_buffer, app->colored_line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
             for (const Primitive &primitive : mesh.primitives) {
                 vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
             }
@@ -957,12 +979,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
                 glm::mat4 model = glm::translate(model_matrix, glm::vec3(1.0f, 0.0f, 0.0f));
                 model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-                LineInstanceState line_instance_state{};
-                line_instance_state.model_matrix = model;
-                line_instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
-                line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+                InstanceState instance_state{};
+                instance_state.model_matrix = model;
+                instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
                 for (const Primitive &primitive : mesh.primitives) {
                     vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
                     vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -971,12 +993,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             { // y axis
                 glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 1.0f, 0.0f));
 
-                LineInstanceState line_instance_state{};
-                line_instance_state.model_matrix = model;
-                line_instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
-                line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+                InstanceState instance_state{};
+                instance_state.model_matrix = model;
+                instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
                 for (const Primitive &primitive : mesh.primitives) {
                     vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
                     vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -986,12 +1008,12 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
                 glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 1.0f));
                 model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-                LineInstanceState line_instance_state{};
-                line_instance_state.model_matrix = model;
-                line_instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
-                line_instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+                InstanceState instance_state{};
+                instance_state.model_matrix = model;
+                instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
+                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(LineInstanceState), &line_instance_state);
+                vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
                 for (const Primitive &primitive : mesh.primitives) {
                     vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
                     vk_cmd_draw_indexed(command_buffer, primitive.index_count);

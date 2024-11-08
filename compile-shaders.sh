@@ -15,5 +15,5 @@ glslangValidator -V shaders/gizmo-triangle.vert -o shaders/gizmo-triangle.vert.s
 glslangValidator -V shaders/gizmo-triangle.frag -o shaders/gizmo-triangle.frag.spv
 glslangValidator -V shaders/gizmo.vert -o shaders/gizmo.vert.spv
 glslangValidator -V shaders/gizmo.frag -o shaders/gizmo.frag.spv
-glslangValidator -V shaders/bounding-box.vert -o shaders/bounding-box.vert.spv
-glslangValidator -V shaders/bounding-box.frag -o shaders/bounding-box.frag.spv
+glslangValidator -V shaders/colored-line.vert -o shaders/colored-line.vert.spv
+glslangValidator -V shaders/colored-line.frag -o shaders/colored-line.frag.spv
