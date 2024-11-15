@@ -3,7 +3,6 @@
 #include "geometry.h"
 
 struct Gizmo {
-  Geometry axis_geometry;
 };
 
 void create_gizmo(Gizmo *gizmo);

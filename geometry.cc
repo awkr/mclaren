@@ -64,38 +64,39 @@ void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *ge
     create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
 }
 
-void create_cube_geometry(VkContext *vk_context, Geometry *geometry) {
+void create_cube_geometry(VkContext *vk_context, float length, Geometry *geometry) {
     Vertex vertices[24];
     // clang-format off
-    vertices[0] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f,  1.0f}}; // front
-    vertices[1] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f,  1.0f}};
-    vertices[2] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f,  1.0f}};
-    vertices[3] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f,  1.0f}};
+    float half_length = length * 0.5f;
+    vertices[0] = {{-half_length, -half_length,  half_length}, {0.0f, 0.0f}, {0.0f, 0.0f,  1.0f}}; // front
+    vertices[1] = {{ half_length, -half_length,  half_length}, {1.0f, 0.0f}, {0.0f, 0.0f,  1.0f}};
+    vertices[2] = {{-half_length,  half_length,  half_length}, {0.0f, 1.0f}, {0.0f, 0.0f,  1.0f}};
+    vertices[3] = {{ half_length,  half_length,  half_length}, {1.0f, 1.0f}, {0.0f, 0.0f,  1.0f}};
 
-    vertices[4] = {{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}}; // back
-    vertices[5] = {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
-    vertices[6] = {{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
-    vertices[7] = {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
+    vertices[4] = {{ half_length, -half_length, -half_length}, {0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}}; // back
+    vertices[5] = {{-half_length, -half_length, -half_length}, {1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
+    vertices[6] = {{ half_length,  half_length, -half_length}, {0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
+    vertices[7] = {{-half_length,  half_length, -half_length}, {1.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
 
-    vertices[ 8] = {{-0.5f, -0.5f,  -0.5f}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}}; // left
-    vertices[ 9] = {{-0.5f, -0.5f,   0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}};
-    vertices[10] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
-    vertices[11] = {{-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
+    vertices[ 8] = {{-half_length, -half_length,  -half_length}, {0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}}; // left
+    vertices[ 9] = {{-half_length, -half_length,   half_length}, {1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}};
+    vertices[10] = {{-half_length,  half_length, -half_length}, {0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
+    vertices[11] = {{-half_length,  half_length,  half_length}, {1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}};
 
-    vertices[12] = {{ 0.5f, -0.5f,  0.5f}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}}; // right
-    vertices[13] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
-    vertices[14] = {{ 0.5f,  0.5f,  0.5f}, {0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}};
-    vertices[15] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}};
+    vertices[12] = {{ half_length, -half_length,  half_length}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}}; // right
+    vertices[13] = {{ half_length, -half_length, -half_length}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
+    vertices[14] = {{ half_length,  half_length,  half_length}, {0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}};
+    vertices[15] = {{ half_length,  half_length, -half_length}, {1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}};
 
-    vertices[16] = {{-0.5f,  0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}}; // top
-    vertices[17] = {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
-    vertices[18] = {{-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}};
-    vertices[19] = {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}};
+    vertices[16] = {{-half_length,  half_length,  half_length}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}}; // top
+    vertices[17] = {{ half_length,  half_length,  half_length}, {1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
+    vertices[18] = {{-half_length,  half_length, -half_length}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}};
+    vertices[19] = {{ half_length,  half_length, -half_length}, {1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}};
 
-    vertices[20] = {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}}; // bottom
-    vertices[21] = {{ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
-    vertices[22] = {{-0.5f, -0.5f,  0.5f}, {0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}};
-    vertices[23] = {{ 0.5f, -0.5f,  0.5f}, {1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}};
+    vertices[20] = {{-half_length, -half_length, -half_length}, {0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}}; // bottom
+    vertices[21] = {{ half_length, -half_length, -half_length}, {1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
+    vertices[22] = {{-half_length, -half_length,  half_length}, {0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}};
+    vertices[23] = {{ half_length, -half_length,  half_length}, {1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}};
 
     uint32_t indices[36] = { 0,  1,  2,  2,  1,  3, // front
                              4,  5,  6,  6,  5,  7, // back
@@ -197,7 +198,7 @@ void generate_cone_geometry_config(float base_radius, float height, uint16_t sec
     // }
 }
 
-void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
+void generate_solid_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
     const uint32_t vertex_count = (sector + 1) + 1 /* center vertex */;
     Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
     memset(vertices, 0, sizeof(Vertex) * vertex_count);
@@ -247,6 +248,31 @@ void generate_circle_geometry_config(float radius, uint16_t sector, GeometryConf
     config->indices = indices;
 
     generate_aabb_from_vertices(vertices, vertex_count, &config->aabb);
+}
+
+void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
+    const uint32_t vertex_count = sector + 1;
+    const uint32_t vertex_stride = sizeof(UnlitColoredVertex);
+    UnlitColoredVertex *vertices = (UnlitColoredVertex *) malloc(vertex_stride * vertex_count);
+    memset(vertices, 0, vertex_stride * vertex_count);
+
+    const float sector_step = 2 * glm::pi<float>() / (float) sector;
+
+    for (size_t i = 0; i <= sector; ++i) {
+        const float sector_angle = i * sector_step;
+        const float a = cos(sector_angle);
+        const float b = sin(sector_angle);
+        UnlitColoredVertex *vertex = &vertices[i];
+        vertex->position.x = a * radius;
+        vertex->position.y = 0.0f;
+        vertex->position.z = -b * radius;
+    }
+
+    config->vertex_count = vertex_count;
+    config->vertex_stride = vertex_stride;
+    config->vertices = vertices;
+
+    generate_aabb_from_unlit_colored_vertices(vertices, vertex_count, &config->aabb);
 }
 
 void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig *config) {}
