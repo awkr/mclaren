@@ -33,8 +33,10 @@ void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sec
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry);
 void create_cone_geometry(VkContext *vk_context, Geometry *geometry);
 void generate_cone_geometry_config(float base_radius, float height, uint16_t sector, uint16_t stack, GeometryConfig *config);
-void generate_solid_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
+void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_facing_up, float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
+void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept;
+void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept;
 
 struct Ray {
     glm::vec3 origin;

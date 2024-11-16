@@ -495,14 +495,36 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
         GeometryConfig config{};
-        generate_solid_circle_geometry_config(0.5f, 16, &config);
+        generate_solid_circle_geometry_config(glm::vec3(0, 0, 0), true, 0.5f, 16, &config);
         Geometry geometry{};
-        create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, config.aabb, &geometry);
+        create_geometry_from_config(vk_context, &config, &geometry);
         geometry.position = glm::vec3(-4.0f, 0.0f, 0.0f);
         geometry.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
         geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
         dispose_geometry_config(&config);
+    }
+
+    { // add cylinder geometry
+      GeometryConfig config{};
+      generate_cylinder_geometry_config(2, 0.5f, 16, &config);
+      Geometry geometry{};
+      create_geometry_from_config(vk_context, &config, &geometry);
+      geometry.position = glm::vec3(-5.0f, 1.0f, 0.0f);
+      geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+      app->lit_geometries.push_back(geometry);
+      dispose_geometry_config(&config);
+    }
+
+    { // add torus geometry
+      GeometryConfig config{};
+      generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
+      Geometry geometry{};
+      create_geometry_from_config(vk_context, &config, &geometry);
+      geometry.position = glm::vec3(-4.0f, 1.0f, 2.0f);
+      geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+      app->lit_geometries.push_back(geometry);
+      dispose_geometry_config(&config);
     }
 
     {
@@ -620,7 +642,7 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         GeometryConfig config{};
         generate_stroke_circle_geometry_config(1.618f / 2.618f, 64, &config);
-        create_geometry(vk_context, config.vertices, config.vertex_count, config.vertex_stride, config.indices, config.index_count, config.index_stride, config.aabb, &app->gizmo_stroke_circle_geometry);
+        create_geometry_from_config(vk_context, &config, &app->gizmo_stroke_circle_geometry);
         app->gizmo_stroke_circle_geometry.position = glm::vec3(0.0f, 1.5f, 0.0f);
         app->gizmo_stroke_circle_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         dispose_geometry_config(&config);
@@ -916,7 +938,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
         {
             constexpr float factor = 0.2f;
             const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
-            // model_matrix = glm::scale(model_matrix, glm::vec3(scale));
+            model_matrix = glm::scale(model_matrix, glm::vec3(scale));
         }
 
         vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
@@ -990,7 +1012,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             {
                 constexpr float factor = 0.2f;
                 const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
-                // model_matrix = glm::scale(model_matrix, glm::vec3(scale));
+                model_matrix = glm::scale(model_matrix, glm::vec3(scale));
             }
             { // x axis
                 glm::mat4 model = glm::translate(model_matrix, glm::vec3(1.0f, 0.0f, 0.0f));
@@ -1066,7 +1088,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             {
                 constexpr float factor = 0.2f;
                 const float scale = glm::length(app->camera.position - app->gizmo_stroke_circle_geometry.position) * factor;
-                // model_matrix = glm::scale(model_matrix, glm::vec3(scale));
+                model_matrix = glm::scale(model_matrix, glm::vec3(scale));
             }
 
             vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
@@ -1135,11 +1157,11 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
             glm::mat4 model_matrix = glm::mat4(1.0f);
             model_matrix = glm::translate(model_matrix, app->gizmo_cube_geometry.position);
             model_matrix = glm::scale(model_matrix, app->gizmo_cube_geometry.scale);
-    //         {
-    //             constexpr float factor = 0.2f;
-    //             const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
-    //             model_matrix = glm::scale(model_matrix, glm::vec3(scale));
-    //         }
+            {
+                constexpr float factor = 0.2f;
+                const float scale = glm::length(app->camera.position - app->gizmo_line_geometry.position) * factor;
+                model_matrix = glm::scale(model_matrix, glm::vec3(scale));
+            }
         { // x axis
             glm::mat4 model = glm::translate(model_matrix, glm::vec3(1.382f, 0.0f, 0.0f));
             // model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));

@@ -32,7 +32,9 @@ void create_geometry(VkContext *vk_context, const void *vertices, uint32_t verte
     create_mesh_from_aabb(vk_context, aabb, geometry->aabb_mesh);
 }
 
-void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {}
+void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
+  create_geometry(vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, config->aabb, geometry);
+}
 
 void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
     destroy_mesh(vk_context, &geometry->aabb_mesh);
@@ -188,7 +190,7 @@ void generate_cone_geometry_config(float base_radius, float height, uint16_t sec
     // unit_circle_vertices.emplace_back(0.0f, 0.0f, 0.0f);
     // for (size_t i = 0; i <= sector; ++i) {
     //     float sector_angle = i * sector_step;
-    //     unit_circle_vertices.emplace_back(cos(sector_angle), 0, sin(sector_angle));
+    //     unit_circle_vertices.emplace_back(cosf(sector_angle), 0, sinf(sector_angle));
     // }
     // std::vector<uint32_t> unit_circle_indices;
     // for (size_t i = 0; i < sector; ++i) {
@@ -198,7 +200,7 @@ void generate_cone_geometry_config(float base_radius, float height, uint16_t sec
     // }
 }
 
-void generate_solid_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
+void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_facing_up, float radius, uint16_t sector, GeometryConfig *config) noexcept {
     const uint32_t vertex_count = (sector + 1) + 1 /* center vertex */;
     Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
     memset(vertices, 0, sizeof(Vertex) * vertex_count);
@@ -210,34 +212,35 @@ void generate_solid_circle_geometry_config(float radius, uint16_t sector, Geomet
     const float sector_step = 2 * glm::pi<float>() / (float) sector;
 
     Vertex *vertex = &vertices[0]; // center vertex
-    vertex->position[0] = 0.0f;
-    vertex->position[1] = 0.0f;
-    vertex->position[2] = 0.0f;
+    vertex->position[0] = center.x;
+    vertex->position[1] = center.y;
+    vertex->position[2] = center.z;
     vertex->tex_coord[0] = 0.5f;
     vertex->tex_coord[1] = 0.5f;
     vertex->normal[0] = 0.0f;
-    vertex->normal[1] = 1.0f;
+    vertex->normal[1] = is_facing_up ? 1.0f : -1.0f;
     vertex->normal[2] = 0.0f;
 
     for (size_t i = 0; i <= sector; ++i) {
         const float sector_angle = i * sector_step;
-        const float a = cos(sector_angle);
-        const float b = sin(sector_angle);
+        const float a = cosf(sector_angle);
+        const float b = sinf(sector_angle);
         vertex = &vertices[i + 1];
-        vertex->position[0] = a * radius; // x
-        vertex->position[1] = 0.0f; // y
-        vertex->position[2] = -b * radius; // z，因为 x-z 平面 z 是向下的，所以这里取负
+        vertex->position[0] = center.x + a * radius;
+        vertex->position[1] = center.y + 0.0f;
+        vertex->position[2] = center.z + -b * radius; // 因为 x-z 平面 z 轴是向下的，所以这里取负
         vertex->tex_coord[0] = a * 0.5f + 0.5f;
         vertex->tex_coord[1] = b * 0.5f + 0.5f;
         vertex->normal[0] = 0.0f;
-        vertex->normal[1] = 1.0f;
+        vertex->normal[1] = is_facing_up ? 1.0f : -1.0f;
         vertex->normal[2] = 0.0f;
     }
-    
+
     for (size_t i = 0; i < sector; ++i) {
         indices[0 + i * 3] = 0;
-        indices[1 + i * 3] = i + 1;
-        indices[2 + i * 3] = i + 2;
+        // counter-clockwise
+        indices[1 + i * 3] = is_facing_up ? i + 1 : i + 2;
+        indices[2 + i * 3] = is_facing_up ? i + 2 : i + 1;
     }
 
     config->vertex_count = vertex_count;
@@ -260,8 +263,8 @@ void generate_stroke_circle_geometry_config(float radius, uint16_t sector, Geome
 
     for (size_t i = 0; i <= sector; ++i) {
         const float sector_angle = i * sector_step;
-        const float a = cos(sector_angle);
-        const float b = sin(sector_angle);
+        const float a = cosf(sector_angle);
+        const float b = sinf(sector_angle);
         UnlitColoredVertex *vertex = &vertices[i];
         vertex->position.x = a * radius;
         vertex->position.y = 0.0f;
@@ -273,6 +276,217 @@ void generate_stroke_circle_geometry_config(float radius, uint16_t sector, Geome
     config->vertices = vertices;
 
     generate_aabb_from_unlit_colored_vertices(vertices, vertex_count, &config->aabb);
+}
+
+void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept {
+  uint32_t vertex_count_of_solid_circle = (sector + 1) + 1;
+  uint32_t index_count_of_solid_circle = sector * 3;
+
+  uint32_t vertex_count = vertex_count_of_solid_circle * 2 + sector * 4;
+  Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
+
+  uint32_t index_count = index_count_of_solid_circle * 2 + sector * 6;
+  uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+
+  float sector_step = 2 * glm::pi<float>() / (float) sector;
+
+  { // generate bottom circle mesh
+    Vertex *vertex = &vertices[0]; // center vertex
+    vertex->position[0] = 0;
+    vertex->position[1] = 0;
+    vertex->position[2] = 0;
+    vertex->tex_coord[0] = 0.5f;
+    vertex->tex_coord[1] = 0.5f;
+    vertex->normal[0] = 0.0f;
+    vertex->normal[1] = -1.0f;
+    vertex->normal[2] = 0.0f;
+
+    for (size_t i = 0; i <= sector; ++i) {
+      const float sector_angle = i * sector_step;
+      const float a = cosf(sector_angle);
+      const float b = sinf(sector_angle);
+      vertex = &vertices[i + 1];
+      vertex->position[0] = a * radius;
+      vertex->position[1] = 0.0f;
+      vertex->position[2] = -b * radius;
+      vertex->tex_coord[0] = a * 0.5f + 0.5f;
+      vertex->tex_coord[1] = b * 0.5f + 0.5f;
+      vertex->normal[0] = 0.0f;
+      vertex->normal[1] = -1.0f;
+      vertex->normal[2] = 0.0f;
+    }
+
+    for (size_t i = 0; i < sector; ++i) {
+      indices[0 + i * 3] = 0;
+      indices[1 + i * 3] = i + 2;
+      indices[2 + i * 3] = i + 1;
+    }
+  }
+
+  { // generate top circle mesh
+    Vertex *vertex = &vertices[vertex_count_of_solid_circle]; // center vertex
+    vertex->position[0] = 0;
+    vertex->position[1] = height;
+    vertex->position[2] = 0;
+    vertex->tex_coord[0] = 0.5f;
+    vertex->tex_coord[1] = 0.5f;
+    vertex->normal[0] = 0.0f;
+    vertex->normal[1] = 1.0f;
+    vertex->normal[2] = 0.0f;
+
+    for (size_t i = 0; i <= sector; ++i) {
+      const float sector_angle = i * sector_step;
+      const float a = cosf(sector_angle);
+      const float b = sinf(sector_angle);
+      vertex = &vertices[vertex_count_of_solid_circle + i + 1];
+      vertex->position[0] = a * radius;
+      vertex->position[1] = height;
+      vertex->position[2] = -b * radius;
+      vertex->tex_coord[0] = a * 0.5f + 0.5f;
+      vertex->tex_coord[1] = b * 0.5f + 0.5f;
+      vertex->normal[0] = 0.0f;
+      vertex->normal[1] = 1.0f;
+      vertex->normal[2] = 0.0f;
+    }
+
+    for (size_t i = 0; i < sector; ++i) {
+      indices[index_count_of_solid_circle + i * 3 + 0] = vertex_count_of_solid_circle + 0;
+      indices[index_count_of_solid_circle + i * 3 + 1] = vertex_count_of_solid_circle + i + 1;
+      indices[index_count_of_solid_circle + i * 3 + 2] = vertex_count_of_solid_circle + i + 2;
+    }
+  }
+
+  { // generate side mesh
+    /*
+     *  2----3
+     *  | \  |
+     *  |  \ |
+     *  0----1
+     *
+     *  indices: 0, 1, 2, 2, 1, 3
+     */
+    for (size_t i = 0; i < sector; ++i) {
+      float angle = i * sector_step;
+      const glm::vec3 a = glm::normalize(glm::vec3(cosf(angle), 0, -sinf(angle)));
+      angle = (i + 1) * sector_step;
+      const glm::vec3 b = glm::normalize(glm::vec3(cosf(angle), 0, -sinf(angle)));
+
+      Vertex *vertex = &vertices[vertex_count_of_solid_circle * 2 + i * 4];
+      memcpy(vertex->position, vertices[1 + i].position, sizeof(float) * 3);
+      vertex->tex_coord[0] = i / (float) sector;
+      vertex->tex_coord[1] = 0;
+      vertex->normal[0] = a.x;
+      vertex->normal[1] = a.y;
+      vertex->normal[2] = a.z;
+
+      vertex = &vertices[vertex_count_of_solid_circle * 2 + i * 4 + 1];
+      memcpy(vertex->position, vertices[1 + i + 1].position, sizeof(float) * 3);
+      vertex->tex_coord[0] = (i + 1) / (float) sector;
+      vertex->tex_coord[1] = 0;
+      vertex->normal[0] = b.x;
+      vertex->normal[1] = b.y;
+      vertex->normal[2] = b.z;
+
+      vertex = &vertices[vertex_count_of_solid_circle * 2 + i * 4 + 2];
+      memcpy(vertex->position, vertices[vertex_count_of_solid_circle + 1 + i].position, sizeof(float) * 3);
+      vertex->tex_coord[0] = i / (float) sector;
+      vertex->tex_coord[1] = 1;
+      vertex->normal[0] = a.x;
+      vertex->normal[1] = a.y;
+      vertex->normal[2] = a.z;
+
+      vertex = &vertices[vertex_count_of_solid_circle * 2 + i * 4 + 3];
+      memcpy(vertex->position, vertices[vertex_count_of_solid_circle + 1 + i + 1].position, sizeof(float) * 3);
+      vertex->tex_coord[0] = (i + 1) / (float) sector;
+      vertex->tex_coord[1] = 1;
+      vertex->normal[0] = b.x;
+      vertex->normal[1] = b.y;
+      vertex->normal[2] = b.z;
+    }
+
+    for (size_t i = 0; i < sector; ++i) {
+      indices[index_count_of_solid_circle * 2 + i * 6 + 0] = vertex_count_of_solid_circle * 2 + i * 4 + 0;
+      indices[index_count_of_solid_circle * 2 + i * 6 + 1] = vertex_count_of_solid_circle * 2 + i * 4 + 1;
+      indices[index_count_of_solid_circle * 2 + i * 6 + 2] = vertex_count_of_solid_circle * 2 + i * 4 + 2;
+
+      indices[index_count_of_solid_circle * 2 + i * 6 + 3] = vertex_count_of_solid_circle * 2 + i * 4 + 2;
+      indices[index_count_of_solid_circle * 2 + i * 6 + 4] = vertex_count_of_solid_circle * 2 + i * 4 + 1;
+      indices[index_count_of_solid_circle * 2 + i * 6 + 5] = vertex_count_of_solid_circle * 2 + i * 4 + 3;
+    }
+  }
+
+  config->vertex_count = vertex_count;
+  config->vertex_stride = sizeof(Vertex);
+  config->vertices = vertices;
+  config->index_count = index_count;
+  config->index_stride = sizeof(uint32_t);
+  config->indices = indices;
+}
+
+void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept {
+  ASSERT(sector >= 3);
+  // R = major_radius
+  // r = minor_radius
+  // x = (R + r * cos(u)) * sin(v) = R * sin(v) + r * cos(u) * sin(v)
+  // y = r * sin(u)
+  // z = (R + r * cos(u)) * cos(v) = R * cos(v) + r * cos(u) * cos(v)
+  // where u: side angle [0, 360]
+  //       v: sector angle [0, 360]
+
+  uint32_t vertex_count = (side + 1) * (sector + 1);
+  Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
+
+  uint32_t index_count = sector * side * 6;
+  uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+
+  float sector_angle_step = 2 * glm::pi<float>() / (float) sector;
+  float side_angle_step = 2 * glm::pi<float>() / (float) side;
+  for (size_t i = 0; i <= sector; ++i) {
+    float sector_angle = i * sector_angle_step;
+    for (size_t j = 0; j <= side; ++j) {
+      float side_angle = j * side_angle_step;
+
+      float y = minor_radius * sinf(side_angle);
+      float x = minor_radius * cosf(side_angle) * sinf(sector_angle);
+      float z = minor_radius * cosf(side_angle) * cosf(sector_angle);
+      glm::vec3 n = glm::normalize(glm::vec3(x, y, z));
+
+      x += major_radius * sinf(sector_angle);
+      z += major_radius * cosf(sector_angle);
+
+      float u = (float) i / (float) sector;
+      float v = (float) j / (float) side;
+
+      vertices[i * (side + 1) + j] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+    }
+  }
+
+  /*
+   *  2----3
+   *  | \  |
+   *  |  \ |
+   *  0----1
+   *
+   *  indices: 0, 1, 2, 2, 1, 3
+   */
+  for (size_t i = 0; i < sector; ++i) {
+    for (size_t j = 0; j < side; ++j) {
+      indices[(i * side + j) * 6 + 0] = i * (side + 1) + j;
+      indices[(i * side + j) * 6 + 1] = (i + 1) * (side + 1) + j;
+      indices[(i * side + j) * 6 + 2] = i * (side + 1) + j + 1;
+
+      indices[(i * side + j) * 6 + 3] = i * (side + 1) + j + 1;
+      indices[(i * side + j) * 6 + 4] = (i + 1) * (side + 1) + j;
+      indices[(i * side + j) * 6 + 5] = (i + 1) * (side + 1) + j + 1;
+    }
+  }
+
+  config->vertex_count = vertex_count;
+  config->vertex_stride = sizeof(Vertex);
+  config->vertices = vertices;
+  config->index_count = index_count;
+  config->index_stride = sizeof(uint32_t);
+  config->indices = indices;
 }
 
 void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig *config) {}
