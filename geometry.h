@@ -32,6 +32,7 @@ void create_cube_geometry(VkContext *vk_context, float length, Geometry *geometr
 void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry);
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry);
 void create_cone_geometry(VkContext *vk_context, Geometry *geometry);
+
 void generate_cone_geometry_config(float base_radius, float height, uint16_t sector, uint16_t stack, GeometryConfig *config);
 void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_facing_up, float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
@@ -43,5 +44,18 @@ struct Ray {
     glm::vec3 direction;
 };
 
+void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept;
+
+struct RaycastHit {
+    Geometry *geometry;
+    glm::vec3 position;
+    float distance;
+};
+
+struct RaycastResult {
+    std::vector<RaycastHit> hits; // sorted by distance
+};
+
 bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance);
 bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point);
+bool raycast_plane(const Ray &ray, const glm::vec3 &normal, const glm::vec3 &point, RaycastResult *raycast_result);

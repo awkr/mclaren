@@ -491,16 +491,20 @@ void generate_torus_geometry_config(float major_radius, float minor_radius, uint
 
 void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig *config) {}
 
+void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept {
+  const glm::mat4 inv_model_matrix = glm::inverse(model_matrix);
+  out_ray->origin = glm::vec3(inv_model_matrix * glm::vec4(ray->origin, 1.0f));
+  out_ray->direction = glm::vec3(inv_model_matrix * glm::vec4(ray->direction, 0.0f));
+}
+
 bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance) {
-    const glm::mat4 inv_model_matrix = glm::inverse(model_matrix); // transform ray to model space
-    Ray ray_in_model_space{};
-    ray_in_model_space.origin = glm::vec3(inv_model_matrix * glm::vec4(ray.origin, 1.0f));
-    ray_in_model_space.direction = glm::vec3(inv_model_matrix * glm::vec4(ray.direction, 0.0f));
-    if (glm::vec3 hit_point; raycast_aabb(ray_in_model_space, aabb, hit_point)) {
-        *out_distance = glm::length(hit_point - ray_in_model_space.origin);
-        return true;
-    }
-    return false;
+  Ray ray_in_model_space{};
+  transform_ray_to_model_space(&ray, model_matrix, &ray_in_model_space);
+  if (glm::vec3 hit_point; raycast_aabb(ray_in_model_space, aabb, hit_point)) {
+    *out_distance = glm::length(hit_point - ray_in_model_space.origin);
+    return true;
+  }
+  return false;
 }
 
 bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
@@ -564,3 +568,5 @@ bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
 
     return true; // ray hits box
 }
+
+bool raycast_plane(const Ray &ray, const glm::vec3 &normal, const glm::vec3 &point, RaycastResult *raycast_result) {}
