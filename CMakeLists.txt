@@ -42,6 +42,7 @@ target_include_directories(mclaren PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(mclaren PRIVATE volk SDL3-static VulkanMemoryAllocator imgui glm cgltf stb microprofile)
 target_compile_definitions(mclaren PRIVATE VK_NO_PROTOTYPES)
 target_compile_definitions(mclaren PRIVATE GLM_FORCE_DEPTH_ZERO_TO_ONE)
+target_compile_definitions(mclaren PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
 target_compile_options(mclaren PRIVATE
         $<$<CXX_COMPILER_ID:GNU>:-fno-exceptions>

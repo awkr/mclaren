@@ -1,7 +1,7 @@
 #include "geometry.h"
 #include "vk_command_buffer.h"
 #include <core/logging.h>
-#include <glm/gtc/constants.hpp>
+#include <glm/gtc/epsilon.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <microprofile.h>
 
@@ -494,7 +494,7 @@ void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig
 void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept {
   const glm::mat4 inv_model_matrix = glm::inverse(model_matrix);
   out_ray->origin = glm::vec3(inv_model_matrix * glm::vec4(ray->origin, 1.0f));
-  out_ray->direction = glm::vec3(inv_model_matrix * glm::vec4(ray->direction, 0.0f));
+  out_ray->direction = glm::normalize(glm::vec3(inv_model_matrix * glm::vec4(ray->direction, 0.0f)));
 }
 
 bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance) {
@@ -569,4 +569,63 @@ bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
     return true; // ray hits box
 }
 
-bool raycast_plane(const Ray &ray, const glm::vec3 &normal, const glm::vec3 &point, RaycastResult *raycast_result) {}
+float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, float &s) noexcept {
+  const glm::vec3 w0 = ray.origin - axis.origin;
+
+  const float a = glm::dot(ray.direction, ray.direction); // 射线方向的模平方
+  const float b = glm::dot(ray.direction, axis.direction); // 射线和轴方向的点积
+  const float c = glm::dot(axis.direction, axis.direction); // 轴方向的模平方
+  const float d = glm::dot(ray.direction, w0); // 射线方向和 w0 的点积
+  const float e = glm::dot(axis.direction, w0); // 轴方向和 w0 的点积
+
+  // 解方程得到 t 和 s
+  const float denominator = a * c - b * b;
+  if (std::abs(denominator) < 1e-6f) {
+    return std::numeric_limits<float>::infinity(); // 射线与轴平行，无最近距离
+  }
+
+  t = (b * e - c * d) / denominator; // 射线在最近点的参数
+  s = (a * e - b * d) / denominator; // 轴在线段内的最近点参数
+
+  // 如果 s 不在 [0, L] 范围内，则射线不与轴的有效部分相交
+  if (s < 0.0f || s > axis.length) {
+    return std::numeric_limits<float>::infinity();
+  }
+
+  // 计算最近点之间的距离
+  const glm::vec3 closest_point_on_ray = ray.origin + t * ray.direction;
+  const glm::vec3 closest_point_on_axis = axis.origin + s * axis.direction;
+  return glm::length(closest_point_on_ray - closest_point_on_axis);
+}
+
+float ray_ring_shortest_distance(const glm::vec3 &ray_origin, const glm::vec3 &ray_dir, const glm::vec3 &circle_center, const glm::vec3 &circle_normal, float radius_inner, float radius_outer) {
+  // Step 1: 投影射线到圆环平面
+  glm::vec3 oc = ray_origin - circle_center; // 从圆心指向射线起点的向量
+  float denom = glm::dot(ray_dir, circle_normal); // 射线方向与圆环法向量点积
+
+  glm::vec3 point_on_plane;
+  if (glm::abs(denom) > 1e-6) {
+    // 射线与平面不平行，计算交点
+    float t = -glm::dot(oc, circle_normal) / denom;
+    point_on_plane = ray_origin + t * ray_dir;
+  } else {
+    // 射线与平面平行，直接投影射线起点
+    point_on_plane = ray_origin - glm::dot(oc, circle_normal) * circle_normal;
+  }
+
+  // Step 2: 计算点到圆心的距离
+  glm::vec3 vec_to_center = point_on_plane - circle_center; // 平面上点到圆心的向量
+  float distance_to_center = glm::length(vec_to_center);
+
+  // Step 3: 判断距离与圆环半径的关系
+  if (distance_to_center >= radius_inner && distance_to_center <= radius_outer) {
+    // 投影点在圆环内或边界上
+    return 0.0f;
+  } else if (distance_to_center > radius_outer) {
+    // 投影点在圆环外，返回到外圆的距离
+    return distance_to_center - radius_outer;
+  } else {
+    // 投影点在圆环内，返回到内圆的距离
+    return radius_inner - distance_to_center;
+  }
+}

@@ -629,7 +629,8 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
         GeometryConfig config{};
-        generate_stroke_circle_geometry_config(1.618f / 2.618f, 64, &config);
+        // generate_stroke_circle_geometry_config(1.618f / 2.618f, 64, &config);
+        generate_stroke_circle_geometry_config(0.5f, 64, &config);
         create_geometry_from_config(vk_context, &config, &app->gizmo_stroke_circle_geometry);
         app->gizmo_stroke_circle_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         dispose_geometry_config(&config);
@@ -638,9 +639,13 @@ void app_create(SDL_Window *window, App **out_app) {
         create_cube_geometry(vk_context, 1.0f, &app->gizmo_cube_geometry);
         app->gizmo_cube_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     }
+
+  memset(&app->gizmo, 0, sizeof(Gizmo));
   app->gizmo.position = glm::vec3(0.0f, 1.5f, 0.0f);
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+
+  app->gizmo.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.position) * 0.2f);
 
     app->frame_number = 0;
 
@@ -1211,7 +1216,7 @@ void update_scene(App *app) {
 
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 
-    app->gizmo.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.position) * 0.2f);
+    // app->gizmo.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.position) * 0.2f);
 }
 
 bool begin_frame(App *app) { return false; }
@@ -1423,15 +1428,13 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     }
 }
 
-void gizmo_check_ray(App *app, Ray *ray) {
+void gizmo_check_ray(App *app, const Ray *ray) {
   // 大纲：
   // 移动模式下，检查以激活哪个移动操控轴
   // 旋转模式下，检查以激活哪个旋转操控轴
   // 缩放模式下，检查以激活哪个缩放操控轴
 
   // 移动模式
-  // 先检查射线「优先」相交于 xz、xy、yz 哪个平面
-  // 再检查射线与该平面的交点，如果交点在操控轴附近，则激活该操控轴
 
   glm::mat4 model_matrix(1.0f);
   model_matrix = glm::translate(model_matrix, app->gizmo.position);
@@ -1440,50 +1443,92 @@ void gizmo_check_ray(App *app, Ray *ray) {
   Ray ray_in_model_space{};
   transform_ray_to_model_space(ray, model_matrix, &ray_in_model_space);
 
-  float t_xy = FLT_MAX;
-  float t_yz = FLT_MAX;
-  float t_xz = FLT_MAX;
-  if (ray_in_model_space.direction.z != 0.0f) { t_xy = -ray_in_model_space.origin.z / ray_in_model_space.direction.z; } // xy 平面
-  if (ray_in_model_space.direction.x != 0.0f) { t_yz = -ray_in_model_space.origin.x / ray_in_model_space.direction.x; } // yz 平面
-  if (ray_in_model_space.direction.y != 0.0f) { t_xz = -ray_in_model_space.origin.y / ray_in_model_space.direction.y; } // xz 平面
+  // // 方案一
+  // // 先检查射线「优先」相交于 xz、xy、yz 哪个平面
+  // // 再检查射线与该平面的交点，如果交点在操控轴附近，则激活该操控轴
+  //
+  // float t_xy = FLT_MAX;
+  // float t_yz = FLT_MAX;
+  // float t_xz = FLT_MAX;
+  // if (ray_in_model_space.direction.z != 0.0f) { t_xy = -ray_in_model_space.origin.z / ray_in_model_space.direction.z; } // xy 平面
+  // if (ray_in_model_space.direction.x != 0.0f) { t_yz = -ray_in_model_space.origin.x / ray_in_model_space.direction.x; } // yz 平面
+  // if (ray_in_model_space.direction.y != 0.0f) { t_xz = -ray_in_model_space.origin.y / ray_in_model_space.direction.y; } // xz 平面
+  //
+  // uint8_t axis = 0; // the activated axis, 0: none, 1: x, 2: y, 3: z
+  // float d = FLT_MAX;
+  // constexpr float padding = 0.1f;
+  // if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_xy;
+  //     p.x >= padding && p.x <= 1 && p.y >= -padding && p.y <= padding) {
+  //   axis = 1;
+  //   d = abs(p.y);
+  // } else if (p.x >= -padding && p.x <= padding && p.y >= padding && p.y <= 1) {
+  //   axis = 2;
+  //   d = abs(p.x);
+  // }
+  // if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_yz;
+  //     p.z >= padding && p.z <= 1 && p.y >= -padding && p.y <= padding) {
+  //   if (abs(p.y) < d) {
+  //     axis = 3;
+  //     d = abs(p.y);
+  //   }
+  // } else if (p.z >= -padding && p.z <= padding && p.y >= padding && p.y <= 1) {
+  //   if (abs(p.z) < d) {
+  //     axis = 2;
+  //     d = abs(p.z);
+  //   }
+  // }
+  // if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_xz;
+  //     p.x >= padding && p.x <= 1 && p.z >= -padding && p.z <= padding) {
+  //   if (abs(p.z) < d) {
+  //     axis = 1;
+  //     d = abs(p.z);
+  //   }
+  // } else if (p.x >= -padding && p.x <= padding && p.z >= padding && p.z <= 1) {
+  //   if (abs(p.x) < d) {
+  //     axis = 3;
+  //     d = abs(p.x);
+  //   }
+  // }
+  //
+  // if (axis) { log_debug("1 axis: %d", axis); }
 
-  uint8_t axis = 0; // the activated axis, 0: none, 1: x, 2: y, 3: z
-  float d = FLT_MAX;
-  constexpr float padding = 0.1f;
-  if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_xy;
-      p.x >= padding && p.x <= 1 && p.y >= -padding && p.y <= padding) {
-    axis = 1;
-    d = abs(p.y);
-  } else if (p.x >= -padding && p.x <= padding && p.y >= padding && p.y <= 1) {
-    axis = 2;
-    d = abs(p.x);
-  }
-  if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_yz;
-      p.z >= padding && p.z <= 1 && p.y >= -padding && p.y <= padding) {
-    if (abs(p.y) < d) {
-      axis = 3;
-      d = abs(p.y);
+  // 方案二
+  // 通过最小二乘法计算射线与直线的距离，如果距离小于某个阈值，则激活该操控轴
+
+  {
+    float min_distance = 0.02f;
+    std::vector<Axis> axes = {
+      { glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, 'x' },
+      { glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 'y' },
+      { glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 'z' }
+    };
+    app->gizmo.activated_axis = 0;
+    for (const auto &axis : axes) {
+      float t, s;
+      if (float distance = ray_axis_shortest_distance(ray_in_model_space, axis, t, s); distance < min_distance) {
+        min_distance = distance;
+        app->gizmo.activated_axis = axis.name;
+      }
     }
-  } else if (p.z >= -padding && p.z <= padding && p.y >= padding && p.y <= 1) {
-    if (abs(p.z) < d) {
-      axis = 2;
-      d = abs(p.z);
-    }
-  }
-  if (const glm::vec3 p = ray_in_model_space.origin + ray_in_model_space.direction * t_xz;
-      p.x >= padding && p.x <= 1 && p.z >= -padding && p.z <= padding) {
-    if (abs(p.z) < d) {
-      axis = 1;
-      d = abs(p.z);
-    }
-  } else if (p.x >= -padding && p.x <= padding && p.z >= padding && p.z <= 1) {
-    if (abs(p.x) < d) {
-      axis = 3;
-      d = abs(p.x);
-    }
+    if (app->gizmo.activated_axis) { log_debug("axis: %c", app->gizmo.activated_axis); }
   }
 
-  if (axis) { log_debug("axis: %d", axis); }
+  {
+    float min_distance = 0.01f;
+    std::vector<StrokeCircle> circles = {
+      { glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, 'x' },
+      { glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 0.5f, 'y' },
+      { glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), 0.5f, 'z' }
+    };
+    app->gizmo.activated_axis = 0;
+    for (const auto &circle : circles) {
+      if (float distance = ray_ring_shortest_distance(ray_in_model_space.origin, ray_in_model_space.direction, circle.center, circle.normal, 0.49f, 0.51f); distance < min_distance) {
+        min_distance = distance;
+        app->gizmo.activated_axis = circle.name;
+      }
+    }
+    if (app->gizmo.activated_axis) { log_debug("circle: %c", app->gizmo.activated_axis); }
+  }
 }
 
 void app_mouse_move(App *app, float x, float y) {

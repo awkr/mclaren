@@ -58,4 +58,35 @@ struct RaycastResult {
 
 bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance);
 bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point);
-bool raycast_plane(const Ray &ray, const glm::vec3 &normal, const glm::vec3 &point, RaycastResult *raycast_result);
+
+struct Axis {
+    glm::vec3 origin;
+    glm::vec3 direction;
+    float length;
+    char name;
+};
+
+struct StrokeCircle {
+    glm::vec3 center;
+    glm::vec3 normal;
+    float radius;
+    char name;
+};
+
+struct Torus {
+  glm::vec3 center; // 圆环中心点
+  float R; // 主环半径
+  float r; // 管道半径
+};
+
+// 计算射线与线段或坐标轴的最近距离（最小二乘法），并返回最近点参数和距离
+float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, float &s) noexcept;
+
+float ray_ring_shortest_distance(
+    const glm::vec3 &ray_origin, // 射线起点
+    const glm::vec3 &ray_dir, // 射线方向 (单位向量)
+    const glm::vec3 &circle_center, // 圆环中心
+    const glm::vec3 &circle_normal, // 圆环法向量 (单位向量)
+    float radius_inner, // 圆环内半径
+    float radius_outer // 圆环外半径
+);
