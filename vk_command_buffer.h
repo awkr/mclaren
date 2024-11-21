@@ -56,6 +56,7 @@ void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y,
 void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 void vk_cmd_set_primitive_topology(VkCommandBuffer command_buffer, VkPrimitiveTopology primitive_topology);
 void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor);
+void vk_cmd_set_depth_test_enable(VkCommandBuffer command_buffer, bool enable);
 
 void vk_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                  uint32_t first_instance);

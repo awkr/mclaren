@@ -194,6 +194,8 @@ void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor
     vkCmdSetDepthBias(command_buffer, constant_factor, clamp, slope_factor);
 }
 
+void vk_cmd_set_depth_test_enable(VkCommandBuffer command_buffer, bool enable) { vkCmdSetDepthTestEnableEXT(command_buffer, enable); }
+
 void vk_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }

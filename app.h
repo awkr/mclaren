@@ -86,17 +86,17 @@ struct App {
 
     ImGuiContext *gui_context;
 
-    VkPipelineLayout gizmo_triangle_pipeline_layout;
-    VkPipeline gizmo_triangle_pipeline;
+    VkPipelineLayout gizmo_pipeline_layout;
+    VkPipeline gizmo_pipeline;
 
-    VkPipelineLayout gizmo_line_pipeline_layout;
-    VkPipeline gizmo_line_pipeline;
+    VkPipelineLayout line_pipeline_layout;
+    VkPipeline line_pipeline;
 
     Gizmo gizmo;
     // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines
-    Geometry gizmo_line_geometry; // the body of the axes
+    Geometry gizmo_axis_geometry; // the body of the axes
     Geometry gizmo_cone_geometry; // the head of the axes
-    Geometry gizmo_stroke_circle_geometry;
+    Geometry gizmo_ring_geometry;
     Geometry gizmo_cube_geometry;
 
     Geometry *selected_geometry = nullptr;

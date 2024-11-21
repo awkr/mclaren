@@ -43,6 +43,10 @@ void create_geometry(VkContext *vk_context, const void *vertices, uint32_t verte
 
     geometry->aabb = aabb;
     create_mesh_from_aabb(vk_context, aabb, geometry->aabb_mesh);
+
+  geometry->transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+  geometry->transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+  geometry->transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 }
 
 void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
