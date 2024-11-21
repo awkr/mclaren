@@ -13,7 +13,7 @@ set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc
         geometry.cc
         event_system.cc
         input_system.cc
-        # gizmo.cc
+        gizmo.cc
         # scene.cc
 )
 set(VK_SRCS

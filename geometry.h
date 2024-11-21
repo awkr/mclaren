@@ -2,13 +2,19 @@
 
 #include "mesh.h"
 
+struct Transform {
+  glm::vec3 position;
+  glm::vec3 rotation; // 单位：角度
+  glm::vec3 scale;
+};
+
+glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept;
+
 struct Geometry {
     std::vector<Mesh> meshes;
     AABB aabb; // in object space
     Mesh aabb_mesh;
-    glm::vec3 position;
-    glm::vec3 rotation; // 单位为角度
-    glm::vec3 scale;
+    Transform transform;
 };
 
 struct GeometryConfig {
