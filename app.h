@@ -43,11 +43,6 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
-struct LineInstanceState {
-    glm::mat4 model_matrix;
-    VkDeviceAddress vertex_buffer_device_address;
-};
-
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
@@ -69,25 +64,11 @@ struct App {
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
 
-    // 用于lit的pipeline，支持动态设置instance的状态
     VkPipelineLayout lit_pipeline_layout;
-    std::vector<VkPrimitiveTopology> lit_pipeline_primitive_topologies;
     VkPipeline lit_pipeline;
 
-    // 用于wireframe的pipeline，支持动态设置instance的状态
     VkPipelineLayout wireframe_pipeline_layout;
-    std::vector<VkPrimitiveTopology> wireframe_pipeline_primitive_topologies;
     VkPipeline wireframe_pipeline;
-
-    // 用于线/线框的pipeline，不支持动态设置instance的状态
-    VkPipelineLayout line_pipeline_layout;
-    std::vector<VkPrimitiveTopology> line_pipeline_primitive_topologies;
-    VkPipeline line_pipeline;
-
-    // 用于线/线框的pipeline，支持动态设置instance的状态
-    VkPipelineLayout colored_line_pipeline_layout;
-    std::vector<VkPrimitiveTopology> colored_line_pipeline_primitive_topologies;
-    VkPipeline colored_line_pipeline;
 
     Image *checkerboard_image;
     VkImageView checkerboard_image_view;
@@ -105,9 +86,11 @@ struct App {
 
     ImGuiContext *gui_context;
 
-    VkPipelineLayout gizmo_default_pipeline_layout;
-    std::vector<VkPrimitiveTopology> gizmo_default_pipeline_primitive_topologies;
-    VkPipeline gizmo_default_pipeline;
+    VkPipelineLayout gizmo_triangle_pipeline_layout;
+    VkPipeline gizmo_triangle_pipeline;
+
+    VkPipelineLayout gizmo_line_pipeline_layout;
+    VkPipeline gizmo_line_pipeline;
 
     Gizmo gizmo;
     // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines

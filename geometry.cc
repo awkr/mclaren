@@ -268,8 +268,8 @@ void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_faci
 
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept {
     const uint32_t vertex_count = sector + 1;
-    const uint32_t vertex_stride = sizeof(UnlitColoredVertex);
-    UnlitColoredVertex *vertices = (UnlitColoredVertex *) malloc(vertex_stride * vertex_count);
+    const uint32_t vertex_stride = sizeof(Vertex);
+    Vertex *vertices = (Vertex *) malloc(vertex_stride * vertex_count);
     memset(vertices, 0, vertex_stride * vertex_count);
 
     const float sector_step = 2 * glm::pi<float>() / (float) sector;
@@ -278,17 +278,17 @@ void generate_stroke_circle_geometry_config(float radius, uint16_t sector, Geome
         const float sector_angle = i * sector_step;
         const float a = cosf(sector_angle);
         const float b = sinf(sector_angle);
-        UnlitColoredVertex *vertex = &vertices[i];
-        vertex->position.x = a * radius;
-        vertex->position.y = 0.0f;
-        vertex->position.z = -b * radius;
+        Vertex *vertex = &vertices[i];
+        vertex->position[0] = a * radius;
+        vertex->position[1] = 0.0f;
+        vertex->position[2] = -b * radius;
     }
 
     config->vertex_count = vertex_count;
     config->vertex_stride = vertex_stride;
     config->vertices = vertices;
 
-    generate_aabb_from_unlit_colored_vertices(vertices, vertex_count, &config->aabb);
+    generate_aabb_from_vertices(vertices, vertex_count, &config->aabb);
 }
 
 void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept {
