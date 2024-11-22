@@ -205,7 +205,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create gizmo triangle pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/gizmo.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/gizmo.frag.spv", &frag_shader);
@@ -214,8 +214,7 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(InstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
-        descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
         vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
@@ -225,7 +224,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create gizmo line pipeline
+    {
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
@@ -234,12 +233,30 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(InstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
-        descriptor_set_layouts.push_back(app->global_state_descriptor_set_layout);
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
         vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->line_pipeline);
+
+        vk_destroy_shader_module(vk_context->device, frag_shader);
+        vk_destroy_shader_module(vk_context->device, vert_shader);
+    }
+
+    {
+        VkShaderModule vert_shader, frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/object-picking.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/object-picking.frag.spv", &frag_shader);
+
+        VkPushConstantRange push_constant_range{};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.size = sizeof(InstanceState);
+
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
+        vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
+        std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, color_image_format, true, false, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+                                    primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -604,6 +621,9 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->line_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->line_pipeline_layout);
 
+    vk_destroy_pipeline(app->vk_context->device, app->object_picking_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->object_picking_pipeline_layout);
+
     vk_destroy_pipeline(app->vk_context->device, app->gizmo_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->gizmo_pipeline_layout);
 
@@ -907,9 +927,6 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     }
 
     {
-        // vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_triangle_pipeline);
-        // vk_cmd_set_depth_test_enable(command_buffer, false);
-
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
@@ -978,9 +995,6 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     }
 
     {
-        // vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_triangle_pipeline);
-        // vk_cmd_set_depth_test_enable(command_buffer, false);
-
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
@@ -1055,9 +1069,6 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     }
 
     {
-        // vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_triangle_pipeline);
-        // vk_cmd_set_depth_test_enable(command_buffer, false);
-
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
@@ -1213,6 +1224,7 @@ void app_update(App *app) {
         draw_world(app, command_buffer, frame);
         draw_gizmo(app, command_buffer, frame);
         draw_gui(app, command_buffer, frame);
+        // object picking
         vk_cmd_end_rendering(command_buffer);
 
         vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

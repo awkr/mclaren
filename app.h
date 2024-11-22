@@ -92,6 +92,9 @@ struct App {
     VkPipelineLayout line_pipeline_layout;
     VkPipeline line_pipeline;
 
+    VkPipelineLayout object_picking_pipeline_layout;
+    VkPipeline object_picking_pipeline;
+
     Gizmo gizmo;
     // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines
     Geometry gizmo_axis_geometry; // the body of the axes

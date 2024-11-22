@@ -11,3 +11,5 @@ glslangValidator -V shaders/gizmo.vert -o shaders/gizmo.vert.spv
 glslangValidator -V shaders/gizmo.frag -o shaders/gizmo.frag.spv
 glslangValidator -V shaders/line.vert -o shaders/line.vert.spv
 glslangValidator -V shaders/line.frag -o shaders/line.frag.spv
+glslangValidator -V shaders/object-picking.vert -o shaders/object-picking.vert.spv
+glslangValidator -V shaders/object-picking.frag -o shaders/object-picking.frag.spv

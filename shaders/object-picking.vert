@@ -13,10 +13,10 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
 layout (push_constant) uniform InstanceState {
     mat4 model;
     vec3 color;
-    VertexBuffer vertex_buffer; // actually it's a u64 handle
+    VertexBuffer vertex_buffer;
 } instance_state;
 
-layout (location = 0) out vec3 out_color;
+layout (location = 0) out flat vec3 out_color;
 
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];

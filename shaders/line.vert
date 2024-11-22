@@ -3,13 +3,8 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_GOOGLE_include_directive : require
 
+#include "vertex.glsl"
 #include "global_state.glsl"
-
-struct Vertex {
-    vec3 position;
-    vec2 tex_coord;
-    vec3 normal;
-};
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
     Vertex vertices[];
@@ -21,7 +16,7 @@ layout (push_constant) uniform InstanceState {
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;
 
-layout (location = 0) out vec3 out_color;
+layout (location = 0) out flat vec3 out_color;
 
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
