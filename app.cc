@@ -292,18 +292,15 @@ void app_create(SDL_Window *window, App **out_app) {
     Geometry plane_geometry{};
     create_plane_geometry(vk_context, 1.5f, 1.0f, &plane_geometry);
     plane_geometry.transform.position = glm::vec3(0.0f, 0.0f, 2.0f);
-    plane_geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(plane_geometry);
 
     Geometry cube_geometry{};
     create_cube_geometry(vk_context, 1.0f, &cube_geometry);
-    cube_geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(cube_geometry);
 
     Geometry uv_sphere_geometry{};
     create_uv_sphere_geometry(vk_context, 1, 16, 16, &uv_sphere_geometry);
     uv_sphere_geometry.transform.position = glm::vec3(0.0f, 0.0f, -5.0f);
-    uv_sphere_geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     app->lit_geometries.push_back(uv_sphere_geometry);
     app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
 
@@ -313,7 +310,6 @@ void app_create(SDL_Window *window, App **out_app) {
         // Geometry geometry;
         // create_geometry_from_config(vk_context, &config, &geometry);
         // cone_geometry.position = glm::vec3(-3.0f, 0.0f, 0.0f);
-        // cone_geometry.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         // app->lit_geometries.push_back(cone_geometry);
         // dispose_geometry_config(&config);
 
@@ -431,7 +427,6 @@ void app_create(SDL_Window *window, App **out_app) {
         Geometry geometry{};
         create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &geometry);
         geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
-        geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->lit_geometries.push_back(geometry);
     }
 
@@ -564,8 +559,7 @@ void app_create(SDL_Window *window, App **out_app) {
             aabb.max = glm::max(aabb.max, vertex.position);
         }
 
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_cone_geometry);
-        app->gizmo_cone_geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_arrow_geometry);
     }
 
     {
@@ -575,7 +569,7 @@ void app_create(SDL_Window *window, App **out_app) {
       dispose_geometry_config(&config);
     }
     {
-        create_cube_geometry(vk_context, 0.1f, &app->gizmo_cube_geometry);
+        create_cube_geometry(vk_context, 0.06f, &app->gizmo_cube_geometry);
     }
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
@@ -597,7 +591,7 @@ void app_destroy(App *app) {
     for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_geometry(app->vk_context, &app->gizmo_cube_geometry);
     destroy_geometry(app->vk_context, &app->gizmo_ring_geometry);
-    destroy_geometry(app->vk_context, &app->gizmo_cone_geometry);
+    destroy_geometry(app->vk_context, &app->gizmo_arrow_geometry);
     destroy_geometry(app->vk_context, &app->gizmo_axis_geometry);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
@@ -935,7 +929,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
         glm::mat4 gizmo_model_matrix = model_matrix_from_transform(app->gizmo.transform);
 
-        for (const Mesh &mesh : app->gizmo_cone_geometry.meshes) {
+        for (const Mesh &mesh : app->gizmo_arrow_geometry.meshes) {
             { // x axis
                 glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(1.0f, 0.0f, 0.0f));
                 model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1359,7 +1353,6 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
         generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
         Geometry geometry{};
         create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, aabb, &geometry);
-        geometry.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
         app->line_geometries.push_back(geometry);
 
         {
