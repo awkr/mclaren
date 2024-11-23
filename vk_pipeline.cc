@@ -56,7 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool depth_test, bool is_depth_test_dyanamic, bool depth_write, bool depth_bias,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dyanamic, bool depth_write, bool depth_bias,
                                  VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
@@ -108,7 +108,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     depth_stencil_state_create_info.maxDepthBounds = 1.0f;
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_state{};
-    color_blend_attachment_state.blendEnable = VK_TRUE;
+    color_blend_attachment_state.blendEnable = enable_blend ? VK_TRUE : VK_FALSE;
     color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                                   VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;

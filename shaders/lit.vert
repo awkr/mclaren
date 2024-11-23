@@ -8,10 +8,6 @@
 layout (location = 0) out vec2 out_tex_coord;
 layout (location = 1) out vec3 out_normal;
 
-layout (buffer_reference, std430) readonly buffer VertexBuffer {
-    Vertex vertices[];
-};
-
 layout (push_constant) uniform InstanceState {
     mat4 model_matrix;
     vec3 color;

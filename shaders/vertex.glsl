@@ -3,3 +3,7 @@ struct Vertex {
     vec2 tex_coord;
     vec3 normal;
 };
+
+layout (buffer_reference, std430) readonly buffer VertexBuffer {
+    Vertex vertices[];
+};

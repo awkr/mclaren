@@ -43,6 +43,12 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
+struct ObjectPickingInstanceState {
+    glm::mat4 model_matrix;
+    uint32_t entity_id; // entity id
+    VkDeviceAddress vertex_buffer_device_address;
+};
+
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
@@ -94,6 +100,14 @@ struct App {
 
     VkPipelineLayout object_picking_pipeline_layout;
     VkPipeline object_picking_pipeline;
+
+    Image *object_picking_color_image;
+    VkImageView object_picking_color_image_view;
+
+    Image *object_picking_depth_image;
+    VkImageView object_picking_depth_image_view;
+
+    Buffer *object_picking_buffer;
 
     Gizmo gizmo;
     // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines

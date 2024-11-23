@@ -1,8 +1,18 @@
 #version 460 core
 
-layout (location = 0) in flat vec3 color;
-layout (location = 0) out vec4 frag_color;
+#extension GL_EXT_buffer_reference : require
+#extension GL_GOOGLE_include_directive : require
+
+#include "vertex.glsl"
+
+layout (push_constant) uniform InstanceState {
+    mat4 model_matrix;
+    uint entity_id;
+    VertexBuffer vertex_buffer;
+} instance_state;
+
+layout (location = 0) out uint entity_id;
 
 void main() {
-    frag_color = vec4(color, 1.0);
+    entity_id = instance_state.entity_id;
 }

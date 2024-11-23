@@ -6,8 +6,7 @@
 #include "vk_queue.h"
 #include "core/logging.h"
 
-void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
-                     bool enable_mipmap, Image **out_image) {
+void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image) {
     Image *image = new Image();
 
     VkImageCreateInfo image_create_info{};

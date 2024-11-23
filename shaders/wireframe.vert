@@ -6,10 +6,6 @@
 #include "vertex.glsl"
 #include "global_state.glsl"
 
-layout (buffer_reference, std430) readonly buffer VertexBuffer {
-    Vertex vertices[];
-};
-
 layout (push_constant) uniform InstanceState {
     mat4 model;
     vec3 color;

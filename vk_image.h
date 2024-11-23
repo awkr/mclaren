@@ -11,8 +11,7 @@ struct Image {
     uint16_t mip_levels;
 };
 
-void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
-                     bool enable_mipmap, Image **out_image);
+void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image);
 
 void vk_create_image_from_data(VkContext *vk_context, const void *data, uint32_t width, uint32_t height,
                                VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image);

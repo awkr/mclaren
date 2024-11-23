@@ -99,6 +99,45 @@ void create_depth_image(App *app, const VkFormat format) {
     vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 }
 
+void create_object_picking_color_image(App *app) {
+  VkFormat format = VK_FORMAT_R32_UINT;
+  VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, usage, false, &app->object_picking_color_image);
+  vk_create_image_view(app->vk_context->device, app->object_picking_color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT, app->object_picking_color_image->mip_levels, &app->object_picking_color_image_view);
+}
+
+void create_object_picking_depth_image(App *app, const VkFormat format) {
+  vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, false, &app->object_picking_depth_image);
+  vk_create_image_view(app->vk_context->device, app->object_picking_depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT, app->object_picking_depth_image->mip_levels, &app->object_picking_depth_image_view);
+
+  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+  vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
+
+  vk_begin_one_flight_command_buffer(command_buffer);
+  vk_transition_image_layout(command_buffer, app->object_picking_depth_image->image,
+                             VK_PIPELINE_STAGE_2_NONE,
+                             VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                             VK_ACCESS_2_NONE,
+                             VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+  vk_end_command_buffer(command_buffer);
+
+  VkFence fence;
+  vk_create_fence(app->vk_context->device, false, &fence);
+
+  vk_queue_submit(app->vk_context->graphics_queue, command_buffer, fence);
+
+  vk_wait_fence(app->vk_context->device, fence);
+  vk_destroy_fence(app->vk_context->device, fence);
+
+  vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
+}
+
+void create_object_picking_staging_buffer(App *app) {
+  constexpr size_t buffer_size = 4; // size of one pixel
+  vk_create_buffer(app->vk_context, buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &app->object_picking_buffer);
+}
+
 void app_create(SDL_Window *window, App **out_app) {
     int render_width, render_height;
     SDL_GetWindowSizeInPixels(window, &render_width, &render_height);
@@ -134,9 +173,13 @@ void app_create(SDL_Window *window, App **out_app) {
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     create_color_image(app, color_image_format);
+    create_object_picking_color_image(app);
 
     VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
     create_depth_image(app, depth_image_format);
+    create_object_picking_depth_image(app, depth_image_format);
+
+    create_object_picking_staging_buffer(app);
 
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -178,7 +221,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, false, true, true, depth_image_format,
+        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, true, false, true, true, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -198,7 +241,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true /* endable deep test */, false, false /* disable deep write */, false, depth_image_format,
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, true /* endable deep test */, false, false /* disable deep write */, false, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -214,10 +257,10 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(InstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->gizmo_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -233,10 +276,10 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(InstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
-        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -249,13 +292,13 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_shader_module(vk_context->device, "shaders/object-picking.frag.spv", &frag_shader);
 
         VkPushConstantRange push_constant_range{};
-        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        push_constant_range.size = sizeof(ObjectPickingInstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {app->global_state_descriptor_set_layout};
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, color_image_format, true, false, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, false, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -639,6 +682,14 @@ void app_destroy(App *app) {
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_state_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
+
+    vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
+
+    vk_destroy_image_view(app->vk_context->device, app->object_picking_depth_image_view);
+    vk_destroy_image(app->vk_context, app->object_picking_depth_image);
+
+    vk_destroy_image_view(app->vk_context->device, app->object_picking_color_image_view);
+    vk_destroy_image(app->vk_context, app->object_picking_color_image);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image);
@@ -1138,6 +1189,11 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
+void pick_object(App *app, VkCommandBuffer command_buffer) {
+  vk_cmd_set_viewport(command_buffer, 0, 0, 1, 1);
+  vk_cmd_set_scissor(command_buffer, 0, 0, 1, 1);
+}
+
 void scene_raycast(App *app, const Ray *ray, RaycastResult *result) {
     // todo need some sort spatial partitioning to speed this up
     for (const Geometry &geometry : app->lit_geometries) {
@@ -1224,7 +1280,7 @@ void app_update(App *app) {
         draw_world(app, command_buffer, frame);
         draw_gizmo(app, command_buffer, frame);
         draw_gui(app, command_buffer, frame);
-        // object picking
+        pick_object(app, command_buffer);
         vk_cmd_end_rendering(command_buffer);
 
         vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1266,6 +1322,14 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
         vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
     }
 
+    vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
+
+    vk_destroy_image_view(app->vk_context->device, app->object_picking_depth_image_view);
+    vk_destroy_image(app->vk_context, app->object_picking_depth_image);
+
+    vk_destroy_image_view(app->vk_context->device, app->object_picking_color_image_view);
+    vk_destroy_image(app->vk_context, app->object_picking_color_image);
+
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image);
 
@@ -1273,7 +1337,10 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     vk_destroy_image(app->vk_context, app->color_image);
 
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
+    create_object_picking_color_image(app);
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);
+    create_object_picking_depth_image(app, VK_FORMAT_D32_SFLOAT);
+    create_object_picking_staging_buffer(app);
 }
 
 void app_key_down(App *app, Key key) {
