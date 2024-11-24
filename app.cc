@@ -78,7 +78,7 @@ void create_depth_image(App *app, const VkFormat format) {
     vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
 
     vk_begin_one_flight_command_buffer(command_buffer);
-    vk_cmd_pipeline_barrier(command_buffer, app->depth_image->image,
+    vk_translate_image_layout(command_buffer, app->depth_image->image,
                                VK_PIPELINE_STAGE_2_NONE,
                                VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
                                VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -106,7 +106,7 @@ void create_object_picking_color_image(App *app) {
   vk_create_image_view(app->vk_context->device, app->object_picking_color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT, app->object_picking_color_image->mip_levels, &app->object_picking_color_image_view);
 
   vk_command_buffer_submit(app->vk_context, [&](VkCommandBuffer command_buffer) {
-    vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_NONE, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vk_translate_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_NONE, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   });
 }
 
@@ -118,7 +118,7 @@ void create_object_picking_depth_image(App *app, const VkFormat format) {
   vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
 
   vk_begin_one_flight_command_buffer(command_buffer);
-  vk_cmd_pipeline_barrier(command_buffer, app->object_picking_depth_image->image,
+  vk_translate_image_layout(command_buffer, app->object_picking_depth_image->image,
                              VK_PIPELINE_STAGE_2_NONE,
                              VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                              VK_ACCESS_2_NONE,
@@ -1291,7 +1291,7 @@ void app_update(App *app) {
     {
         vk_begin_one_flight_command_buffer(command_buffer);
 
-        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image,
+        vk_translate_image_layout(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                                    VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -1302,7 +1302,7 @@ void app_update(App *app) {
 
         draw_background(app, command_buffer, frame);
 
-        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vk_translate_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
         color_attachment.imageView = app->color_image_view;
@@ -1347,51 +1347,34 @@ void app_update(App *app) {
           pick_object(app, command_buffer, frame);
           vk_cmd_end_rendering(command_buffer);
 
-          // {
-          //   VkMemoryBarrier copyBarrier = {};
-          //   copyBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-          //   copyBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-          //   copyBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-          //
-          //   vkCmdPipelineBarrier(
-          //       command_buffer,
-          //       VK_PIPELINE_STAGE_TRANSFER_BIT,
-          //       VK_PIPELINE_STAGE_TRANSFER_BIT,
-          //       0,
-          //       1, &copyBarrier,
-          //       0, nullptr,
-          //       0, nullptr
-          //   );
-          // }
-          // vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+          vk_translate_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+          {
+            VkMemoryBarrier memory_barrier = {};
+            memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+            memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
+            vkCmdPipelineBarrier(
+                command_buffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                1, &memory_barrier,
+                0, nullptr,
+                0, nullptr
+            );
+          }
           vk_cmd_copy_image_to_buffer(command_buffer, app->object_picking_color_image->image, offset, extent, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->object_picking_buffer->handle);
-          // {
-          //   VkMemoryBarrier memoryBarrier = {};
-          //   memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-          //   memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; // 拷贝的写操作
-          //   memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;  // 下一阶段的读操作
-          //
-          //   vkCmdPipelineBarrier(
-          //       command_buffer,
-          //       VK_PIPELINE_STAGE_TRANSFER_BIT, // 拷贝阶段
-          //       VK_PIPELINE_STAGE_TRANSFER_BIT, // 下一操作阶段
-          //       0,
-          //       1, &memoryBarrier,
-          //       0, nullptr,
-          //       0, nullptr
-          //   );
-          // }
-          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+          vk_translate_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         }
 
-        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_translate_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
-        vk_cmd_pipeline_barrier(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_translate_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         vk_cmd_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
 
-        vk_cmd_pipeline_barrier(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_translate_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
