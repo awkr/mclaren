@@ -1353,12 +1353,10 @@ void app_update(App *app) {
             VkBufferMemoryBarrier2 buffer_memory_barrier = {};
             buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 
-            // 设置源阶段和访问掩码
-            buffer_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR; // 拷贝阶段
+            buffer_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR;
             buffer_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
 
-            // 设置目标阶段和访问掩码
-            buffer_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR; // 后续可能继续拷贝
+            buffer_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR;
             buffer_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
 
             buffer_memory_barrier.buffer = app->object_picking_buffer->handle;
@@ -1377,6 +1375,12 @@ void app_update(App *app) {
             // 后续操作可以安全读取 buffer 或进行其他操作
           }
           vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+          {
+            uint32_t id = UINT32_MAX;
+            vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
+            log_debug("VMA mapped id: %u", id);
+          }
         }
 
         vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

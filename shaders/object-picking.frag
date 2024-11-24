@@ -14,5 +14,6 @@ layout (push_constant) uniform InstanceState {
 layout (location = 0) out uint entity_id;
 
 void main() {
-    entity_id = instance_state.entity_id;
+    // entity_id = instance_state.entity_id;
+    entity_id = 7;
 }
