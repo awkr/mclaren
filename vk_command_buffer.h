@@ -66,4 +66,6 @@ void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count);
 void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
 
 void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);
-void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkImageLayout src_image_layout, VkBuffer dst_buffer) noexcept;
+void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkImageLayout image_layout, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkBuffer dst_buffer) noexcept;
+
+void vk_cmd_pipeline_barrier(VkCommandBuffer command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags, uint32_t srcAccessMask, uint32_t dstAccessMask);
