@@ -78,7 +78,7 @@ void create_depth_image(App *app, const VkFormat format) {
     vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
 
     vk_begin_one_flight_command_buffer(command_buffer);
-    vk_transition_image_layout(command_buffer, app->depth_image->image,
+    vk_cmd_pipeline_barrier(command_buffer, app->depth_image->image,
                                VK_PIPELINE_STAGE_2_NONE,
                                VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
                                VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -104,6 +104,10 @@ void create_object_picking_color_image(App *app) {
   VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
   vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, usage, false, &app->object_picking_color_image);
   vk_create_image_view(app->vk_context->device, app->object_picking_color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT, app->object_picking_color_image->mip_levels, &app->object_picking_color_image_view);
+
+  vk_command_buffer_submit(app->vk_context, [&](VkCommandBuffer command_buffer) {
+    vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_NONE, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+  });
 }
 
 void create_object_picking_depth_image(App *app, const VkFormat format) {
@@ -114,7 +118,7 @@ void create_object_picking_depth_image(App *app, const VkFormat format) {
   vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
 
   vk_begin_one_flight_command_buffer(command_buffer);
-  vk_transition_image_layout(command_buffer, app->object_picking_depth_image->image,
+  vk_cmd_pipeline_barrier(command_buffer, app->object_picking_depth_image->image,
                              VK_PIPELINE_STAGE_2_NONE,
                              VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                              VK_ACCESS_2_NONE,
@@ -298,7 +302,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, false, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, false, true, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -638,6 +642,8 @@ void app_create(SDL_Window *window, App **out_app) {
     // app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 
     app->frame_number = 0;
+    app->current_mouse_pos_x = -1;
+    app->current_mouse_pos_y = -1;
 
     *out_app = app;
 }
@@ -1181,17 +1187,52 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
     //             for (const Primitive &primitive : mesh.primitives) {
     //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
     //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-    //             }
-    //         }
+        //             }
+        //         }
         }
     }
 }
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
-void pick_object(App *app, VkCommandBuffer command_buffer) {
-  vk_cmd_set_viewport(command_buffer, 0, 0, 1, 1);
-  vk_cmd_set_scissor(command_buffer, 0, 0, 1, 1);
+void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+  vk_cmd_set_viewport(command_buffer, app->current_mouse_pos_x, app->current_mouse_pos_y, 1, 1);
+  vk_cmd_set_scissor(command_buffer, app->current_mouse_pos_x, app->current_mouse_pos_y, 1, 1);
+  vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline);
+  std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
+  std::deque<VkDescriptorBufferInfo> buffer_infos;
+  std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+  {
+    vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+
+    VkDescriptorSet descriptor_set;
+    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+    descriptor_sets.push_back(descriptor_set);
+
+    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+    buffer_infos.push_back(descriptor_buffer_info);
+
+    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+    write_descriptor_sets.push_back(write_descriptor_set);
+  }
+  vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+  for (const Geometry &geometry : app->lit_geometries) {
+    const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+    for (const Mesh &mesh : geometry.meshes) {
+      ObjectPickingInstanceState instance_state{};
+      instance_state.model_matrix = model_matrix;
+      instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+      vk_cmd_push_constants(command_buffer, app->object_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectPickingInstanceState), &instance_state);
+
+      for (const Primitive &primitive : mesh.primitives) {
+        vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+        vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      }
+    }
+  }
 }
 
 void scene_raycast(App *app, const Ray *ray, RaycastResult *result) {
@@ -1250,7 +1291,7 @@ void app_update(App *app) {
     {
         vk_begin_one_flight_command_buffer(command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image->image,
+        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image,
                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                                    VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
                                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -1261,7 +1302,7 @@ void app_update(App *app) {
 
         draw_background(app, command_buffer, frame);
 
-        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
         color_attachment.imageView = app->color_image_view;
@@ -1276,20 +1317,81 @@ void app_update(App *app) {
         depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depth_attachment.clearValue.depthStencil.depth = 1.0f;
 
-        vk_cmd_begin_rendering(command_buffer, &app->vk_context->swapchain_extent, &color_attachment, 1, &depth_attachment);
+        VkOffset2D offset = {.x = 0, .y = 0};
+        VkExtent2D extent = app->vk_context->swapchain_extent;
+        vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment, 1, &depth_attachment);
         draw_world(app, command_buffer, frame);
         draw_gizmo(app, command_buffer, frame);
         draw_gui(app, command_buffer, frame);
-        pick_object(app, command_buffer);
         vk_cmd_end_rendering(command_buffer);
 
-        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        if (app->current_mouse_pos_x >= 0 && app->current_mouse_pos_y >= 0) {
+          VkRenderingAttachmentInfo color_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+          color_attachment_info.imageView = app->object_picking_color_image_view;
+          color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+          color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+          color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+          VkRenderingAttachmentInfo depth_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+          depth_attachment_info.imageView = app->object_picking_depth_image_view;
+          depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+          depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+          depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+          depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+
+          offset.x = app->current_mouse_pos_x;
+          offset.y = app->current_mouse_pos_y;
+          extent.width = 1;
+          extent.height = 1;
+          vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment_info, 1, &depth_attachment_info);
+          pick_object(app, command_buffer, frame);
+          vk_cmd_end_rendering(command_buffer);
+
+          // {
+          //   VkMemoryBarrier copyBarrier = {};
+          //   copyBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+          //   copyBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+          //   copyBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+          //
+          //   vkCmdPipelineBarrier(
+          //       command_buffer,
+          //       VK_PIPELINE_STAGE_TRANSFER_BIT,
+          //       VK_PIPELINE_STAGE_TRANSFER_BIT,
+          //       0,
+          //       1, &copyBarrier,
+          //       0, nullptr,
+          //       0, nullptr
+          //   );
+          // }
+          // vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+          vk_cmd_copy_image_to_buffer(command_buffer, app->object_picking_color_image->image, offset, extent, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->object_picking_buffer->handle);
+          // {
+          //   VkMemoryBarrier memoryBarrier = {};
+          //   memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+          //   memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; // 拷贝的写操作
+          //   memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;  // 下一阶段的读操作
+          //
+          //   vkCmdPipelineBarrier(
+          //       command_buffer,
+          //       VK_PIPELINE_STAGE_TRANSFER_BIT, // 拷贝阶段
+          //       VK_PIPELINE_STAGE_TRANSFER_BIT, // 下一操作阶段
+          //       0,
+          //       1, &memoryBarrier,
+          //       0, nullptr,
+          //       0, nullptr
+          //   );
+          // }
+          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        }
+
+        vk_cmd_pipeline_barrier(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+        vk_cmd_pipeline_barrier(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         vk_cmd_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
 
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_cmd_pipeline_barrier(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         vk_end_command_buffer(command_buffer);
     }
@@ -1490,7 +1592,9 @@ void gizmo_check_ray(App *app, const Ray *ray) {
 }
 
 void app_mouse_move(App *app, float x, float y) {
-  // log_debug("mouse moving %f, %f", x, y);
+  log_debug("mouse moving %f, %f", x, y);
+  app->current_mouse_pos_x = x;
+  app->current_mouse_pos_y = y;
   Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
   gizmo_check_ray(app, &ray);
 }

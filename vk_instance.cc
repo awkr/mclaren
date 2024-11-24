@@ -147,7 +147,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityF
         log_warning("%s", callback_data->pMessage);
     } else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         log_error("%s", callback_data->pMessage);
-        ASSERT(false);
+        // ASSERT(false);
+      exit(1);
     }
     return VK_FALSE;
 }

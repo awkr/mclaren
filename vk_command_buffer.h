@@ -47,7 +47,7 @@ void vk_cmd_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout layo
 
 void vk_cmd_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
-void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkOffset2D &offset, const VkExtent2D &extent,
                             const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
                             const VkRenderingAttachmentInfo *depth_attachment);
 void vk_cmd_end_rendering(VkCommandBuffer command_buffer);
@@ -66,3 +66,4 @@ void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count);
 void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
 
 void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);
+void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkImageLayout src_image_layout, VkBuffer dst_buffer) noexcept;

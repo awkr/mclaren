@@ -151,12 +151,13 @@ void vk_cmd_dispatch(VkCommandBuffer command_buffer, uint32_t group_count_x, uin
     vkCmdDispatch(command_buffer, group_count_x, group_count_y, group_count_z);
 }
 
-void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkExtent2D *extent,
+void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkOffset2D &offset, const VkExtent2D &extent,
                             const VkRenderingAttachmentInfo *color_attachments, uint32_t color_attachment_count,
                             const VkRenderingAttachmentInfo *depth_attachment) {
     VkRenderingInfo rendering_info{};
     rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    rendering_info.renderArea.extent = *extent;
+    rendering_info.renderArea.offset = offset;
+    rendering_info.renderArea.extent = extent;
     rendering_info.colorAttachmentCount = color_attachment_count;
     rendering_info.pColorAttachments = color_attachments;
     rendering_info.pDepthAttachment = depth_attachment;
@@ -234,4 +235,26 @@ void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, V
     buffer_image_copy.imageExtent = {width, height, 1};
 
     vkCmdCopyBufferToImage(command_buffer, src, dst, layout, 1, &buffer_image_copy);
+}
+
+void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkImageLayout src_image_layout, VkBuffer dst_buffer) noexcept {
+  VkBufferImageCopy region = {};
+  region.bufferOffset = 0; // 偏移到目标缓冲区的起始位置
+  region.bufferRowLength = 0; // 紧密排列，按图像宽度
+  region.bufferImageHeight = 0; // 紧密排列，按图像高度
+  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // 假设是颜色图像
+  region.imageSubresource.mipLevel = 0; // 使用 mip 0
+  region.imageSubresource.baseArrayLayer = 0;
+  region.imageSubresource.layerCount = 1;
+  region.imageOffset = {image_offset.x, image_offset.y, 0}; // 从图像的起始位置开始
+  region.imageExtent = {image_extent.width, image_extent.height, 1}; // 图像尺寸
+
+  // 复制图像到缓冲区
+  vkCmdCopyImageToBuffer(
+      command_buffer,
+      src_image,
+      src_image_layout, // 图像布局
+      dst_buffer,
+      1, // region 数量
+      &region);
 }

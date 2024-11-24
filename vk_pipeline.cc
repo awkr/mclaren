@@ -56,7 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dyanamic, bool depth_write, bool depth_bias,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dynamic, bool depth_write, bool depth_bias,
                                  VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
@@ -134,7 +134,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    if (is_depth_test_dyanamic) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE); }
+    if (is_depth_test_dynamic) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE); }
     if (primitive_topologies.size() > 1) { dynamic_states.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY); }
     if (depth_bias) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS); }
 

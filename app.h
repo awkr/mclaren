@@ -116,6 +116,8 @@ struct App {
     Geometry gizmo_ring_geometry;
     Geometry gizmo_cube_geometry;
 
+    float current_mouse_pos_x;
+    float current_mouse_pos_y;
     Geometry *selected_geometry = nullptr;
 };
 
