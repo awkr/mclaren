@@ -27,9 +27,9 @@ void dispose_geometry_config(GeometryConfig *config) noexcept {
     }
 }
 
-void create_geometry(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB &aabb, Geometry *geometry) {
+void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB &aabb, Geometry *geometry) {
     Mesh mesh{};
-    create_mesh(vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
+    create_mesh(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
 
     Primitive primitive{};
     primitive.vertex_offset = 0;
@@ -42,15 +42,15 @@ void create_geometry(VkContext *vk_context, const void *vertices, uint32_t verte
     geometry->meshes.push_back(mesh);
 
     geometry->aabb = aabb;
-    create_mesh_from_aabb(vk_context, aabb, geometry->aabb_mesh);
+    create_mesh_from_aabb(mesh_system_state, vk_context, aabb, geometry->aabb_mesh);
 
   geometry->transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
   geometry->transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
   geometry->transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 }
 
-void create_geometry_from_config(VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
-  create_geometry(vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, config->aabb, geometry);
+void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
+  create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, config->aabb, geometry);
 }
 
 void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
@@ -60,7 +60,7 @@ void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
     }
 }
 
-void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *geometry) {
+void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry) {
     Vertex vertices[4];
     // 2 -- 3
     // | \  |
@@ -80,10 +80,10 @@ void create_plane_geometry(VkContext *vk_context, float x, float y, Geometry *ge
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
 }
 
-void create_cube_geometry(VkContext *vk_context, float length, Geometry *geometry) {
+void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry) {
     Vertex vertices[24];
     // clang-format off
     float half_length = length * 0.5f;
@@ -129,10 +129,10 @@ void create_cube_geometry(VkContext *vk_context, float length, Geometry *geometr
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry(vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
 }
 
-void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry) {
+void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry) {
     assert(sectors < UINT16_MAX && stacks < UINT16_MAX);
 
     std::vector<Vertex> vertices;
@@ -193,7 +193,7 @@ void create_uv_sphere_geometry(VkContext *vk_context, float radius, uint16_t sec
     AABB aabb{};
     generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
 
-    create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, geometry);
 }
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}

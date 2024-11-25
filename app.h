@@ -82,6 +82,8 @@ struct App {
     VkImageView uv_debug_image_view;
     VkSampler default_sampler_nearest;
 
+    MeshSystemState mesh_system_state;
+
     std::vector<Geometry> lit_geometries;
     std::vector<Geometry> wireframe_geometries;
     std::vector<Geometry> line_geometries;
@@ -118,7 +120,7 @@ struct App {
 
     float current_mouse_pos_x;
     float current_mouse_pos_y;
-    Geometry *selected_geometry = nullptr;
+    uint32_t selected_mesh_id;
 };
 
 void app_create(SDL_Window *window, App **out_app);

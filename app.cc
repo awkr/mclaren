@@ -345,7 +345,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     Geometry gltf_model_geometry{};
     // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
-    load_gltf(app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
+    load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
     gltf_model_geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
@@ -354,16 +354,16 @@ void app_create(SDL_Window *window, App **out_app) {
     app->lit_geometries.push_back(gltf_model_geometry);
 
     Geometry plane_geometry{};
-    create_plane_geometry(vk_context, 1.5f, 1.0f, &plane_geometry);
+    create_plane_geometry(&app->mesh_system_state, vk_context, 1.5f, 1.0f, &plane_geometry);
     plane_geometry.transform.position = glm::vec3(0.0f, 0.0f, 2.0f);
     app->lit_geometries.push_back(plane_geometry);
 
     Geometry cube_geometry{};
-    create_cube_geometry(vk_context, 1.0f, &cube_geometry);
+    create_cube_geometry(&app->mesh_system_state, vk_context, 1.0f, &cube_geometry);
     app->lit_geometries.push_back(cube_geometry);
 
     Geometry uv_sphere_geometry{};
-    create_uv_sphere_geometry(vk_context, 1, 16, 16, &uv_sphere_geometry);
+    create_uv_sphere_geometry(&app->mesh_system_state, vk_context, 1, 16, 16, &uv_sphere_geometry);
     uv_sphere_geometry.transform.position = glm::vec3(0.0f, 0.0f, -5.0f);
     app->lit_geometries.push_back(uv_sphere_geometry);
     app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
@@ -489,7 +489,7 @@ void app_create(SDL_Window *window, App **out_app) {
         generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
 
         Geometry geometry{};
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &geometry);
         geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
         app->lit_geometries.push_back(geometry);
     }
@@ -498,7 +498,7 @@ void app_create(SDL_Window *window, App **out_app) {
         GeometryConfig config{};
         generate_solid_circle_geometry_config(glm::vec3(0, 0, 0), true, 0.5f, 16, &config);
         Geometry geometry{};
-        create_geometry_from_config(vk_context, &config, &geometry);
+        create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
         geometry.transform.position = glm::vec3(-4.0f, 0.0f, 0.0f);
         geometry.transform.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
         app->lit_geometries.push_back(geometry);
@@ -509,7 +509,7 @@ void app_create(SDL_Window *window, App **out_app) {
       GeometryConfig config{};
       generate_cylinder_geometry_config(2, 0.5f, 16, &config);
       Geometry geometry{};
-      create_geometry_from_config(vk_context, &config, &geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
       geometry.transform.position = glm::vec3(-5.0f, 1.0f, 0.0f);
       app->lit_geometries.push_back(geometry);
       dispose_geometry_config(&config);
@@ -519,7 +519,7 @@ void app_create(SDL_Window *window, App **out_app) {
       GeometryConfig config{};
       generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
       Geometry geometry{};
-      create_geometry_from_config(vk_context, &config, &geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
       geometry.transform.position = glm::vec3(-4.0f, 1.0f, 2.0f);
       app->lit_geometries.push_back(geometry);
       dispose_geometry_config(&config);
@@ -528,7 +528,7 @@ void app_create(SDL_Window *window, App **out_app) {
     {
       GeometryConfig config{};
       generate_cylinder_geometry_config(1, 0.01f, 8, &config);
-      create_geometry_from_config(vk_context, &config, &app->gizmo_axis_geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_axis_geometry);
       dispose_geometry_config(&config);
     }
 
@@ -623,17 +623,17 @@ void app_create(SDL_Window *window, App **out_app) {
             aabb.max = glm::max(aabb.max, vertex.position);
         }
 
-        create_geometry(vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_arrow_geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_arrow_geometry);
     }
 
     {
       GeometryConfig config{};
       generate_torus_geometry_config(0.5f, 0.01f, 64, 8, &config);
-      create_geometry_from_config(vk_context, &config, &app->gizmo_ring_geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_ring_geometry);
       dispose_geometry_config(&config);
     }
     {
-        create_cube_geometry(vk_context, 0.06f, &app->gizmo_cube_geometry);
+        create_cube_geometry(&app->mesh_system_state, vk_context, 0.06f, &app->gizmo_cube_geometry);
     }
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
@@ -644,6 +644,7 @@ void app_create(SDL_Window *window, App **out_app) {
     app->frame_number = 0;
     app->current_mouse_pos_x = -1;
     app->current_mouse_pos_y = -1;
+    app->selected_mesh_id = UINT32_MAX;
 
     *out_app = app;
 }
@@ -1196,7 +1197,7 @@ void draw_gizmo(const App *app, VkCommandBuffer command_buffer, const RenderFram
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
 void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
-  vk_cmd_set_viewport(command_buffer, app->current_mouse_pos_x, app->current_mouse_pos_y, 1, 1);
+  vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
   vk_cmd_set_scissor(command_buffer, app->current_mouse_pos_x, app->current_mouse_pos_y, 1, 1);
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline);
   std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
@@ -1223,6 +1224,7 @@ void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *fr
     for (const Mesh &mesh : geometry.meshes) {
       ObjectPickingInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
+      instance_state.entity_id = mesh.entity_id;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
       vk_cmd_push_constants(command_buffer, app->object_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectPickingInstanceState), &instance_state);
@@ -1377,9 +1379,11 @@ void app_update(App *app) {
           vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
           {
-            uint32_t id = UINT32_MAX;
-            vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
-            log_debug("VMA mapped id: %u", id);
+            uint32_t last_selected_mesh_id = app->selected_mesh_id;
+            vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &app->selected_mesh_id, sizeof(uint32_t));
+            if (last_selected_mesh_id != app->selected_mesh_id) {
+              log_debug("VMA mapped id: %u", app->selected_mesh_id);
+            }
           }
         }
 
@@ -1531,7 +1535,7 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
         AABB aabb{};
         generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
         Geometry geometry{};
-        create_geometry(app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, aabb, &geometry);
+        create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, aabb, &geometry);
         app->line_geometries.push_back(geometry);
 
         {
@@ -1590,7 +1594,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
 }
 
 void app_mouse_move(App *app, float x, float y) {
-  log_debug("mouse moving %f, %f", x, y);
+  // log_debug("mouse moving %f, %f", x, y);
   app->current_mouse_pos_x = x;
   app->current_mouse_pos_y = y;
   Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);

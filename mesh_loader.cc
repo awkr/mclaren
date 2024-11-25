@@ -2,7 +2,7 @@
 #include "core/logging.h"
 #include "vk_command_buffer.h"
 
-void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) {
+void load_gltf(MeshSystemState *mesh_system_state, VkContext *vk_context, const char *filepath, Geometry *geometry) {
     cgltf_options options = {};
     cgltf_data *data = nullptr;
     cgltf_result result = cgltf_parse_file(&options, filepath, &data);
@@ -86,13 +86,13 @@ void load_gltf(VkContext *vk_context, const char *filepath, Geometry *geometry) 
 
         // todo parse node transform
 
-        create_mesh(vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
+        create_mesh(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
 
         generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
     } // end looping meshes
 
     geometry->aabb = aabb;
-    create_mesh_from_aabb(vk_context, aabb, geometry->aabb_mesh);
+    create_mesh_from_aabb(mesh_system_state, vk_context, aabb, geometry->aabb_mesh);
 
     cgltf_free(data);
 }

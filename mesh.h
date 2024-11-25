@@ -37,10 +37,15 @@ struct Mesh {
     Buffer *index_buffer;
     VkDeviceAddress vertex_buffer_device_address;
     std::vector<Primitive> primitives;
+    uint32_t entity_id;
     uint32_t generation;
 };
 
-void create_mesh(VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
+struct MeshSystemState {
+    uint32_t mesh_id_generator = 0;
+};
+
+void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
 void destroy_mesh(VkContext *vk_context, Mesh *mesh);
 
-void create_mesh_from_aabb(VkContext *vk_context, const AABB &aabb, Mesh &mesh);
+void create_mesh_from_aabb(MeshSystemState *mesh_system_state, VkContext *vk_context, const AABB &aabb, Mesh &mesh);
