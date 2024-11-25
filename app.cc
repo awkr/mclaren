@@ -302,7 +302,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, false, true, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, true, true, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -533,8 +533,8 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-        constexpr float radius = 0.05f * 0.6f;
-        constexpr float height = 0.16f * 0.6f;
+        constexpr float radius = 0.035f;
+        constexpr float height = 0.08f;
         constexpr uint32_t sector = 8;
 
         std::vector<LitColoredVertex> vertices;
@@ -1199,7 +1199,7 @@ void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame 
 void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
   vk_cmd_set_scissor(command_buffer, app->current_mouse_pos_x, app->current_mouse_pos_y, 1, 1);
-  vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline);
+
   std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
   std::deque<VkDescriptorBufferInfo> buffer_infos;
   std::vector<VkWriteDescriptorSet> write_descriptor_sets;
@@ -1217,6 +1217,8 @@ void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *fr
     write_descriptor_sets.push_back(write_descriptor_set);
   }
   vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+  vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline);
+  vk_cmd_set_depth_test_enable(command_buffer, VK_TRUE);
   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
   for (const Geometry &geometry : app->lit_geometries) {
