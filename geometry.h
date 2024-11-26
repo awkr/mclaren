@@ -31,7 +31,7 @@ void dispose_geometry_config(GeometryConfig *config) noexcept;
 
 void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB &aabb, Geometry *geometry);
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
-void destroy_geometry(VkContext *vk_context, Geometry *geometry);
+void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry);
 
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry);
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry);
@@ -46,8 +46,8 @@ void generate_cylinder_geometry_config(float height, float radius, uint16_t sect
 void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept;
 
 struct Ray {
-    glm::vec3 origin;
-    glm::vec3 direction;
+  glm::vec3 origin;
+  glm::vec3 direction;
 };
 
 void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept;
@@ -89,8 +89,7 @@ struct Torus {
 float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, float &s) noexcept;
 
 float ray_ring_shortest_distance(
-    const glm::vec3 &ray_origin, // 射线起点
-    const glm::vec3 &ray_dir, // 射线方向 (单位向量)
+    const Ray &ray,
     const glm::vec3 &circle_center, // 圆环中心
     const glm::vec3 &circle_normal, // 圆环法向量 (单位向量)
     float radius_inner, // 圆环内半径

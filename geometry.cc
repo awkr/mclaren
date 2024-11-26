@@ -53,7 +53,7 @@ void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *
   create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, config->aabb, geometry);
 }
 
-void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
+void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
     destroy_mesh(vk_context, &geometry->aabb_mesh);
     for (Mesh &mesh : geometry->meshes) {
         destroy_mesh(vk_context, &mesh);
@@ -615,19 +615,19 @@ float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, flo
   return glm::length(closest_point_on_ray - closest_point_on_axis);
 }
 
-float ray_ring_shortest_distance(const glm::vec3 &ray_origin, const glm::vec3 &ray_dir, const glm::vec3 &circle_center, const glm::vec3 &circle_normal, float radius_inner, float radius_outer) {
+float ray_ring_shortest_distance(const Ray &ray, const glm::vec3 &circle_center, const glm::vec3 &circle_normal, float radius_inner, float radius_outer) {
   // Step 1: 投影射线到圆环平面
-  glm::vec3 oc = ray_origin - circle_center; // 从圆心指向射线起点的向量
-  float denom = glm::dot(ray_dir, circle_normal); // 射线方向与圆环法向量点积
+  const glm::vec3 oc = ray.origin - circle_center; // 从圆心指向射线起点的向量
+  const float denom = glm::dot(ray.direction, circle_normal); // 射线方向与圆环法向量点积
 
   glm::vec3 point_on_plane;
-  if (glm::abs(denom) > 1e-6) {
+  if (glm::abs(denom) > 1e-6) { // 即射线不垂直于平面法向量
     // 射线与平面不平行，计算交点
     float t = -glm::dot(oc, circle_normal) / denom;
-    point_on_plane = ray_origin + t * ray_dir;
+    point_on_plane = ray.origin + t * ray.direction; // 射线方程
   } else {
     // 射线与平面平行，直接投影射线起点
-    point_on_plane = ray_origin - glm::dot(oc, circle_normal) * circle_normal;
+    point_on_plane = ray.origin - glm::dot(oc, circle_normal) * circle_normal;
   }
 
   // Step 2: 计算点到圆心的距离
