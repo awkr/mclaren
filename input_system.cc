@@ -61,3 +61,19 @@ bool was_key_down(InputSystemState *state, Key key) noexcept {
 bool was_key_up(InputSystemState *state, Key key) noexcept {
     return !state->prev_key_states[key];
 }
+
+bool is_mouse_button_down(const InputSystemState *state, MouseButton mouse_button) noexcept {
+  return state->mouse_button_states[mouse_button];
+}
+
+bool is_mouse_button_up(const InputSystemState *state, MouseButton mouse_button) noexcept {
+  return !state->mouse_button_states[mouse_button];
+}
+
+bool was_mouse_button_down(const InputSystemState *state, MouseButton mouse_button) noexcept {
+  return state->prev_mouse_button_states[mouse_button];
+}
+
+bool was_mouse_button_up(const InputSystemState *state, MouseButton mouse_button) noexcept {
+  return !state->prev_mouse_button_states[mouse_button];
+}

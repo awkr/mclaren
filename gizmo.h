@@ -20,9 +20,21 @@ enum GizmoOperation {
 };
 
 struct Gizmo {
+  float axis_length;
+  float axis_radius;
+  float arrow_length;
+  float arrow_radius;
+  float ring_minor_radius;
+
   Transform transform;
+
   GizmoOperation operation;
+  Plane intersection_plane;
+  Plane intersection_plane_back;
+  glm::vec3 intersection_position;
 };
 
 void create_gizmo(const glm::vec3 &position, Gizmo *gizmo);
 void destroy_gizmo(Gizmo *gizmo);
+void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position);
+const Transform &gizmo_get_transform(const Gizmo *gizmo);

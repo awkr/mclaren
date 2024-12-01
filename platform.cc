@@ -99,8 +99,8 @@ void platform_main_loop(PlatformContext *platform_context) {
         } // end polling events
 
         event_system_update(platform_context->event_system_state);
+        app_update(platform_context->app, platform_context->input_system_state);
         input_system_update(platform_context->input_system_state);
-        app_update(platform_context->app);
     }
 }
 

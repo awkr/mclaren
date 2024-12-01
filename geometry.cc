@@ -514,17 +514,24 @@ void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix,
   out_ray->direction = glm::normalize(glm::vec3(inv_model_matrix * glm::vec4(ray->direction, 0.0f)));
 }
 
-bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance) {
+Plane create_plane(const glm::vec3 &point_on_plane, const glm::vec3 &normal) noexcept {
+  Plane plane{};
+  plane.normal = normal;
+  plane.distance = -glm::dot(normal, point_on_plane);
+  return plane;
+}
+
+bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float &distance) {
   Ray ray_in_model_space{};
   transform_ray_to_model_space(&ray, model_matrix, &ray_in_model_space);
   if (glm::vec3 hit_point; raycast_aabb(ray_in_model_space, aabb, hit_point)) {
-    *out_distance = glm::length(hit_point - ray_in_model_space.origin);
+    distance = glm::length(hit_point - ray_in_model_space.origin);
     return true;
   }
   return false;
 }
 
-bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
+bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &hit_point) {
     // based on Graphics Gems I, "Fast Ray-Box Intersection"
     bool inside = true;
     uint8_t quadrants[3];
@@ -545,8 +552,7 @@ bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
     }
 
     if (inside) { // ray origin inside aabb
-        out_hit_point = ray.origin;
-        log_debug("inside 1");
+        hit_point = ray.origin;
         return true;
     }
 
@@ -574,16 +580,31 @@ bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point) {
     }
     for (uint32_t i = 0; i < 3; ++i) {
         if (which_plane != i) {
-            out_hit_point[i] = ray.origin[i] + ts[which_plane] * ray.direction[i];
-            if (out_hit_point[i] < aabb.min[i] || out_hit_point[i] > aabb.max[i]) {
+            hit_point[i] = ray.origin[i] + ts[which_plane] * ray.direction[i];
+            if (hit_point[i] < aabb.min[i] || hit_point[i] > aabb.max[i]) {
                 return false;
             }
         } else {
-            out_hit_point[i] = candidate_planes[i];
+            hit_point[i] = candidate_planes[i];
         }
     }
 
     return true; // ray hits box
+}
+
+bool raycast_plane(const Ray &ray, const Plane &plane, glm::vec3 &hit_point) noexcept {
+  const float denom = glm::dot(plane.normal, ray.direction);
+  if (glm::abs(denom) < glm::epsilon<float>()) {
+    return false; // 射线与平面平行或在平面内
+  }
+
+  const float t = -(glm::dot(plane.normal, ray.origin) + plane.distance) / denom;
+  if (t < 0) {
+    return false; // 平面在射线起点的反方向
+  }
+
+  hit_point = ray.origin + t * ray.direction;
+  return true;
 }
 
 float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, float &s) noexcept {

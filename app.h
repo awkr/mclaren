@@ -118,16 +118,18 @@ struct App {
     Geometry gizmo_ring_geometry;
     Geometry gizmo_cube_geometry;
 
-    float current_mouse_pos_x;
-    float current_mouse_pos_y;
+    float mouse_pos[2];
     uint32_t selected_mesh_id;
+    bool is_mouse_any_button_down;
+    float mouse_pos_down[2];
+    bool clicked;
 };
 
 void app_create(SDL_Window *window, App **out_app);
 
 void app_destroy(App *app);
 
-void app_update(App *app);
+void app_update(App *app, InputSystemState *input_system_state);
 
 void app_resize(App *app, uint32_t width, uint32_t height);
 

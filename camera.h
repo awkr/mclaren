@@ -35,3 +35,5 @@ void camera_pitch(Camera *camera, float delta_angles);
 void camera_yaw(Camera *camera, float delta_angles);
 
 void camera_update(Camera *camera);
+
+glm::vec3 camera_backward_dir(const Camera &camera) noexcept;

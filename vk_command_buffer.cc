@@ -251,3 +251,27 @@ void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_ima
 
   vkCmdCopyImageToBuffer(command_buffer, src_image, image_layout, dst_buffer, 1, &region);
 }
+
+void vk_cmd_pipeline_buffer_barrier(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, uint32_t src_access_mask, uint32_t dst_access_mask) {
+  VkBufferMemoryBarrier2 buffer_memory_barrier = {};
+  buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+
+  buffer_memory_barrier.srcStageMask = src_stage_mask;
+  buffer_memory_barrier.srcAccessMask = src_access_mask;
+
+  buffer_memory_barrier.dstStageMask = dst_stage_mask;
+  buffer_memory_barrier.dstAccessMask = dst_access_mask;
+
+  buffer_memory_barrier.buffer = buffer;
+  buffer_memory_barrier.offset = offset;
+  buffer_memory_barrier.size = size;
+
+  VkDependencyInfo dependency_info = {};
+  dependency_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+  dependency_info.dependencyFlags = 0; // 无额外依赖标志
+  dependency_info.bufferMemoryBarrierCount = 1;
+  dependency_info.pBufferMemoryBarriers = &buffer_memory_barrier;
+
+  // 插入 Pipeline Barrier，同步缓冲区的写入完成
+  vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
+}

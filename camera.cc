@@ -39,10 +39,7 @@ void camera_forward(Camera *camera, float delta) {
 }
 
 void camera_backward(Camera *camera, float delta) {
-    const glm::vec3 &backward = glm::normalize(glm::vec3(camera->view_matrix[0][2],
-                                                         camera->view_matrix[1][2],
-                                                         camera->view_matrix[2][2]));
-    camera->position += backward * delta;
+    camera->position += camera_backward_dir(*camera) * delta;
     camera->is_dirty = true;
 }
 
@@ -102,4 +99,10 @@ void camera_update(Camera *camera) {
     camera->view_matrix = view_matrix;
 
     camera->is_dirty = false;
+}
+
+glm::vec3 camera_backward_dir(const Camera &camera) noexcept {
+  return glm::normalize(glm::vec3(camera.view_matrix[0][2],
+                                  camera.view_matrix[1][2],
+                                  camera.view_matrix[2][2]));
 }

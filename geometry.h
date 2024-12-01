@@ -52,6 +52,14 @@ struct Ray {
 
 void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept;
 
+struct Plane {
+    glm::vec3 normal; // 平面的法向量
+    float distance; // 从原点到平面的有向距离
+};
+
+Plane create_plane(const glm::vec3 &point_on_plane, const glm::vec3 &normal) noexcept;
+inline void reset_plane(Plane &plane) noexcept { memset(&plane, 0, sizeof(plane)); }
+
 struct RaycastHit {
     Geometry *geometry;
     glm::vec3 position;
@@ -62,8 +70,9 @@ struct RaycastResult {
     std::vector<RaycastHit> hits; // sorted by distance
 };
 
-bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float *out_distance);
-bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &out_hit_point);
+bool raycast_obb(const Ray &ray, const AABB &aabb, const glm::mat4 &model_matrix, float &distance);
+bool raycast_aabb(const Ray &ray, const AABB &aabb, glm::vec3 &hit_point);
+bool raycast_plane(const Ray &ray, const Plane &plane, glm::vec3 &hit_point) noexcept;
 
 struct Axis {
     glm::vec3 origin;
