@@ -8,7 +8,7 @@
 
 layout (push_constant) uniform InstanceState {
     mat4 model_matrix;
-    uint entity_id;
+    uint id;
     VertexBuffer vertex_buffer;
 } instance_state;
 

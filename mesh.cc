@@ -55,7 +55,7 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, cons
         vk_destroy_buffer(vk_context, staging_buffer);
     }
 
-  mesh->entity_id = ++mesh_system_state->mesh_id_generator;
+  mesh->id = ++mesh_system_state->mesh_id_generator;
 }
 
 void destroy_mesh(VkContext *vk_context, Mesh *mesh) {

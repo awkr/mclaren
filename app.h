@@ -45,7 +45,7 @@ struct InstanceState {
 
 struct ObjectPickingInstanceState {
     glm::mat4 model_matrix;
-    uint32_t entity_id; // entity id
+    uint32_t id;
     VkDeviceAddress vertex_buffer_device_address;
 };
 

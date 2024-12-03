@@ -35,7 +35,7 @@ void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const v
 
 void vk_read_data_from_buffer(VkContext *vk_context, const Buffer *buffer, void *data, size_t size) {
   void *mapped_ptr = nullptr;
-  VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &mapped_ptr);
+  const VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &mapped_ptr);
   ASSERT(result == VK_SUCCESS);
   memcpy(data, mapped_ptr, size);
   vmaUnmapMemory(vk_context->allocator, buffer->allocation);

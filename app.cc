@@ -532,14 +532,14 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      generate_cylinder_geometry_config(app->gizmo.axis_length, app->gizmo.axis_radius, 8, &config);
+      generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
       create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_axis_geometry);
       dispose_geometry_config(&config);
     }
 
     {
-        const float radius = app->gizmo.arrow_radius;
-        const float height = app->gizmo.arrow_length;
+        const float radius = app->gizmo.config.arrow_radius;
+        const float height = app->gizmo.config.arrow_length;
         constexpr uint32_t sector = 8;
 
         std::vector<LitColoredVertex> vertices;
@@ -633,7 +633,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      generate_torus_geometry_config(0.5f, app->gizmo.ring_minor_radius, 64, 8, &config);
+      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
       create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_ring_geometry);
       dispose_geometry_config(&config);
     }
@@ -1073,7 +1073,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
         for (const Mesh &mesh : app->gizmo_arrow_geometry.meshes) {
             { // x axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.axis_length, 0.0f, 0.0f));
+                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
                 model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
                 InstanceState instance_state{};
@@ -1088,7 +1088,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
                 }
             }
             { // y axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.axis_length, 0.0f));
+                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.config.axis_length, 0.0f));
 
                 InstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
@@ -1102,7 +1102,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
                 }
             }
             { // z axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.axis_length));
+                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.config.axis_length));
                 model_matrix = glm::rotate(model_matrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
                 InstanceState instance_state{};
@@ -1215,7 +1215,7 @@ void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *fr
     for (const Mesh &mesh : geometry.meshes) {
       ObjectPickingInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
-      instance_state.entity_id = mesh.entity_id;
+      instance_state.id = mesh.id;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
       vk_cmd_push_constants(command_buffer, app->object_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectPickingInstanceState), &instance_state);
@@ -1253,7 +1253,17 @@ void update_scene(App *app) {
 
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 
-    app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
+  if (app->selected_mesh_id > 0) {
+    for (const Geometry &geometry : app->lit_geometries) {
+      for (const Mesh &mesh : geometry.meshes) {
+        if (mesh.id == app->selected_mesh_id) {
+          app->gizmo.transform.position = geometry.transform.position;
+          break;
+        }
+      }
+    }
+  }
+  app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 }
 
 bool begin_frame(App *app) { return false; }
@@ -1319,7 +1329,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
         // draw_gui(app, command_buffer, frame);
         vk_cmd_end_rendering(command_buffer);
 
-        if (1) {
+        if (was_mouse_button_down(input_system_state, MOUSE_BUTTON_LEFT) && is_mouse_button_up(input_system_state, MOUSE_BUTTON_LEFT)) {
           VkRenderingAttachmentInfo color_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
           color_attachment_info.imageView = app->object_picking_color_image_view;
           color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1343,40 +1353,10 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
           vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
           vk_cmd_copy_image_to_buffer(command_buffer, app->object_picking_color_image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, offset, extent, app->object_picking_buffer->handle);
-          {
-            VkBufferMemoryBarrier2 buffer_memory_barrier = {};
-            buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
-
-            buffer_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR;
-            buffer_memory_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-
-            buffer_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT_KHR;
-            buffer_memory_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-
-            buffer_memory_barrier.buffer = app->object_picking_buffer->handle;
-            buffer_memory_barrier.offset = 0;
-            buffer_memory_barrier.size = VK_WHOLE_SIZE;
-
-            VkDependencyInfo dependency_info = {};
-            dependency_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-            dependency_info.dependencyFlags = 0; // 无额外依赖标志
-            dependency_info.bufferMemoryBarrierCount = 1;
-            dependency_info.pBufferMemoryBarriers = &buffer_memory_barrier;
-
-            // 插入 Pipeline Barrier，同步缓冲区的写入完成
-            vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-
-            // 后续操作可以安全读取 buffer 或进行其他操作
-          }
+          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_buffer->handle, 0, sizeof(uint32_t), VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
           vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-          {
-            uint32_t last_selected_mesh_id = app->selected_mesh_id;
-            vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &app->selected_mesh_id, sizeof(uint32_t));
-            if (last_selected_mesh_id != app->selected_mesh_id) {
-              log_debug("VMA mapped id: %u", app->selected_mesh_id);
-            }
-          }
+          app->clicked = true;
         }
 
         vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1396,13 +1376,18 @@ void app_update(App *app, InputSystemState *input_system_state) {
     VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 
-    // if (app->clicked) {
-    //   vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
-    //
-    //   vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &app->selected_mesh_id, sizeof(uint32_t));
-    //   log_debug("VMA mapped id: %u", app->selected_mesh_id);
-    //   app->clicked = false;
-    // }
+    if (app->clicked) {
+      vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
+
+      uint32_t id = 0;
+      vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
+      if (id > 0) {
+        app->selected_mesh_id = id;
+        log_debug("mesh id: %u", id);
+      }
+
+      app->clicked = false;
+    }
 
     // end frame
     result = vk_queue_present(app->vk_context, image_index, frame->render_finished_semaphore);
@@ -1555,9 +1540,9 @@ void gizmo_check_ray(App *app, const Ray *ray) {
   {
     float min_distance = 0.04f;
     const std::vector<std::pair<Axis, GizmoOperation>> axes = {
-        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.axis_length + app->gizmo.arrow_length, 'x'}, GIZMO_OPERATION_TRANSLATE_X},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.axis_length + app->gizmo.arrow_length, 'y'}, GIZMO_OPERATION_TRANSLATE_Y},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.axis_length + app->gizmo.arrow_length, 'z'}, GIZMO_OPERATION_TRANSLATE_Z},
+        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'x'}, GIZMO_OPERATION_TRANSLATE_X},
+        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'y'}, GIZMO_OPERATION_TRANSLATE_Y},
+        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'z'}, GIZMO_OPERATION_TRANSLATE_Z},
     };
     for (const auto &[axis, op] : axes) {
       float t, s;
@@ -1575,9 +1560,9 @@ void gizmo_check_ray(App *app, const Ray *ray) {
   {
     float min_distance = 0.04f;
     const std::vector<std::pair<StrokeCircle, GizmoOperation>> circles = {
-        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, 'x'}, GIZMO_OPERATION_ROTATE_X},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 0.5f, 'y'}, GIZMO_OPERATION_ROTATE_Y},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), 0.5f, 'z'}, GIZMO_OPERATION_ROTATE_Z},
+        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.ring_major_radius, 'x'}, GIZMO_OPERATION_ROTATE_X},
+        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.ring_major_radius, 'y'}, GIZMO_OPERATION_ROTATE_Y},
+        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.ring_major_radius, 'z'}, GIZMO_OPERATION_ROTATE_Z},
     };
     for (const auto &[circle, op] : circles) {
       // 根据射线与平面的夹角，动态计算触发距离
@@ -1592,7 +1577,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
         app->gizmo.operation = op;
         break;
       }
-      if (const float d = ray_ring_shortest_distance(ray_in_model_space, circle.center, circle.normal, 0.5f - padding, 0.5f + padding); d < min_distance) {
+      if (const float d = ray_ring_shortest_distance(ray_in_model_space, circle.center, circle.normal, app->gizmo.config.ring_major_radius - padding, app->gizmo.config.ring_major_radius + padding); d < min_distance) {
         min_distance = d;
         app->gizmo.operation = op;
       }
@@ -1625,16 +1610,16 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     Geometry geometry{};
     create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, aabb, &geometry);
     app->line_geometries.push_back(geometry);
-
-    {
-      // loop through all geometries to find the closest intersection point
-    }
   }
 
   reset_plane(app->gizmo.intersection_plane_back);
   reset_plane(app->gizmo.intersection_plane);
   memset(app->mouse_pos_down, -1.0f, sizeof(float) * 2);
   app->is_mouse_any_button_down = false;
+}
+
+void set_geometry_world_position(Geometry &geometry, const glm::vec3 &world_position) {
+  geometry.transform.position = world_position;
 }
 
 void app_mouse_move(App *app, float x, float y) {
@@ -1669,6 +1654,17 @@ void app_mouse_move(App *app, float x, float y) {
         app->gizmo.transform.position += translate;
       }
       app->gizmo.intersection_position = intersection_position;
+
+      if (app->selected_mesh_id > 0) {
+        for (Geometry &geometry : app->lit_geometries) {
+          for (Mesh &mesh : geometry.meshes) {
+            if (mesh.id == app->selected_mesh_id) {
+              set_geometry_world_position(geometry, app->gizmo.transform.position);
+              break;
+            }
+          }
+        }
+      }
     }
   } else {
     gizmo_check_ray(app, &ray);

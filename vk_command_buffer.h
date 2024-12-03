@@ -68,4 +68,4 @@ void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer d
 void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);
 void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkImageLayout image_layout, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkBuffer dst_buffer) noexcept;
 
-void vk_cmd_pipeline_buffer_barrier(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, uint32_t src_access_mask, uint32_t dst_access_mask);
+void vk_cmd_pipeline_barrier(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask);

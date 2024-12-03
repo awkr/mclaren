@@ -37,7 +37,7 @@ struct Mesh {
     Buffer *index_buffer;
     VkDeviceAddress vertex_buffer_device_address;
     std::vector<Primitive> primitives;
-    uint32_t entity_id;
+    uint32_t id;
     uint32_t generation;
 };
 

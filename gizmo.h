@@ -19,15 +19,18 @@ enum GizmoOperation {
   GIZMO_OPERATION_SCALE = GIZMO_OPERATION_SCALE_X | GIZMO_OPERATION_SCALE_Y | GIZMO_OPERATION_SCALE_Z,
 };
 
-struct Gizmo {
+struct GizmoConfig {
   float axis_length;
   float axis_radius;
   float arrow_length;
   float arrow_radius;
+  float ring_major_radius;
   float ring_minor_radius;
+};
 
+struct Gizmo {
+  GizmoConfig config;
   Transform transform;
-
   GizmoOperation operation;
   Plane intersection_plane;
   Plane intersection_plane_back;

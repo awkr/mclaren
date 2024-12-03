@@ -2,11 +2,12 @@
 
 void create_gizmo(const glm::vec3 &position, Gizmo *gizmo) {
   memset(gizmo, 0, sizeof(Gizmo));
-  gizmo->axis_length = 0.8f;
-  gizmo->axis_radius = 0.008f;
-  gizmo->arrow_length = 0.08f;
-  gizmo->arrow_radius = 0.04f;
-  gizmo->ring_minor_radius = 0.008f;
+  gizmo->config.axis_length = 0.7f;
+  gizmo->config.axis_radius = 0.008f;
+  gizmo->config.arrow_length = 0.08f;
+  gizmo->config.arrow_radius = 0.04f;
+  gizmo->config.ring_major_radius = 0.4f;
+  gizmo->config.ring_minor_radius = 0.008f;
   gizmo->transform.position = position;
   gizmo->transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
 }
