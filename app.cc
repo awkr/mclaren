@@ -342,6 +342,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
     vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
 
+    create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+    create_gizmo(glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
+
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
@@ -527,13 +530,10 @@ void app_create(SDL_Window *window, App **out_app) {
       dispose_geometry_config(&config);
     }
 
-  create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
-  create_gizmo(glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
-
     {
       GeometryConfig config{};
       generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_axis_geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.axis_geometry);
       dispose_geometry_config(&config);
     }
 
@@ -628,17 +628,17 @@ void app_create(SDL_Window *window, App **out_app) {
             aabb.max = glm::max(aabb.max, vertex.position);
         }
 
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo_arrow_geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.arrow_geometry);
     }
 
     {
       GeometryConfig config{};
       generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo_ring_geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
       dispose_geometry_config(&config);
     }
     {
-        create_cube_geometry(&app->mesh_system_state, vk_context, 0.06f, &app->gizmo_cube_geometry);
+        create_cube_geometry(&app->mesh_system_state, vk_context, 0.06f, &app->gizmo.cube_geometry);
     }
 
     app->frame_number = 0;
@@ -655,10 +655,7 @@ void app_destroy(App *app) {
 
     for (auto &geometry : app->lit_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
     for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
-    destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo_cube_geometry);
-    destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo_ring_geometry);
-    destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo_arrow_geometry);
-    destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo_axis_geometry);
+    destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
     vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
@@ -949,7 +946,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
       vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
       vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-      for (const Mesh &mesh : app->gizmo_ring_geometry.meshes) {
+      for (const Mesh &mesh : app->gizmo.ring_geometry.meshes) {
         { // y
           glm::mat4 model_matrix(1.0f);
           model_matrix = gizmo_model_matrix * model_matrix;
@@ -1003,7 +1000,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
       }
     }
 
-    for (const Mesh &mesh : app->gizmo_axis_geometry.meshes) {
+    for (const Mesh &mesh : app->gizmo.axis_geometry.meshes) {
         { // x axis body
             glm::mat4 model_matrix(1.0f);
             model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1071,7 +1068,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-        for (const Mesh &mesh : app->gizmo_arrow_geometry.meshes) {
+        for (const Mesh &mesh : app->gizmo.arrow_geometry.meshes) {
             { // x axis
                 glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
                 model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1137,7 +1134,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-        for (const Mesh &mesh : app->gizmo_cube_geometry.meshes) {
+        for (const Mesh &mesh : app->gizmo.cube_geometry.meshes) {
         { // x axis
             glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(1.382f, 0.0f, 0.0f));
 

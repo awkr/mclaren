@@ -30,6 +30,12 @@ struct GizmoConfig {
 
 struct Gizmo {
   GizmoConfig config;
+
+  Geometry axis_geometry; // the body of the axes
+  Geometry arrow_geometry; // the head of the axes
+  Geometry ring_geometry;
+  Geometry cube_geometry;
+
   Transform transform;
   GizmoOperation operation;
   Plane intersection_plane;
@@ -38,6 +44,6 @@ struct Gizmo {
 };
 
 void create_gizmo(const glm::vec3 &position, Gizmo *gizmo);
-void destroy_gizmo(Gizmo *gizmo);
+void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context);
 void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position);
 const Transform &gizmo_get_transform(const Gizmo *gizmo);

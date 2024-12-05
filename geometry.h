@@ -12,6 +12,8 @@ glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept;
 
 struct Geometry {
     std::vector<Mesh> meshes;
+    // Mesh *meshes;
+    // uint32_t mesh_count;
     AABB aabb; // in object space
     Mesh aabb_mesh;
     Transform transform;

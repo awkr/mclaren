@@ -112,11 +112,6 @@ struct App {
     Buffer *object_picking_buffer;
 
     Gizmo gizmo;
-    // one geometry, contains 2 meshes, primitves under each mesh will be rendered with different pipelines
-    Geometry gizmo_axis_geometry; // the body of the axes
-    Geometry gizmo_arrow_geometry; // the head of the axes
-    Geometry gizmo_ring_geometry;
-    Geometry gizmo_cube_geometry;
 
     float mouse_pos[2];
     uint32_t selected_mesh_id;
