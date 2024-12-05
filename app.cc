@@ -343,7 +343,7 @@ void app_create(SDL_Window *window, App **out_app) {
     vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
-    create_gizmo(glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
+    create_gizmo(&app->mesh_system_state, vk_context, glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
 
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
