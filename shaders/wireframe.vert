@@ -8,7 +8,7 @@
 
 layout (push_constant) uniform InstanceState {
     mat4 model;
-    vec3 color;
+    vec4 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;
 

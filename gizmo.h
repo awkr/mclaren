@@ -2,21 +2,19 @@
 
 #include "geometry.h"
 
-enum GizmoOperation {
-  GIZMO_OPERATION_NONE = 0,
-  GIZMO_OPERATION_TRANSLATE_X = 1 << 0,
-  GIZMO_OPERATION_TRANSLATE_Y = 1 << 1,
-  GIZMO_OPERATION_TRANSLATE_Z = 1 << 2,
-  GIZMO_OPERATION_ROTATE_X = 1 << 3,
-  GIZMO_OPERATION_ROTATE_Y = 1 << 4,
-  GIZMO_OPERATION_ROTATE_Z = 1 << 5,
-  GIZMO_OPERATION_SCALE_X = 1 << 6,
-  GIZMO_OPERATION_SCALE_Y = 1 << 7,
-  GIZMO_OPERATION_SCALE_Z = 1 << 8,
+enum GizmoAction {
+  GIZMO_ACTION_NONE = 0,
+  GIZMO_ACTION_TRANSLATE,
+  GIZMO_ACTION_ROTATE,
+  GIZMO_ACTION_SCALE,
+};
 
-  GIZMO_OPERATION_TRANSLATE = GIZMO_OPERATION_TRANSLATE_X | GIZMO_OPERATION_TRANSLATE_Y | GIZMO_OPERATION_TRANSLATE_Z,
-  GIZMO_OPERATION_ROTATE = GIZMO_OPERATION_ROTATE_X | GIZMO_OPERATION_ROTATE_Y | GIZMO_OPERATION_ROTATE_Z,
-  GIZMO_OPERATION_SCALE = GIZMO_OPERATION_SCALE_X | GIZMO_OPERATION_SCALE_Y | GIZMO_OPERATION_SCALE_Z,
+enum GizmoAxis {
+  GIZMO_AXIS_NONE = 0,
+  GIZMO_AXIS_X = 1 << 0,
+  GIZMO_AXIS_Y = 1 << 1,
+  GIZMO_AXIS_Z = 1 << 2,
+  GIZMO_AXIS_XYZ = GIZMO_AXIS_X | GIZMO_AXIS_Y | GIZMO_AXIS_Z,
 };
 
 struct GizmoConfig {
@@ -34,10 +32,12 @@ struct Gizmo {
   Geometry axis_geometry; // the body of the axes
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
+  Geometry sector_geometry;
   Geometry cube_geometry;
 
   Transform transform;
-  GizmoOperation operation;
+  GizmoAction action;
+  GizmoAxis active_axis;
   Plane intersection_plane;
   Plane intersection_plane_back;
   glm::vec3 intersection_position;

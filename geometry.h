@@ -8,6 +8,14 @@ struct Transform {
   glm::vec3 scale;
 };
 
+inline Transform transform_identity() noexcept {
+  Transform transform{};
+  transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+  transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+  transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+  return transform;
+}
+
 glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept;
 
 struct Geometry {
@@ -59,6 +67,11 @@ struct Plane {
     float distance; // 从原点到平面的有向距离
 };
 
+struct Sphere {
+    glm::vec3 center;
+    float radius;
+};
+
 Plane create_plane(const glm::vec3 &point_on_plane, const glm::vec3 &normal) noexcept;
 inline void reset_plane(Plane &plane) noexcept { memset(&plane, 0, sizeof(plane)); }
 
@@ -68,7 +81,7 @@ struct RaycastHit {
     float distance;
 };
 
-struct RaycastResult {
+struct RaycastHitResult {
     std::vector<RaycastHit> hits; // sorted by distance
 };
 

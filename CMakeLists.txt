@@ -11,6 +11,7 @@ set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc
         mesh_loader.cc
         mesh.cc
         geometry.cc
+        raycast.cc
         event_system.cc
         input_system.cc
         gizmo.cc

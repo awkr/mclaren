@@ -39,7 +39,7 @@ struct GlobalState {
 
 struct InstanceState {
     glm::mat4 model_matrix;
-    glm::vec3 color;
+    glm::vec4 color;
     VkDeviceAddress vertex_buffer_device_address;
 };
 

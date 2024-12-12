@@ -10,7 +10,7 @@ layout (location = 1) out vec3 out_normal;
 
 layout (push_constant) uniform InstanceState {
     mat4 model_matrix;
-    vec3 color;
+    vec4 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;
 

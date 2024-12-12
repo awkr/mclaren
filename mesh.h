@@ -11,7 +11,7 @@ struct alignas(16) Vertex {
 };
 
 // 顶点结构，一般用于 debug draw，如 bounding box，坐标轴、射线等
-struct alignas(16) LitColoredVertex {
+struct alignas(16) ColoredVertex {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec3 normal;

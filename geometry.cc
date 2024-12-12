@@ -44,9 +44,7 @@ void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, 
     geometry->aabb = aabb;
     create_mesh_from_aabb(mesh_system_state, vk_context, aabb, geometry->aabb_mesh);
 
-  geometry->transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-  geometry->transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-  geometry->transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+    geometry->transform = transform_identity();
 }
 
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {

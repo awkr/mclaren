@@ -344,6 +344,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
     create_gizmo(&app->mesh_system_state, vk_context, glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
+    app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
@@ -542,7 +543,7 @@ void app_create(SDL_Window *window, App **out_app) {
         const float height = app->gizmo.config.arrow_length;
         constexpr uint32_t sector = 8;
 
-        std::vector<LitColoredVertex> vertices;
+        std::vector<ColoredVertex> vertices;
         std::vector<uint32_t> indices;
 
         const float sector_step = 2 * glm::pi<float>() / (float) sector;
@@ -550,7 +551,7 @@ void app_create(SDL_Window *window, App **out_app) {
         // base circle
 
         { // center vertex
-            LitColoredVertex vertex{};
+            ColoredVertex vertex{};
             vertex.position = glm::vec3(0.0f);
             vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
             vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -561,7 +562,7 @@ void app_create(SDL_Window *window, App **out_app) {
             float sector_angle = i * sector_step;
             float a = cos(sector_angle);
             float b = sin(sector_angle);
-            LitColoredVertex vertex{};
+            ColoredVertex vertex{};
             vertex.position = glm::vec3(a * radius, 0.0f, b * radius);
             vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
             vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -593,21 +594,21 @@ void app_create(SDL_Window *window, App **out_app) {
             normal = glm::normalize(normal);
 
             { // 0
-                LitColoredVertex vertex{};
+                ColoredVertex vertex{};
                 vertex.position = glm::vec3(cos(sector_angle) * radius, 0.0f, -sin(sector_angle) * radius);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
                 vertices.push_back(vertex);
             }
             { // 1
-                LitColoredVertex vertex{};
+                ColoredVertex vertex{};
                 vertex.position = glm::vec3(cos(sector_angle + sector_step) * radius, 0.0f, -sin(sector_angle + sector_step) * radius);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
                 vertices.push_back(vertex);
             }
             { // 2
-                LitColoredVertex vertex{};
+                ColoredVertex vertex{};
                 vertex.position = glm::vec3(0.0f, height, 0.0f);
                 vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
                 vertex.normal = normal;
@@ -623,12 +624,12 @@ void app_create(SDL_Window *window, App **out_app) {
 
         AABB aabb{};
         for (size_t i = 0; i < 4; ++i) {
-            const LitColoredVertex &vertex = vertices[i];
+            const ColoredVertex &vertex = vertices[i];
             aabb.min = glm::min(aabb.min, vertex.position);
             aabb.max = glm::max(aabb.max, vertex.position);
         }
 
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(LitColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.arrow_geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.arrow_geometry);
     }
 
     {
@@ -639,6 +640,49 @@ void app_create(SDL_Window *window, App **out_app) {
     }
     {
         create_cube_geometry(&app->mesh_system_state, vk_context, 0.06f, &app->gizmo.cube_geometry);
+    }
+    {
+      const float radius = app->gizmo.config.ring_major_radius;
+      constexpr uint32_t sector = 16;
+
+      std::vector<ColoredVertex> vertices;
+      std::vector<uint32_t> indices;
+
+      const float sector_step = glm::pi<float>() / (float) sector;
+
+      { // center vertex
+          ColoredVertex vertex{};
+          vertex.position = glm::vec3(0.0f);
+          vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+          vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+          vertices.push_back(vertex);
+      }
+
+      for (size_t i = 0; i <= sector; ++i) {
+          float sector_angle = i * sector_step;
+          float a = cos(sector_angle);
+          float b = sin(sector_angle);
+          ColoredVertex vertex{};
+          vertex.position = glm::vec3(a * radius, 0.0f, b * radius);
+          vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+          vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+          vertices.push_back(vertex);
+      }
+
+      for (size_t i = 0; i < sector; ++i) {
+          indices.push_back(0);
+          indices.push_back(i + 1);
+          indices.push_back(i + 2);
+      }
+
+      AABB aabb{};
+      for (size_t i = 0; i < 4; ++i) {
+        const ColoredVertex &vertex = vertices[i];
+        aabb.min = glm::min(aabb.min, vertex.position);
+        aabb.max = glm::max(aabb.max, vertex.position);
+      }
+
+      create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.sector_geometry);
     }
 
     app->frame_number = 0;
@@ -851,7 +895,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
             InstanceState instance_state{};
             instance_state.model_matrix = model_matrix;
-            instance_state.color = glm::vec3(1, 1, 1);
+            instance_state.color = glm::vec4(1, 1, 1, 1);
             instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -953,7 +997,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
           InstanceState state{};
           state.model_matrix = model_matrix;
-          state.color = app->gizmo.operation == GIZMO_OPERATION_ROTATE_Y ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+          state.color = (app->gizmo.active_axis & GIZMO_AXIS_Y) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
           state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
           vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &state);
@@ -970,7 +1014,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
           InstanceState state{};
           state.model_matrix = model_matrix;
-          state.color = app->gizmo.operation == GIZMO_OPERATION_ROTATE_Z ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+          state.color = (app->gizmo.action & GIZMO_AXIS_Z) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
           state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
           vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &state);
@@ -987,11 +1031,63 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
           InstanceState state{};
           state.model_matrix = model_matrix;
-          state.color = app->gizmo.operation == GIZMO_OPERATION_ROTATE_X ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+          state.color = (app->gizmo.active_axis & GIZMO_AXIS_X) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
           state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
           vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &state);
 
+          for (const Primitive &primitive : mesh.primitives) {
+            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+          }
+        }
+      }
+    }
+
+    {
+      std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+      std::deque<VkDescriptorBufferInfo> buffer_infos;
+      std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+      {
+        VkDescriptorSet descriptor_set;
+        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        descriptor_sets.push_back(descriptor_set);
+
+        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+        buffer_infos.push_back(descriptor_buffer_info);
+
+        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+        write_descriptor_sets.push_back(write_descriptor_set);
+      }
+      vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+      for (const Mesh &mesh : app->gizmo.sector_geometry.meshes) {
+        // {
+        //   glm::mat4 model_matrix(1.0f);
+        //   model_matrix = gizmo_model_matrix * model_matrix;
+        //
+        //   InstanceState instance_state{};
+        //   instance_state.model_matrix = model_matrix;
+        //   instance_state.color = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f);
+        //   instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        //
+        //   vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        //   for (const Primitive &primitive : mesh.primitives) {
+        //     vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+        //     vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        //   }
+        // }
+        {
+          glm::mat4 model_matrix(1.0f);
+          model_matrix = gizmo_model_matrix * model_matrix;
+
+          InstanceState instance_state{};
+          instance_state.model_matrix = model_matrix;
+          instance_state.color = glm::vec4(0.8f, 0.0f, 0.0f, 0.8f);
+          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+          vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
           for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
             vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1008,7 +1104,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
             InstanceState instance_state{};
             instance_state.model_matrix = model_matrix;
-            instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_X ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+            instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_X) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1023,7 +1119,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
             InstanceState instance_state{};
             instance_state.model_matrix = model_matrix;
-            instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Y ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+            instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_Y) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1039,7 +1135,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
             InstanceState instance_state{};
             instance_state.model_matrix = model_matrix;
-            instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Z ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+            instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_Z) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1075,12 +1171,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
                 InstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
-                instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_X ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+                instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_X) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
                 vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
                 for (const Primitive &primitive : mesh.primitives) {
-                    vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+                  vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
                     vk_cmd_draw_indexed(command_buffer, primitive.index_count);
                 }
             }
@@ -1089,7 +1185,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
                 InstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
-                instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Y ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+                instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_Y) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
                 vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1104,7 +1200,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
                 InstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
-                instance_state.color = app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Z ? glm::vec3(1.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+                instance_state.color = (app->gizmo.active_axis & GIZMO_AXIS_Z) ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f) : glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
                 vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1140,7 +1236,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
             InstanceState instance_state{};
             instance_state.model_matrix = model_matrix;
-            instance_state.color = glm::vec3(1.0f, 0.0f, 0.0f);
+            instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -1225,7 +1321,7 @@ void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *fr
   }
 }
 
-void scene_raycast(App *app, const Ray *ray, RaycastResult *result) {
+void scene_raycast(App *app, const Ray *ray, RaycastHitResult *result) {
     // todo need some sort spatial partitioning to speed this up
     for (const Geometry &geometry : app->lit_geometries) {
         const glm::mat4 model = model_matrix_from_transform(geometry.transform); // todo 不需要每次都计算 model matrix
@@ -1260,7 +1356,7 @@ void update_scene(App *app) {
       }
     }
   }
-  app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
+  // app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 }
 
 bool begin_frame(App *app) { return false; }
@@ -1504,15 +1600,15 @@ void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y)
   app->is_mouse_any_button_down = true;
   app->mouse_pos_down[0] = x;
   app->mouse_pos_down[1] = y;
-  if (app->gizmo.operation & GIZMO_OPERATION_TRANSLATE) {
+  if (app->gizmo.action & GIZMO_ACTION_TRANSLATE) {
     const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
     const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
     glm::vec4 n(0.0f);
-    if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_X) {
+    if (app->gizmo.active_axis & GIZMO_AXIS_X) {
       n = glm::normalize(model_matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
-    } else if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Y) {
+    } else if (app->gizmo.active_axis & GIZMO_AXIS_Y) {
       n = glm::normalize(model_matrix * glm::vec4(camera_backward_dir(app->camera), 0.0f));
-    } else if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Z) {
+    } else if (app->gizmo.active_axis & GIZMO_AXIS_Z) {
       n = glm::normalize(model_matrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
     } else {
       ASSERT(false);
@@ -1532,38 +1628,39 @@ void gizmo_check_ray(App *app, const Ray *ray) {
   Ray ray_in_model_space{};
   transform_ray_to_model_space(ray, model_matrix, &ray_in_model_space);
 
-  app->gizmo.operation = GIZMO_OPERATION_NONE;
+  app->gizmo.action = GIZMO_ACTION_TRANSLATE;
+  app->gizmo.active_axis = GIZMO_AXIS_NONE;
 
   {
     float min_distance = 0.04f;
-    const std::vector<std::pair<Axis, GizmoOperation>> axes = {
-        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'x'}, GIZMO_OPERATION_TRANSLATE_X},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'y'}, GIZMO_OPERATION_TRANSLATE_Y},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'z'}, GIZMO_OPERATION_TRANSLATE_Z},
+    const Axis axes[3] = {
+        {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'x'},
+        {glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'y'},
+        {glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length, 'z'},
     };
-    for (const auto &[axis, op] : axes) {
+    for (size_t i = 0; i < 3; ++i) {
       float t, s;
-      if (const float d = ray_axis_shortest_distance(ray_in_model_space, axis, t, s); d < min_distance) {
+      if (const float d = ray_axis_shortest_distance(ray_in_model_space, axes[i], t, s); d < min_distance) {
         min_distance = d;
-        app->gizmo.operation = op;
+        app->gizmo.active_axis = (GizmoAxis) (i + 1);
       }
     }
-    if (app->gizmo.operation != GIZMO_OPERATION_NONE) {
-      log_debug("op: %d", app->gizmo.operation);
+    if (app->gizmo.action != GIZMO_ACTION_NONE) {
+      log_debug("op: %d", app->gizmo.action);
       return;
     }
   }
 
   {
     float min_distance = 0.04f;
-    const std::vector<std::pair<StrokeCircle, GizmoOperation>> circles = {
-        {{glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.ring_major_radius, 'x'}, GIZMO_OPERATION_ROTATE_X},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.ring_major_radius, 'y'}, GIZMO_OPERATION_ROTATE_Y},
-        {{glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.ring_major_radius, 'z'}, GIZMO_OPERATION_ROTATE_Z},
+    const StrokeCircle circles[3] = {
+        {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.ring_major_radius, 'x'},
+        {glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.ring_major_radius, 'y'},
+        {glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f), app->gizmo.config.ring_major_radius, 'z'},
     };
-    for (const auto &[circle, op] : circles) {
+    for (size_t i = 0; i < 3; ++i) {
       // 根据射线与平面的夹角，动态计算触发距离
-      const float theta = glm::acos(glm::dot(glm::normalize(circle.normal), glm::normalize(-ray_in_model_space.direction)));
+      const float theta = glm::acos(glm::dot(glm::normalize(circles[i].normal), glm::normalize(-ray_in_model_space.direction)));
       float padding;
       if (glm::degrees(theta) < 90.0f) {
         padding = glm::max(glm::tan(theta) * 0.04f, 0.04f);
@@ -1571,16 +1668,16 @@ void gizmo_check_ray(App *app, const Ray *ray) {
         const float beta = glm::radians(90.0f - (glm::degrees(theta) - 90.0f));
         padding = glm::min(glm::max(glm::tan(beta) * 0.04f, 0.04f), 0.06f);
       } else {
-        app->gizmo.operation = op;
+        app->gizmo.active_axis = (GizmoAxis) (i + 1);
         break;
       }
-      if (const float d = ray_ring_shortest_distance(ray_in_model_space, circle.center, circle.normal, app->gizmo.config.ring_major_radius - padding, app->gizmo.config.ring_major_radius + padding); d < min_distance) {
+      if (const float d = ray_ring_shortest_distance(ray_in_model_space, circles[i].center, circles[i].normal, app->gizmo.config.ring_major_radius - padding, app->gizmo.config.ring_major_radius + padding); d < min_distance) {
         min_distance = d;
-        app->gizmo.operation = op;
+        app->gizmo.active_axis = (GizmoAxis) (i + 1);
       }
     }
-    if (app->gizmo.operation != GIZMO_OPERATION_NONE) {
-      log_debug("op: %d", app->gizmo.operation);
+    if (app->gizmo.action != GIZMO_ACTION_NONE) {
+      log_debug("op: %d", app->gizmo.action);
       return;
     }
   }
@@ -1625,26 +1722,26 @@ void app_mouse_move(App *app, float x, float y) {
   app->mouse_pos[1] = y;
   const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
   if (app->is_mouse_any_button_down) {
-    if (app->gizmo.operation & GIZMO_OPERATION_TRANSLATE) {
+    if (app->gizmo.action & GIZMO_ACTION_TRANSLATE) {
       const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
       glm::vec3 intersection_position(0.0f);
       if (bool is_hit = raycast_plane(ray, app->gizmo.intersection_plane, intersection_position); !is_hit) {
         is_hit = raycast_plane(ray, app->gizmo.intersection_plane_back, intersection_position);
         ASSERT(is_hit);
       }
-      if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_X) {
+      if (app->gizmo.active_axis & GIZMO_AXIS_X) {
         const glm::vec3 v = intersection_position - app->gizmo.intersection_position;
         const glm::vec3 d = glm::normalize(glm::vec3(model_matrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)));
         const glm::vec3 translate = glm::dot(d, v) * d;
         app->gizmo.transform.position += translate;
       }
-      if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Y) {
+      if (app->gizmo.active_axis & GIZMO_AXIS_Y) {
         const glm::vec3 v = intersection_position - app->gizmo.intersection_position;
         const glm::vec3 d = glm::normalize(glm::vec3(model_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)));
         const glm::vec3 translate = glm::dot(d, v) * d;
         app->gizmo.transform.position += translate;
       }
-      if (app->gizmo.operation == GIZMO_OPERATION_TRANSLATE_Z) {
+      if (app->gizmo.active_axis & GIZMO_AXIS_Z) {
         const glm::vec3 v = intersection_position - app->gizmo.intersection_position;
         const glm::vec3 d = glm::normalize(glm::vec3(model_matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
         const glm::vec3 translate = glm::dot(d, v) * d;
