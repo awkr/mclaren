@@ -93,14 +93,12 @@ struct Axis {
     glm::vec3 origin;
     glm::vec3 direction;
     float length;
-    char name;
 };
 
 struct StrokeCircle {
     glm::vec3 center;
     glm::vec3 normal;
     float radius;
-    char name;
 };
 
 struct Torus {
