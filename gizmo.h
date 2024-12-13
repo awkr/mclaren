@@ -34,6 +34,7 @@ struct Gizmo {
   Geometry ring_geometry;
   Geometry sector_geometry;
   Geometry cube_geometry;
+  Geometry rotation_sector_geometry;
 
   Transform transform;
   GizmoAction action;
@@ -41,6 +42,9 @@ struct Gizmo {
   Plane intersection_plane;
   Plane intersection_plane_back;
   glm::vec3 intersection_position;
+
+  glm::vec3 rotation_start; // 相对旋转轴空间
+  glm::vec3 rotation_end; // 相对旋转轴空间
 };
 
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo);

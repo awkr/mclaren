@@ -39,7 +39,7 @@ struct GeometryConfig {
 
 void dispose_geometry_config(GeometryConfig *config) noexcept;
 
-void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB &aabb, Geometry *geometry);
+void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry);
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
 void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry);
 
@@ -54,6 +54,7 @@ void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_faci
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept;
+void generate_sector_geometry_config(const glm::vec3 &start_pos, const glm::vec3 &end_pos, uint16_t sector_count, GeometryConfig *config);
 
 struct Ray {
   glm::vec3 origin;
@@ -110,7 +111,7 @@ struct Torus {
 // 计算射线与线段或坐标轴的最近距离（最小二乘法），并返回最近点参数和距离
 float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, float &s) noexcept;
 
-float ray_ring_shortest_distance(
+float raycast_ring(
     const Ray &ray,
     const glm::vec3 &circle_center, // 圆环中心
     const glm::vec3 &circle_normal, // 圆环法向量 (单位向量)

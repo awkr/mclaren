@@ -8,7 +8,7 @@
 #include "vk_fence.h"
 #include "vk_semaphore.h"
 #include "vk_allocator.h"
-#include "vk_descriptor_allocator.h"
+#include "vk_descriptor_system.h"
 #include "core/logging.h"
 #include <SDL3/SDL_vulkan.h>
 

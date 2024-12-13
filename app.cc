@@ -11,7 +11,7 @@
 #include "vk_command_pool.h"
 #include "vk_context.h"
 #include "vk_descriptor.h"
-#include "vk_descriptor_allocator.h"
+#include "vk_descriptor_system.h"
 #include "vk_fence.h"
 #include "vk_image.h"
 #include "vk_image_view.h"
@@ -53,12 +53,12 @@ glm::vec3 screen_position_to_world_position(const glm::mat4 &projection_matrix, 
     return glm::vec3(world_pos);
 }
 
-Ray ray_from_screen(const glm::vec2 &screen_pos, const VkExtent2D &viewport_extent, const glm::vec3 &origin, const glm::mat4 &view_matrix, const glm::mat4 &projection_matrix) {
-    // fire a ray from `origin` to the world position of the `screen_pos`
-    const glm::vec3 near_pos = screen_position_to_world_position(projection_matrix, view_matrix, viewport_extent.width, viewport_extent.height, 0.0f, screen_pos.x, screen_pos.y);
+// fire a ray from camera position to the world position of the screen position
+Ray ray_from_screen(const VkExtent2D &viewport_extent, const float screen_pos_x, const float screen_pos_y, const glm::vec3 &camera_pos, const glm::mat4 &view_matrix, const glm::mat4 &projection_matrix) {
+    const glm::vec3 near_pos = screen_position_to_world_position(projection_matrix, view_matrix, viewport_extent.width, viewport_extent.height, 0.0f, screen_pos_x, screen_pos_y);
     Ray ray{};
-    ray.origin = origin;
-    ray.direction = glm::normalize(near_pos - origin);
+    ray.origin = camera_pos;
+    ray.direction = glm::normalize(near_pos - camera_pos);
     return ray;
 }
 
@@ -346,6 +346,52 @@ void app_create(SDL_Window *window, App **out_app) {
     create_gizmo(&app->mesh_system_state, vk_context, glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
     app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 
+  // {
+  //     // app->gizmo.rotation_start = glm::vec3(app->gizmo.config.ring_major_radius, 0.0f, 0.0f);
+  //     app->gizmo.rotation_start = glm::vec3(0.5f, 0.0f, -0.5f);
+  //     // app->gizmo.rotation_start = glm::vec3(0.0f, 0.0f, -1.0f);
+  //     // app->gizmo.rotation_end = glm::vec3(-app->gizmo.config.ring_major_radius, 0.0f, 0.0f);
+  //     // app->gizmo.rotation_end = glm::vec3(0.0f, 0.0f, -app->gizmo.config.ring_major_radius);
+  //     app->gizmo.rotation_end = glm::vec3(-0.5f, 0.0f, -app->gizmo.config.ring_major_radius);
+  //
+  //     const float radius = app->gizmo.config.ring_major_radius;
+  //     constexpr uint32_t sector = 64; // todo 根据角度大小动态确定sector数量
+  //
+  //     std::vector<ColoredVertex> vertices;
+  //     std::vector<uint32_t> indices;
+  //
+  //     const glm::vec3 normal = glm::normalize(glm::cross(app->gizmo.rotation_start, app->gizmo.rotation_end));
+  //     const float angle = glm::acos(glm::dot(glm::normalize(app->gizmo.rotation_end), glm::normalize(app->gizmo.rotation_start)));
+  //     const float sector_step = angle / (float) sector;
+  //
+  //     { // center vertex
+  //       ColoredVertex vertex{};
+  //       vertex.position = glm::vec3(0.0f);
+  //       vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  //       vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  //       vertices.push_back(vertex);
+  //     }
+  //
+  //     for (size_t i = 0; i <= sector; ++i) {
+  //       const float sector_angle = i * sector_step;
+  //       const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
+  //       const glm::vec3 pos = glm::vec3(rotation * glm::vec4(app->gizmo.rotation_start, 1.0f));
+  //       ColoredVertex vertex{};
+  //       vertex.position = pos;
+  //       vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  //       vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  //       vertices.push_back(vertex);
+  //     }
+  //
+  //     for (size_t i = 0; i < sector; ++i) {
+  //       indices.push_back(0);
+  //       indices.push_back(i + 1);
+  //       indices.push_back(i + 2);
+  //     }
+  //
+  //     create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), nullptr, &app->gizmo.rotation_sector_geometry);
+  // }
+
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
@@ -495,7 +541,7 @@ void app_create(SDL_Window *window, App **out_app) {
         generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
 
         Geometry geometry{};
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, &geometry);
         geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
         app->lit_geometries.push_back(geometry);
     }
@@ -629,7 +675,7 @@ void app_create(SDL_Window *window, App **out_app) {
             aabb.max = glm::max(aabb.max, vertex.position);
         }
 
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.arrow_geometry);
+        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, &app->gizmo.arrow_geometry);
     }
 
     {
@@ -682,7 +728,7 @@ void app_create(SDL_Window *window, App **out_app) {
         aabb.max = glm::max(aabb.max, vertex.position);
       }
 
-      create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, &app->gizmo.sector_geometry);
+      create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, &app->gizmo.sector_geometry);
     }
 
     app->frame_number = 0;
@@ -891,6 +937,9 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
         for (const Geometry &geometry : app->lit_geometries) {
+            if (!is_aabb_valid(geometry.aabb)) {
+              continue;
+            }
             glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
             InstanceState instance_state{};
@@ -929,11 +978,12 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
         for (const Geometry &geometry : app->line_geometries) {
-            glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+            const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
             for (const Mesh &mesh : geometry.meshes) {
                 InstanceState instance_state{};
                 instance_state.model_matrix = model_matrix;
+                instance_state.color = glm::vec4(1, 1, 1, 1);
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
                 vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
@@ -971,6 +1021,87 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
+
+    { // 绘制旋转角度
+      std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
+      std::deque<VkDescriptorBufferInfo> buffer_infos;
+      std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+      {
+        VkDescriptorSet descriptor_set;
+        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        descriptor_sets.push_back(descriptor_set);
+
+        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+        buffer_infos.push_back(descriptor_buffer_info);
+
+        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+        write_descriptor_sets.push_back(write_descriptor_set);
+      }
+      vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+
+      // 等待上次使用完毕，即上一帧渲染完毕
+      if (app->frame_number > 0) {
+        uint32_t last_frame_number = --app->frame_number;
+        uint8_t last_frame_index = last_frame_number % FRAMES_IN_FLIGHT;
+        RenderFrame *last_frame = &app->frames[last_frame_index];
+        vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence);
+      }
+      destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo.rotation_sector_geometry);
+      {
+        constexpr uint32_t sector = 64;
+
+        std::vector<ColoredVertex> vertices;
+        std::vector<uint32_t> indices;
+
+        const glm::vec3 normal = glm::normalize(glm::cross(app->gizmo.rotation_start, app->gizmo.rotation_end));
+        const float angle = glm::acos(glm::dot(glm::normalize(app->gizmo.rotation_end), glm::normalize(app->gizmo.rotation_start)));
+        const float sector_step = angle / (float) sector;
+
+        { // center vertex
+          ColoredVertex vertex{};
+          vertex.position = glm::vec3(0.0f);
+          vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+          vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+          vertices.push_back(vertex);
+        }
+
+        for (size_t i = 0; i <= sector; ++i) {
+          const float sector_angle = i * sector_step;
+          const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
+          const glm::vec3 pos = glm::vec3(rotation * glm::vec4(app->gizmo.rotation_start, 1.0f));
+          ColoredVertex vertex{};
+          vertex.position = pos;
+          vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+          vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+          vertices.push_back(vertex);
+        }
+
+        for (size_t i = 0; i < sector; ++i) {
+          indices.push_back(0);
+          indices.push_back(i + 1);
+          indices.push_back(i + 2);
+        }
+
+        create_geometry(&app->mesh_system_state, app->vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), nullptr, &app->gizmo.rotation_sector_geometry);
+      }
+
+      for (const Mesh &mesh : app->gizmo.rotation_sector_geometry.meshes) {
+        glm::mat4 model_matrix(1.0f);
+        model_matrix = gizmo_model_matrix * model_matrix;
+
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.color = glm::vec4(0.5f, 0.0f, 0.0f, 0.5f);
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+        vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+    }
 
     { // 绘制旋转环
       std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
@@ -1036,58 +1167,6 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
           vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &state);
 
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-          }
-        }
-      }
-    }
-
-    {
-      std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-      std::deque<VkDescriptorBufferInfo> buffer_infos;
-      std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-      {
-        VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-        descriptor_sets.push_back(descriptor_set);
-
-        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-        buffer_infos.push_back(descriptor_buffer_info);
-
-        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-        write_descriptor_sets.push_back(write_descriptor_set);
-      }
-      vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
-      for (const Mesh &mesh : app->gizmo.sector_geometry.meshes) {
-        // {
-        //   glm::mat4 model_matrix(1.0f);
-        //   model_matrix = gizmo_model_matrix * model_matrix;
-        //
-        //   InstanceState instance_state{};
-        //   instance_state.model_matrix = model_matrix;
-        //   instance_state.color = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f);
-        //   instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        //
-        //   vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-        //   for (const Primitive &primitive : mesh.primitives) {
-        //     vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-        //     vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-        //   }
-        // }
-        {
-          glm::mat4 model_matrix(1.0f);
-          model_matrix = gizmo_model_matrix * model_matrix;
-
-          InstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          instance_state.color = glm::vec4(0.5f, 0.0f, 0.0f, 0.5f);
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-          vk_cmd_push_constants(command_buffer, app->gizmo_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
           for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
             vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1346,7 +1425,7 @@ void update_scene(App *app) {
 
     app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
 
-  if (app->selected_mesh_id > 0) {
+  if (app->selected_mesh_id != UINT32_MAX) {
     for (const Geometry &geometry : app->lit_geometries) {
       for (const Mesh &mesh : geometry.meshes) {
         if (mesh.id == app->selected_mesh_id) {
@@ -1367,7 +1446,6 @@ void app_update(App *app, InputSystemState *input_system_state) {
     update_scene(app);
 
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
-    // log_debug("frame_index: %u", app->frame_index);
 
     RenderFrame *frame = &app->frames[app->frame_index];
 
@@ -1601,7 +1679,7 @@ void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y)
   app->mouse_pos_down[0] = x;
   app->mouse_pos_down[1] = y;
   if (app->gizmo.action & GIZMO_ACTION_TRANSLATE) {
-    const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
     const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
     glm::vec4 n(0.0f);
     if (app->gizmo.active_axis & GIZMO_AXIS_X) {
@@ -1619,6 +1697,42 @@ void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y)
       hit = raycast_plane(ray, app->gizmo.intersection_plane_back, app->gizmo.intersection_position);
       ASSERT(hit);
     }
+  } else if (app->gizmo.action & GIZMO_ACTION_ROTATE) {
+    // 记录旋转起点，即被激活的旋转轴的圆心到射线与该旋转轴所在平面的交点形成的向量与该旋转轴的交点
+
+    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+    const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
+    Ray ray_in_model_space{};
+    transform_ray_to_model_space(&ray, model_matrix, &ray_in_model_space);
+
+    glm::vec3 normal = glm::vec3(0.0f);
+    glm::vec3 center = glm::vec3(0.0f);
+    if (app->gizmo.active_axis & GIZMO_AXIS_X) {
+      normal = glm::vec3(1.0f, 0.0f, 0.0f);
+    } else if (app->gizmo.active_axis & GIZMO_AXIS_Y) {
+      normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    } else if (app->gizmo.active_axis & GIZMO_AXIS_Z) {
+      normal = glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+
+    const glm::vec3 center_to_ray_origin = ray_in_model_space.origin - center; // 从圆心指向射线起点的向量
+    const float denom = glm::dot(ray_in_model_space.direction, normal); // 射线方向与圆环法向量点积
+
+    glm::vec3 point_on_plane;
+    float t = -glm::dot(center_to_ray_origin, normal) / denom;
+    point_on_plane = ray_in_model_space.origin + t * ray_in_model_space.direction; // 射线方程
+
+    app->gizmo.rotation_start = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
+
+    // { // 测试代码
+    //   glm::vec3 rotation_start_in_world_space = glm::vec3(model_matrix * glm::vec4(app->gizmo.rotation_start, 1.0f));
+    //   Vertex vertices[2];
+    //   memcpy(vertices[0].position, glm::value_ptr(app->camera.position), sizeof(glm::vec3));
+    //   memcpy(vertices[1].position, glm::value_ptr(rotation_start_in_world_space), sizeof(glm::vec3) * 3);
+    //   Geometry geometry{};
+    //   create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
+    //   app->line_geometries.push_back(geometry);
+    // }
   }
 }
 
@@ -1633,7 +1747,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
   app->gizmo.active_axis = GIZMO_AXIS_NONE;
 
   {
-    float min_distance = 0.04f;
+    float min_distance = 0.03f;
     const Axis axes[3] = {
         {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length},
         {glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.axis_length + app->gizmo.config.arrow_length},
@@ -1654,7 +1768,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
   }
 
   {
-    float min_distance = 0.04f;
+    float min_distance = 0.03f;
     const StrokeCircle circles[3] = {
         {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), app->gizmo.config.ring_major_radius},
         {glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), app->gizmo.config.ring_major_radius},
@@ -1665,15 +1779,15 @@ void gizmo_check_ray(App *app, const Ray *ray) {
       const float theta = glm::acos(glm::dot(glm::normalize(circles[i].normal), glm::normalize(-ray_in_model_space.direction)));
       float padding;
       if (glm::degrees(theta) < 90.0f) {
-        padding = glm::max(glm::tan(theta) * 0.04f, 0.04f);
+        padding = glm::max(glm::tan(theta) * 0.03f, 0.03f);
       } else if (glm::degrees(theta) > 90.0f) {
         const float beta = glm::radians(90.0f - (glm::degrees(theta) - 90.0f));
-        padding = glm::min(glm::max(glm::tan(beta) * 0.04f, 0.04f), 0.06f);
+        padding = glm::min(glm::max(glm::tan(beta) * 0.03f, 0.03f), 0.06f);
       } else {
         app->gizmo.active_axis = (GizmoAxis) (1 << i);
         break;
       }
-      if (const float d = ray_ring_shortest_distance(ray_in_model_space, circles[i].center, circles[i].normal, app->gizmo.config.ring_major_radius - padding, app->gizmo.config.ring_major_radius + padding); d < min_distance) {
+      if (const float d = raycast_ring(ray_in_model_space, circles[i].center, circles[i].normal, app->gizmo.config.ring_major_radius - padding, app->gizmo.config.ring_major_radius + padding); d < min_distance) {
         min_distance = d;
         app->gizmo.active_axis = (GizmoAxis) (1 << i);
       }
@@ -1696,16 +1810,14 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     return;
   }
   {
-    const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
-    gizmo_check_ray(app, &ray);
+    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+    // gizmo_check_ray(app, &ray);
 
     Vertex vertices[2];
     memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
     memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
-    AABB aabb{};
-    generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
     Geometry geometry{};
-    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, aabb, &geometry);
+    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
     app->line_geometries.push_back(geometry);
   }
 
@@ -1723,7 +1835,7 @@ void app_mouse_move(App *app, float x, float y) {
   // log_debug("mouse moving %f, %f", x, y);
   app->mouse_pos[0] = x;
   app->mouse_pos[1] = y;
-  const Ray ray = ray_from_screen(glm::vec2(x, y), app->vk_context->swapchain_extent, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+  const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
   if (app->is_mouse_any_button_down) {
     if (app->gizmo.action & GIZMO_ACTION_TRANSLATE) {
       const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
@@ -1752,7 +1864,7 @@ void app_mouse_move(App *app, float x, float y) {
       }
       app->gizmo.intersection_position = intersection_position;
 
-      if (app->selected_mesh_id > 0) {
+      if (app->selected_mesh_id != UINT32_MAX) {
         for (Geometry &geometry : app->lit_geometries) {
           for (Mesh &mesh : geometry.meshes) {
             if (mesh.id == app->selected_mesh_id) {
@@ -1762,6 +1874,41 @@ void app_mouse_move(App *app, float x, float y) {
           }
         }
       }
+    } else if (app->gizmo.action & GIZMO_ACTION_ROTATE) {
+      // 记录旋转当前点
+
+      const glm::mat4 model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
+      Ray ray_in_model_space{};
+      transform_ray_to_model_space(&ray, model_matrix, &ray_in_model_space);
+
+      glm::vec3 normal = glm::vec3(0.0f);
+      glm::vec3 center = glm::vec3(0.0f);
+      if (app->gizmo.active_axis & GIZMO_AXIS_X) {
+        normal = glm::vec3(1.0f, 0.0f, 0.0f);
+      } else if (app->gizmo.active_axis & GIZMO_AXIS_Y) {
+        normal = glm::vec3(0.0f, 1.0f, 0.0f);
+      } else if (app->gizmo.active_axis & GIZMO_AXIS_Z) {
+        normal = glm::vec3(0.0f, 0.0f, 1.0f);
+      }
+
+      const glm::vec3 center_to_ray_origin = ray_in_model_space.origin - center; // 从圆心指向射线起点的向量
+      const float denom = glm::dot(ray_in_model_space.direction, normal); // 射线方向与圆环法向量点积
+
+      glm::vec3 point_on_plane;
+      float t = -glm::dot(center_to_ray_origin, normal) / denom;
+      point_on_plane = ray_in_model_space.origin + t * ray_in_model_space.direction; // 射线方程
+
+      app->gizmo.rotation_end = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
+
+      // { // 测试代码
+      //   glm::vec3 rotation_end_in_world_space = glm::vec3(model_matrix * glm::vec4(app->gizmo.rotation_end, 1.0f));
+      //   Vertex vertices[2];
+      //   memcpy(vertices[0].position, glm::value_ptr(app->camera.position), sizeof(glm::vec3));
+      //   memcpy(vertices[1].position, glm::value_ptr(rotation_end_in_world_space), sizeof(glm::vec3) * 3);
+      //   Geometry geometry{};
+      //   create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
+      //   app->line_geometries.push_back(geometry);
+      // }
     }
   } else {
     gizmo_check_ray(app, &ray);

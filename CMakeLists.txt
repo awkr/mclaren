@@ -32,7 +32,7 @@ set(VK_SRCS
         vk_buffer.cc
         vk_queue.cc
         vk_descriptor.cc
-        vk_descriptor_allocator.cc
+        vk_descriptor_system.cc
         vk_descriptor_writer.cc
         vk_pipeline.cc
         vk_allocator.cc

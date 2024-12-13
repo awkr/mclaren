@@ -22,6 +22,10 @@ struct AABB {
     glm::vec3 max = glm::vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 };
 
+inline bool is_aabb_valid(const AABB &aabb) {
+    return aabb.min != glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX) && aabb.max != glm::vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+}
+
 void generate_aabb_from_vertices(const Vertex *vertices, uint32_t vertex_count, AABB *out_aabb) noexcept;
 
 // 可被渲染的最小粒度的实体，若 `index_count` 大于 0，则调用 vkCmdDrawIndexed，否则调用 vkCmdDraw

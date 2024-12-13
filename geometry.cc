@@ -27,7 +27,7 @@ void dispose_geometry_config(GeometryConfig *config) noexcept {
     }
 }
 
-void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB &aabb, Geometry *geometry) {
+void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry) {
     Mesh mesh{};
     create_mesh(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
 
@@ -41,14 +41,16 @@ void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, 
 
     geometry->meshes.push_back(mesh);
 
-    geometry->aabb = aabb;
-    create_mesh_from_aabb(mesh_system_state, vk_context, aabb, geometry->aabb_mesh);
+    if (aabb && is_aabb_valid(*aabb)) {
+      geometry->aabb = *aabb;
+      create_mesh_from_aabb(mesh_system_state, vk_context, *aabb, geometry->aabb_mesh);
+    }
 
     geometry->transform = transform_identity();
 }
 
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
-  create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, config->aabb, geometry);
+  create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
 }
 
 void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
@@ -56,6 +58,7 @@ void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context,
     for (Mesh &mesh : geometry->meshes) {
         destroy_mesh(vk_context, &mesh);
     }
+    *geometry = Geometry(); // todo 改为memset
 }
 
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry) {
@@ -78,7 +81,7 @@ void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_con
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry) {
@@ -127,7 +130,7 @@ void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_cont
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry) {
@@ -191,7 +194,7 @@ void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk
     AABB aabb{};
     generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
 
-    create_geometry(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}
@@ -504,6 +507,106 @@ void generate_torus_geometry_config(float major_radius, float minor_radius, uint
   config->indices = indices;
 }
 
+void generate_sector_geometry_config(const glm::vec3 &start_pos, const glm::vec3 &end_pos, uint16_t sector_count, GeometryConfig *config) {
+  // const uint32_t vertex_count = (sector_count + 1) + 1;
+  // ColoredVertex *vertices = (ColoredVertex *) malloc(sizeof(ColoredVertex) * vertex_count);
+  // memset(vertices, 0, sizeof(ColoredVertex) * vertex_count);
+  //
+  // const uint32_t index_count = sector_count * 3;
+  // uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+  // memset(indices, 0, sizeof(uint32_t) * index_count);
+  //
+  // const float angle = glm::acos(glm::dot(glm::normalize(end_pos), glm::normalize(start_pos)));
+  // const float sector_step = angle / (float) sector_count;
+  //
+  // const glm::vec3 normal = glm::normalize(glm::cross(start_pos, end_pos));
+  //
+  // {
+  //   ColoredVertex *vertex = &vertices[0]; // center vertex
+  //   vertex->position = glm::vec3(0.0f);
+  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  // }
+  // {
+  //   ColoredVertex *vertex = &vertices[1];
+  //   vertex->position = start_pos;
+  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  // }
+  //
+  // for (size_t i = 1; i <= sector_count; ++i) {
+  //   const float sector_angle = i * sector_step;
+  //   const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
+  //   const glm::vec3 pos = glm::vec3(rotation * glm::vec4(start_pos, 1.0f));
+  //   ColoredVertex *vertex = &vertices[i + 1];
+  //   vertex->position = pos;
+  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  // }
+  //
+  // for (size_t i = 0; i < sector_count; ++i) {
+  //   indices[0 + i * 3] = 0;
+  //   indices[1 + i * 3] = angle <= 0 ? i + 2 : i + 1;
+  //   indices[2 + i * 3] = angle <= 0 ? i + 1 : i + 2;
+  // }
+  //
+  // config->vertex_count = vertex_count;
+  // config->vertex_stride = sizeof(ColoredVertex);
+  // config->vertices = vertices;
+  // config->index_count = index_count;
+  // config->index_stride = sizeof(uint32_t);
+  // config->indices = indices;
+
+  const uint32_t vertex_count = (sector_count + 1) + 1;
+  ColoredVertex *vertices = (ColoredVertex *) malloc(sizeof(ColoredVertex) * vertex_count);
+  memset(vertices, 0, sizeof(ColoredVertex) * vertex_count);
+
+  const uint32_t index_count = sector_count * 3;
+  uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+  memset(indices, 0, sizeof(uint32_t) * index_count);
+
+  const float angle = glm::acos(glm::dot(glm::normalize(end_pos), glm::normalize(start_pos)));
+  const float sector_step = angle / (float) sector_count;
+
+  const glm::vec3 normal = glm::normalize(glm::cross(start_pos, end_pos));
+
+  {
+    ColoredVertex *vertex = &vertices[0]; // center vertex
+    vertex->position = glm::vec3(0.0f);
+    vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  }
+  {
+    ColoredVertex *vertex = &vertices[1];
+    vertex->position = start_pos;
+    vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  }
+
+  for (size_t i = 1; i <= sector_count; ++i) {
+    const float sector_angle = i * sector_step;
+    const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
+    const glm::vec3 pos = glm::vec3(rotation * glm::vec4(start_pos, 1.0f));
+    ColoredVertex *vertex = &vertices[i + 1];
+    vertex->position = pos;
+    vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
+    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  }
+
+  for (size_t i = 0; i < sector_count; ++i) {
+    indices[0 + i * 3] = 0;
+    indices[1 + i * 3] = angle <= 0 ? i + 2 : i + 1;
+    indices[2 + i * 3] = angle <= 0 ? i + 1 : i + 2;
+  }
+
+  config->vertex_count = vertex_count;
+  config->vertex_stride = sizeof(ColoredVertex);
+  config->vertices = vertices;
+  config->index_count = index_count;
+  config->index_stride = sizeof(uint32_t);
+  config->indices = indices;
+}
+
 void generate_cone_geometry_config(float radius, uint16_t sector, GeometryConfig *config) {}
 
 void transform_ray_to_model_space(const Ray *ray, const glm::mat4 &model_matrix, Ray *out_ray) noexcept {
@@ -634,7 +737,7 @@ float ray_axis_shortest_distance(const Ray &ray, const Axis &axis, float &t, flo
   return glm::length(closest_point_on_ray - closest_point_on_axis);
 }
 
-float ray_ring_shortest_distance(const Ray &ray, const glm::vec3 &circle_center, const glm::vec3 &circle_normal, float radius_inner, float radius_outer) {
+float raycast_ring(const Ray &ray, const glm::vec3 &circle_center, const glm::vec3 &circle_normal, float radius_inner, float radius_outer) {
   // Step 1: 投影射线到圆环平面
   const glm::vec3 oc = ray.origin - circle_center; // 从圆心指向射线起点的向量
   const float denom = glm::dot(ray.direction, circle_normal); // 射线方向与圆环法向量点积

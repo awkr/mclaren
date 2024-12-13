@@ -1,6 +1,7 @@
 #include "gizmo.h"
 
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo) {
+  *gizmo = Gizmo(); // todo 改为memset
   gizmo->config.axis_length = 0.7f;
   gizmo->config.axis_radius = 0.008f;
   gizmo->config.arrow_length = 0.08f;
@@ -13,6 +14,7 @@ void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, con
 
 void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context) {
   destroy_geometry(mesh_system_state, vk_context, &gizmo->cube_geometry);
+  destroy_geometry(mesh_system_state, vk_context, &gizmo->rotation_sector_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->sector_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->ring_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->arrow_geometry);
