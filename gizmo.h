@@ -32,7 +32,6 @@ struct Gizmo {
   Geometry axis_geometry; // the body of the axes
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
-  Geometry sector_geometry;
   Geometry cube_geometry;
   Geometry rotation_sector_geometry;
 
