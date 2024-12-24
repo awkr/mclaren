@@ -31,6 +31,9 @@ void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkF
     VmaAllocationCreateInfo allocation_create_info{};
     allocation_create_info.usage = VMA_MEMORY_USAGE_GPU_ONLY; // always allocate images on dedicated GPU memory
     allocation_create_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) == VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
+      allocation_create_info.requiredFlags |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+    }
 
     VkResult result = vmaCreateImage(vk_context->allocator, &image_create_info, &allocation_create_info, &image->image,
                                      &image->allocation, nullptr);
