@@ -2,11 +2,11 @@
 
 #include "geometry.h"
 
-enum GizmoAction {
-  GIZMO_ACTION_NONE = 0,
-  GIZMO_ACTION_TRANSLATE = 1 << 0,
-  GIZMO_ACTION_ROTATE = 1 << 1,
-  GIZMO_ACTION_SCALE = 1 << 2,
+enum GizmoMode {
+  GIZMO_MODE_NONE = 0,
+  GIZMO_MODE_TRANSLATE = 1 << 0,
+  GIZMO_MODE_ROTATE = 1 << 1,
+  GIZMO_MODE_SCALE = 1 << 2,
 };
 
 enum GizmoAxis {
@@ -24,6 +24,8 @@ struct GizmoConfig {
   float arrow_radius;
   float ring_major_radius;
   float ring_minor_radius;
+  float cube_size;
+  float cube_offset;
 };
 
 struct Gizmo {
@@ -33,17 +35,20 @@ struct Gizmo {
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
   Geometry cube_geometry;
-  Geometry rotation_sector_geometry;
+  Geometry sector_geometry; // 旋转时的扇形角度平面
 
   Transform transform;
-  GizmoAction action;
+  GizmoMode mode;
   GizmoAxis active_axis;
   Plane intersection_plane;
   Plane intersection_plane_back;
   glm::vec3 intersection_position;
 
-  glm::vec3 rotation_start; // 相对旋转轴空间
-  glm::vec3 rotation_end; // 相对旋转轴空间
+  // rotation runtime data
+  glm::vec3 rotation_plane_normal; // in the coordinate space defined by the gizmo
+  glm::vec3 rotation_start_pos; // in the coordinate space defined by the gizmo
+  glm::vec3 rotation_end_pos; // in the coordinate space defined by the gizmo
+  char rotation_clock_dir; // '0': not set, 'C': counterclockwise, 'c': clockwise
 };
 
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo);

@@ -23,7 +23,7 @@ void create_window(PlatformContext *platform_context, uint16_t width, uint16_t h
 void platform_init(PlatformContext *platform_context) {
     bool succeed = SDL_Init(SDL_INIT_VIDEO);
     ASSERT_MESSAGE(succeed, "SDL_Init failed: %s", SDL_GetError());
-    create_window(platform_context, 1024, 768);
+    create_window(platform_context, 768, 576);
     event_system_create(&platform_context->event_system_state);
     input_system_create(platform_context->event_system_state, &platform_context->input_system_state);
     {

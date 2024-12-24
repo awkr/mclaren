@@ -1,5 +1,7 @@
 #include "geometry.h"
+#include "glm/gtx/string_cast.hpp"
 #include "vk_command_buffer.h"
+
 #include <core/logging.h>
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -507,100 +509,65 @@ void generate_torus_geometry_config(float major_radius, float minor_radius, uint
   config->indices = indices;
 }
 
-void generate_sector_geometry_config(const glm::vec3 &start_pos, const glm::vec3 &end_pos, uint16_t sector_count, GeometryConfig *config) {
-  // const uint32_t vertex_count = (sector_count + 1) + 1;
-  // ColoredVertex *vertices = (ColoredVertex *) malloc(sizeof(ColoredVertex) * vertex_count);
-  // memset(vertices, 0, sizeof(ColoredVertex) * vertex_count);
-  //
-  // const uint32_t index_count = sector_count * 3;
-  // uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
-  // memset(indices, 0, sizeof(uint32_t) * index_count);
-  //
-  // const float angle = glm::acos(glm::dot(glm::normalize(end_pos), glm::normalize(start_pos)));
-  // const float sector_step = angle / (float) sector_count;
-  //
-  // const glm::vec3 normal = glm::normalize(glm::cross(start_pos, end_pos));
-  //
-  // {
-  //   ColoredVertex *vertex = &vertices[0]; // center vertex
-  //   vertex->position = glm::vec3(0.0f);
-  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  // }
-  // {
-  //   ColoredVertex *vertex = &vertices[1];
-  //   vertex->position = start_pos;
-  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  // }
-  //
-  // for (size_t i = 1; i <= sector_count; ++i) {
-  //   const float sector_angle = i * sector_step;
-  //   const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
-  //   const glm::vec3 pos = glm::vec3(rotation * glm::vec4(start_pos, 1.0f));
-  //   ColoredVertex *vertex = &vertices[i + 1];
-  //   vertex->position = pos;
-  //   vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-  //   vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  // }
-  //
-  // for (size_t i = 0; i < sector_count; ++i) {
-  //   indices[0 + i * 3] = 0;
-  //   indices[1 + i * 3] = angle <= 0 ? i + 2 : i + 1;
-  //   indices[2 + i * 3] = angle <= 0 ? i + 1 : i + 2;
-  // }
-  //
-  // config->vertex_count = vertex_count;
-  // config->vertex_stride = sizeof(ColoredVertex);
-  // config->vertices = vertices;
-  // config->index_count = index_count;
-  // config->index_stride = sizeof(uint32_t);
-  // config->indices = indices;
-
-  const uint32_t vertex_count = (sector_count + 1) + 1;
+void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &start_pos, const glm::vec3 &end_pos, char clock_dir, uint16_t sector_count, GeometryConfig *config) {
+  const uint32_t vertex_count = sector_count + 1 + 1;
   ColoredVertex *vertices = (ColoredVertex *) malloc(sizeof(ColoredVertex) * vertex_count);
-  memset(vertices, 0, sizeof(ColoredVertex) * vertex_count);
 
   const uint32_t index_count = sector_count * 3;
   uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
-  memset(indices, 0, sizeof(uint32_t) * index_count);
 
-  const float angle = glm::acos(glm::dot(glm::normalize(end_pos), glm::normalize(start_pos)));
+  const glm::vec3 norm_a = glm::normalize(start_pos);
+  const glm::vec3 norm_b = glm::normalize(end_pos);
+
+  float angle = std::acos(glm::clamp(glm::dot(norm_a, norm_b), -1.0f, 1.0f));
+
+  const glm::vec3 cross = glm::cross(norm_a, norm_b);
+  const float dot = glm::dot(cross, normal);
+
+  log_debug("normal %s",glm::to_string(normal).c_str());
+  log_debug("angle %f",angle);
+  log_debug("clock dir %c",clock_dir);
+
+  if (clock_dir == 'C') {
+    if (dot < 0.0f) {
+      angle = 2 * glm::pi<float>() - angle;
+    }
+  } else if (clock_dir == 'c') {
+    angle = -angle;
+    if (dot > 0.0f) {
+      angle = -2 * glm::pi<float>() - angle;
+    }
+  } else {
+    ASSERT(false);
+  }
+
   const float sector_step = angle / (float) sector_count;
 
-  const glm::vec3 normal = glm::normalize(glm::cross(start_pos, end_pos));
-
-  {
-    ColoredVertex *vertex = &vertices[0]; // center vertex
+  { // center vertex
+    ColoredVertex *vertex = &vertices[0];
     vertex->position = glm::vec3(0.0f);
     vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  }
-  {
-    ColoredVertex *vertex = &vertices[1];
-    vertex->position = start_pos;
-    vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    vertex->normal = normal;
   }
 
-  for (size_t i = 1; i <= sector_count; ++i) {
+  for (size_t i = 0; i <= sector_count; ++i) {
     const float sector_angle = i * sector_step;
     const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
     const glm::vec3 pos = glm::vec3(rotation * glm::vec4(start_pos, 1.0f));
-    ColoredVertex *vertex = &vertices[i + 1];
+    ColoredVertex *vertex = &vertices[1 + i];
     vertex->position = pos;
     vertex->color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-    vertex->normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    vertex->normal = normal;
   }
 
   for (size_t i = 0; i < sector_count; ++i) {
-    indices[0 + i * 3] = 0;
-    indices[1 + i * 3] = angle <= 0 ? i + 2 : i + 1;
-    indices[2 + i * 3] = angle <= 0 ? i + 1 : i + 2;
+    indices[i * 3] = 0;
+    indices[i * 3 + 1] = angle > 0 ? i + 1 : i + 2;
+    indices[i * 3 + 2] = angle > 0 ? i + 2 : i + 1;
   }
 
   config->vertex_count = vertex_count;
-  config->vertex_stride = sizeof(ColoredVertex);
+  config->vertex_stride = sizeof(Vertex);
   config->vertices = vertices;
   config->index_count = index_count;
   config->index_stride = sizeof(uint32_t);

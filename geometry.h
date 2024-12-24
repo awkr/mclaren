@@ -54,7 +54,7 @@ void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_faci
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept;
-void generate_sector_geometry_config(const glm::vec3 &start_pos, const glm::vec3 &end_pos, uint16_t sector_count, GeometryConfig *config);
+void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &start_pos, const glm::vec3 &end_pos, char clock_dir, uint16_t sector_count, GeometryConfig *config);
 
 struct Ray {
   glm::vec3 origin;
