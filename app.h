@@ -4,16 +4,16 @@
 #include "geometry.h"
 #include "gizmo.h"
 #include "input_system.h"
+#include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
 #include <cstdint>
-#include <volk.h>
 #include <vk_mem_alloc.h>
+#include <volk.h>
 
 struct VkContext;
 struct SDL_Window;
 struct ImGuiContext;
 struct Image;
-struct DescriptorAllocator;
 
 #define FRAMES_IN_FLIGHT 2
 
@@ -25,7 +25,7 @@ struct RenderFrame {
     VkSemaphore render_finished_semaphore;
     VkFence in_flight_fence;
 
-    DescriptorAllocator *descriptor_allocator;
+    DescriptorAllocator descriptor_allocator;
 
     Buffer *global_state_buffer;
 };

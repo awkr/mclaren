@@ -75,11 +75,9 @@ bool vk_create_device(VkContext *vk_context) {
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_swapchain");
     required_extensions.push_back("VK_KHR_portability_subset");
-    required_extensions.push_back("VK_EXT_descriptor_indexing");
     required_extensions.push_back("VK_KHR_dynamic_rendering");
     required_extensions.push_back("VK_KHR_synchronization2");
     required_extensions.push_back("VK_KHR_copy_commands2");
-    required_extensions.push_back("VK_KHR_buffer_device_address");
     required_extensions.push_back("VK_KHR_fragment_shader_barycentric");
     required_extensions.push_back("VK_EXT_extended_dynamic_state");
     required_extensions.push_back("VK_KHR_push_descriptor");

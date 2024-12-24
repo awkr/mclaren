@@ -8,7 +8,7 @@
 #include "vk_command_pool.h"
 #include "vk_context.h"
 #include "vk_descriptor.h"
-#include "vk_descriptor_system.h"
+#include "vk_descriptor_allocator.h"
 #include "vk_fence.h"
 #include "vk_image.h"
 #include "vk_image_view.h"
@@ -168,12 +168,12 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
         vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
 
-        uint32_t max_sets = 5; // 计算着色器一个 set，lit pipeline 中 shader 两个 set，wireframe pipeline 一个 set，line pipeline 一个 set
-        std::vector<DescriptorPoolSizeRatio> size_ratios;
-        size_ratios.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
-        size_ratios.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3});
-        size_ratios.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
-        vk_descriptor_allocator_create(vk_context->device, max_sets, size_ratios, &frame->descriptor_allocator);
+        uint32_t max_sets = 100;
+        std::unordered_map<VkDescriptorType, uint32_t> descriptor_count;
+        descriptor_count.insert({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100});
+        descriptor_count.insert({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100});
+        descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
+        vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
         vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &frame->global_state_buffer);
     }
@@ -750,7 +750,7 @@ void app_destroy(App *app) {
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_buffer(app->vk_context, app->frames[i].global_state_buffer);
-        vk_descriptor_allocator_destroy(app->vk_context->device, app->frames[i].descriptor_allocator);
+        vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
@@ -762,11 +762,11 @@ void app_destroy(App *app) {
     delete app;
 }
 
-void draw_background(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
 
     VkDescriptorSet descriptor_set;
-    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
+    vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
 
     VkDescriptorImageInfo image_info = vk_descriptor_image_info(VK_NULL_HANDLE, app->color_image_view, VK_IMAGE_LAYOUT_GENERAL);
     VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &image_info, nullptr);
@@ -776,7 +776,7 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, const Rende
     vk_cmd_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0), std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
@@ -793,7 +793,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
             vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
 
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -804,7 +804,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         }
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -842,7 +842,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -882,7 +882,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -914,16 +914,16 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
     }
 
     { // draw lines
-        vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
-        vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-        vk_cmd_set_depth_test_enable(command_buffer, true);
+        // vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
+        // vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+        // vk_cmd_set_depth_test_enable(command_buffer, true);
 
         std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
         std::deque<VkDescriptorBufferInfo> buffer_infos;
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -954,7 +954,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
     }
 }
 
-void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
     vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
@@ -966,7 +966,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     {
         VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
         VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -987,7 +987,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
           VkDescriptorSet descriptor_set;
-          vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+          vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
           descriptor_sets.push_back(descriptor_set);
 
           VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -1039,7 +1039,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
       std::vector<VkWriteDescriptorSet> write_descriptor_sets;
       {
         VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+        vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
         descriptor_sets.push_back(descriptor_set);
 
         VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -1161,7 +1161,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -1227,7 +1227,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
             VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
             VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -1289,7 +1289,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, const RenderFrame *fra
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
-void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {
+void pick_object(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
   vk_cmd_set_scissor(command_buffer, app->mouse_pos[0], app->mouse_pos[1], 1, 1);
 
@@ -1298,7 +1298,7 @@ void pick_object(App *app, VkCommandBuffer command_buffer, const RenderFrame *fr
   std::vector<VkWriteDescriptorSet> write_descriptor_sets;
   {
     VkDescriptorSet descriptor_set;
-    vk_descriptor_allocator_alloc(app->vk_context->device, frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
+    vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
     descriptor_sets.push_back(descriptor_set);
 
     VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
@@ -1373,6 +1373,7 @@ bool begin_frame(App *app) { return false; }
 void end_frame(App *app) {}
 
 void app_update(App *app, InputSystemState *input_system_state) {
+  // return;
     update_scene(app);
 
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
@@ -1382,7 +1383,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
 
-    vk_descriptor_allocator_reset(app->vk_context->device, frame->descriptor_allocator);
+    vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
+    vk_reset_command_pool(app->vk_context->device, frame->command_pool);
 
     uint32_t image_index;
     VkResult result = vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);

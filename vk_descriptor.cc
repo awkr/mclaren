@@ -19,7 +19,7 @@ void vk_create_descriptor_pool(VkDevice device, uint32_t max_sets, const std::ve
                                VkDescriptorPool *descriptor_pool) {
     VkDescriptorPoolCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    create_info.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+    create_info.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     create_info.maxSets = max_sets;
     create_info.poolSizeCount = pool_sizes.size();
     create_info.pPoolSizes = pool_sizes.data();
