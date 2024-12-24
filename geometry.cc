@@ -524,10 +524,6 @@ void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &s
   const glm::vec3 cross = glm::cross(norm_a, norm_b);
   const float dot = glm::dot(cross, normal);
 
-  log_debug("normal %s",glm::to_string(normal).c_str());
-  log_debug("angle %f",angle);
-  log_debug("clock dir %c",clock_dir);
-
   if (clock_dir == 'C') {
     if (dot < 0.0f) {
       angle = 2 * glm::pi<float>() - angle;

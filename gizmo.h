@@ -39,10 +39,11 @@ struct Gizmo {
 
   Transform transform;
   GizmoMode mode;
-  GizmoAxis active_axis;
-  Plane intersection_plane;
-  Plane intersection_plane_back;
-  glm::vec3 intersection_position;
+  GizmoAxis axis;
+
+  // translation runtime data
+  Plane intersection_plane; // in the world space
+  glm::vec3 intersection_position; // in the world space
 
   // rotation runtime data
   glm::vec3 rotation_plane_normal; // in the coordinate space defined by the gizmo
