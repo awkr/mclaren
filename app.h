@@ -37,6 +37,7 @@ struct GlobalState {
     // glm::vec4 sunlight_color; // sunlight color and intensity ( power )
 };
 
+// 推荐不超过 128 bytes
 struct InstanceState {
     glm::mat4 model_matrix;
     glm::vec4 color;

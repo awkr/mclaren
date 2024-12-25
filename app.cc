@@ -150,6 +150,7 @@ void app_create(SDL_Window *window, App **out_app) {
     SDL_GetWindowSizeInPixels(window, &render_width, &render_height);
 
     App *app = new App();
+    *out_app = app;
     app->window = window;
     app->vk_context = new VkContext();
 
@@ -228,7 +229,11 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, true, false, true, true, depth_image_format,
+        DepthBiasConfig depth_bias_config{};
+        depth_bias_config.enabled = true;
+        depth_bias_config.constant_factor = 1.0f;
+        depth_bias_config.slope_factor = 0.5f;
+        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, true, false, true, depth_bias_config, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -248,7 +253,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, true /* endable deep test */, false, false /* disable deep write */, false, depth_image_format,
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, true /* endable deep test */, false, false /* disable deep write */, {}, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -267,7 +272,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, true, false, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->gizmo_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -286,7 +291,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
-        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, true, false, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, true, false, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -305,7 +310,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, true, true, false, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, true, true, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -692,8 +697,6 @@ void app_create(SDL_Window *window, App **out_app) {
     app->frame_number = 0;
     memset(app->mouse_pos, -1.0f, sizeof(float) * 2);
     app->selected_mesh_id = UINT32_MAX;
-
-    *out_app = app;
 }
 
 void app_destroy(App *app) {
@@ -783,7 +786,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     { // lit pipeline
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
 
-        vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
+        // vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
 
         std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
         std::deque<VkDescriptorBufferInfo> buffer_infos;
@@ -906,7 +909,6 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
             instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
 
             vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            vk_cmd_bind_vertex_buffer(command_buffer, geometry.aabb_mesh.vertex_buffer->handle, 0);
             for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
                 vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
             }
@@ -945,7 +947,6 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
                 instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
                 vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-                vk_cmd_bind_vertex_buffer(command_buffer, mesh.vertex_buffer->handle, 0);
                 for (const Primitive &primitive : mesh.primitives) {
                     vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
                 }
@@ -1373,7 +1374,6 @@ bool begin_frame(App *app) { return false; }
 void end_frame(App *app) {}
 
 void app_update(App *app, InputSystemState *input_system_state) {
-  // return;
     update_scene(app);
 
     app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;

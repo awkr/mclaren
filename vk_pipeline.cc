@@ -56,7 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dynamic, bool depth_write, bool depth_bias,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dynamic, bool depth_write, const DepthBiasConfig &depth_bias_config,
                                  VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
@@ -89,7 +89,11 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     // rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = depth_bias ? VK_TRUE : VK_FALSE;
+    rasterization_state_create_info.depthBiasEnable = depth_bias_config.enabled ? VK_TRUE : VK_FALSE;
+    if (depth_bias_config.enabled) {
+      rasterization_state_create_info.depthBiasConstantFactor = depth_bias_config.constant_factor;
+      rasterization_state_create_info.depthBiasSlopeFactor = depth_bias_config.slope_factor;
+    }
 
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info{};
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -136,7 +140,6 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
     if (is_depth_test_dynamic) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE); }
     if (primitive_topologies.size() > 1) { dynamic_states.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY); }
-    if (depth_bias) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS); }
 
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
     dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

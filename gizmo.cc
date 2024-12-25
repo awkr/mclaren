@@ -5,7 +5,7 @@ void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, con
   gizmo->config.axis_length = 0.7f;
   gizmo->config.axis_radius = 0.006f;
   gizmo->config.arrow_length = 0.08f;
-  gizmo->config.arrow_radius = 0.04f;
+  gizmo->config.arrow_radius = 0.035f;
   gizmo->config.ring_major_radius = 0.4f;
   gizmo->config.ring_minor_radius = 0.006f;
   gizmo->config.cube_size = 0.05f;
