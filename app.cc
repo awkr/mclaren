@@ -407,7 +407,7 @@ void app_create(SDL_Window *window, App **out_app) {
     // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
     // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
     gltf_model_geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
-    gltf_model_geometry.transform.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
+    gltf_model_geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     gltf_model_geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
     app->lit_geometries.push_back(gltf_model_geometry);
 
@@ -558,7 +558,7 @@ void app_create(SDL_Window *window, App **out_app) {
         Geometry geometry{};
         create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
         geometry.transform.position = glm::vec3(-4.0f, 0.0f, 0.0f);
-        // geometry.transform.rotation = glm::vec3(90.0f, 0.0f, 0.0f);
+        geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         app->lit_geometries.push_back(geometry);
         dispose_geometry_config(&config);
     }
@@ -1917,13 +1917,8 @@ void app_mouse_move(App *app, float x, float y) {
                   angle = -2 * glm::pi<float>() - angle;
                 }
               }
-              if (app->gizmo.axis & GIZMO_AXIS_X) {
-                geometry.transform.rotation.x = app->selected_mesh_transform.rotation.x + glm::degrees(angle);
-              } else if (app->gizmo.axis & GIZMO_AXIS_Y) {
-                geometry.transform.rotation.y = app->selected_mesh_transform.rotation.y + glm::degrees(angle);
-              } else if (app->gizmo.axis & GIZMO_AXIS_Z) {
-                geometry.transform.rotation.z = app->selected_mesh_transform.rotation.z + glm::degrees(angle);
-              }
+              glm::quat rotation = glm::angleAxis(angle, app->gizmo.rotation_plane_normal);
+              geometry.transform.rotation = rotation * app->selected_mesh_transform.rotation;
               break;
             }
           }

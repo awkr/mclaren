@@ -1,18 +1,22 @@
 #pragma once
 
 #include "mesh.h"
+#include <glm/gtc/quaternion.hpp>
 
 struct Transform {
   glm::vec3 position;
-  glm::vec3 rotation; // 单位：角度
+  glm::vec3 euler_angles; // 单位：角度
   glm::vec3 scale;
+
+  glm::quat rotation;
 };
 
 inline Transform transform_identity() noexcept {
   Transform transform{};
   transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-  transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+  transform.euler_angles = glm::vec3(0.0f, 0.0f, 0.0f);
   transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+  transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
   return transform;
 }
 

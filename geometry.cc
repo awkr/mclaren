@@ -9,9 +9,7 @@
 
 glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept { // 先缩放，再旋转，最后平移
   const glm::mat4 translation = glm::translate(glm::mat4(1.0f), transform.position);
-  const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f)) *
-                             glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
-                             glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+  const glm::mat4 rotation = glm::mat4_cast(transform.rotation);
   const glm::mat4 scale = glm::scale(glm::mat4(1.0f), transform.scale);
   glm::mat4 model_matrix(1.0f);
   model_matrix = translation * rotation * scale * model_matrix;
