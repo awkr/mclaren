@@ -116,6 +116,7 @@ struct App {
 
     float mouse_pos[2];
     uint32_t selected_mesh_id;
+    Transform selected_mesh_transform;
     bool is_mouse_any_button_down;
     float mouse_pos_down[2];
     bool clicked;

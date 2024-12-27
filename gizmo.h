@@ -41,6 +41,9 @@ struct Gizmo {
   GizmoMode mode;
   GizmoAxis axis;
 
+  // runtime data
+  bool is_mouse_any_button_down;
+
   // translation runtime data
   Plane intersection_plane; // in the world space
   glm::vec3 intersection_position; // in the world space
@@ -50,9 +53,10 @@ struct Gizmo {
   glm::vec3 rotation_start_pos; // in the coordinate space defined by the gizmo
   glm::vec3 rotation_end_pos; // in the coordinate space defined by the gizmo
   char rotation_clock_dir; // '0': not set, 'C': counterclockwise, 'c': clockwise
+  bool is_rotation_clock_dir_locked;
 };
 
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo);
 void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context);
-void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position);
+void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position); // world space
 const Transform &gizmo_get_transform(const Gizmo *gizmo);

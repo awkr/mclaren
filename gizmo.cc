@@ -3,11 +3,11 @@
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo) {
   *gizmo = Gizmo(); // todo 改为memset
   gizmo->config.axis_length = 0.7f;
-  gizmo->config.axis_radius = 0.006f;
+  gizmo->config.axis_radius = 0.004f;
   gizmo->config.arrow_length = 0.08f;
-  gizmo->config.arrow_radius = 0.035f;
+  gizmo->config.arrow_radius = 0.03f;
   gizmo->config.ring_major_radius = 0.4f;
-  gizmo->config.ring_minor_radius = 0.006f;
+  gizmo->config.ring_minor_radius = 0.004f;
   gizmo->config.cube_size = 0.05f;
   gizmo->config.cube_offset = 0.1f;
   gizmo->transform.position = position;

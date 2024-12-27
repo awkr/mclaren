@@ -8,15 +8,13 @@
 #include <microprofile.h>
 
 glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept { // 先缩放，再旋转，最后平移
+  const glm::mat4 translation = glm::translate(glm::mat4(1.0f), transform.position);
+  const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f)) *
+                             glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
+                             glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+  const glm::mat4 scale = glm::scale(glm::mat4(1.0f), transform.scale);
   glm::mat4 model_matrix(1.0f);
-  model_matrix = glm::translate(model_matrix, transform.position);
-  {
-    const glm::mat4 rotation_x = glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    const glm::mat4 rotation_y = glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    const glm::mat4 rotation_z = glm::rotate(glm::mat4(1.0f), glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    model_matrix = rotation_z * rotation_y * rotation_x * model_matrix;
-  }
-  model_matrix = glm::scale(model_matrix, transform.scale);
+  model_matrix = translation * rotation * scale * model_matrix;
   return model_matrix;
 }
 
@@ -519,6 +517,7 @@ void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &s
   const glm::vec3 norm_a = glm::normalize(start_pos);
   const glm::vec3 norm_b = glm::normalize(end_pos);
 
+  // 计算夹角
   float angle = std::acos(glm::clamp(glm::dot(norm_a, norm_b), -1.0f, 1.0f));
 
   const glm::vec3 cross = glm::cross(norm_a, norm_b);
@@ -529,12 +528,9 @@ void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &s
       angle = 2 * glm::pi<float>() - angle;
     }
   } else if (clock_dir == 'c') {
-    angle = -angle;
-    if (dot > 0.0f) {
+    if (angle = -angle; dot > 0.0f) {
       angle = -2 * glm::pi<float>() - angle;
     }
-  } else {
-    ASSERT(false);
   }
 
   const float sector_step = angle / (float) sector_count;
