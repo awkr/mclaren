@@ -229,11 +229,15 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = true;
+        depth_config.is_depth_test_dynamic = false;
         DepthBiasConfig depth_bias_config{};
-        depth_bias_config.enabled = true;
+        depth_bias_config.enable = true;
         depth_bias_config.constant_factor = 1.0f;
         depth_bias_config.slope_factor = 0.5f;
-        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, true, false, true, depth_bias_config, depth_image_format,
+        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, color_image_format, true, depth_config, depth_bias_config, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -253,7 +257,11 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_set_layouts[0] = app->global_state_descriptor_set_layout;
         vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, true /* endable deep test */, false, false /* disable deep write */, {}, depth_image_format,
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = false;
+        depth_config.is_depth_test_dynamic = false;
+        vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, color_image_format, true, depth_config, {}, depth_image_format,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, &app->wireframe_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -272,7 +280,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->gizmo_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, true, true, false, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = false;
+        depth_config.is_depth_test_dynamic = true;
+        vk_create_graphics_pipeline(vk_context->device, app->gizmo_pipeline_layout, color_image_format, true, depth_config, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->gizmo_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -291,7 +303,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
-        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, true, true, false, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = false;
+        depth_config.is_depth_test_dynamic = true;
+        vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, color_image_format, true, depth_config, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->line_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -310,7 +326,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_descriptor_set_layout};
         vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->object_picking_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, true, true, true, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = true;
+        depth_config.is_depth_test_dynamic = true;
+        vk_create_graphics_pipeline(vk_context->device, app->object_picking_pipeline_layout, VK_FORMAT_R32_UINT, false, depth_config, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                     primitive_topologies, VK_POLYGON_MODE_FILL, &app->object_picking_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);

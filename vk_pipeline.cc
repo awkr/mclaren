@@ -56,7 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, bool depth_test, bool is_depth_test_dynamic, bool depth_write, const DepthBiasConfig &depth_bias_config,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config,
                                  VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
     VkPipelineRenderingCreateInfo rendering_create_info{};
@@ -88,8 +88,8 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     rasterization_state_create_info.lineWidth = 1.0f;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = depth_bias_config.enabled ? VK_TRUE : VK_FALSE;
-    if (depth_bias_config.enabled) {
+    rasterization_state_create_info.depthBiasEnable = depth_bias_config.enable ? VK_TRUE : VK_FALSE;
+    if (depth_bias_config.enable) {
       rasterization_state_create_info.depthBiasConstantFactor = depth_bias_config.constant_factor;
       rasterization_state_create_info.depthBiasSlopeFactor = depth_bias_config.slope_factor;
     }
@@ -102,8 +102,8 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info{};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil_state_create_info.depthTestEnable = depth_test ? VK_TRUE : VK_FALSE;
-    depth_stencil_state_create_info.depthWriteEnable = depth_write ? VK_TRUE : VK_FALSE;
+    depth_stencil_state_create_info.depthTestEnable = depth_config.enable_test ? VK_TRUE : VK_FALSE;
+    depth_stencil_state_create_info.depthWriteEnable = depth_config.enable_write ? VK_TRUE : VK_FALSE;
     depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
     depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
@@ -137,7 +137,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
     std::vector<VkDynamicState> dynamic_states = {};
     dynamic_states.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamic_states.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    if (is_depth_test_dynamic) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE); }
+    if (depth_config.is_depth_test_dynamic) { dynamic_states.push_back(VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE); }
     if (primitive_topologies.size() > 1) { dynamic_states.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY); }
 
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
