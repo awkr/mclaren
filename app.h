@@ -27,7 +27,8 @@ struct RenderFrame {
 
     DescriptorAllocator descriptor_allocator;
 
-    Buffer *global_state_buffer;
+    Buffer *global_state_uniform_buffer;
+    VkDescriptorSet global_state_uniform_buffer_descriptor_set;
 };
 
 struct GlobalState {
@@ -81,7 +82,7 @@ struct App {
     VkImageView checkerboard_image_view;
     Image *uv_debug_image;
     VkImageView uv_debug_image_view;
-    VkSampler default_sampler_nearest;
+    VkSampler sampler_nearest;
 
     MeshSystemState mesh_system_state;
 

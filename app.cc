@@ -176,7 +176,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &frame->global_state_buffer);
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &frame->global_state_uniform_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -346,7 +346,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_image_view(vk_context->device, app->uv_debug_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->uv_debug_image_view);
     }
 
-    vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->default_sampler_nearest);
+    vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->sampler_nearest);
 
     create_camera(&app->camera, glm::vec3(-1.0f, 1.0f, 7.0f), glm::vec3(0.0f, 0.0f, -1.0f));
     create_gizmo(&app->mesh_system_state, vk_context, glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
@@ -708,7 +708,7 @@ void app_destroy(App *app) {
     for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
-    vk_destroy_sampler(app->vk_context->device, app->default_sampler_nearest);
+    vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
     vk_destroy_image(app->vk_context, app->uv_debug_image);
     vk_destroy_image_view(app->vk_context->device, app->checkerboard_image_view);
@@ -752,7 +752,7 @@ void app_destroy(App *app) {
     vk_destroy_image(app->vk_context, app->color_image);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_buffer(app->vk_context, app->frames[i].global_state_buffer);
+        vk_destroy_buffer(app->vk_context, app->frames[i].global_state_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
         vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
@@ -786,20 +786,17 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     { // lit pipeline
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
 
-        // vk_cmd_set_depth_bias(command_buffer, 1.0f, 0.0f, .5f); // 在非 reversed-z 情况下，使物体离相机更远
-
         std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
         std::deque<VkDescriptorBufferInfo> buffer_infos;
         std::deque<VkDescriptorImageInfo> image_infos;
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         {
-            vk_copy_data_to_buffer(app->vk_context, frame->global_state_buffer, &app->global_state, sizeof(GlobalState));
+            vk_copy_data_to_buffer(app->vk_context, frame->global_state_uniform_buffer, &app->global_state, sizeof(GlobalState));
 
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
+            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &frame->global_state_uniform_buffer_descriptor_set);
+            descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
 
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
+            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_uniform_buffer->handle, sizeof(GlobalState));
             buffer_infos.push_back(descriptor_buffer_info);
 
             VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
@@ -810,7 +807,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
             vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
             descriptor_sets.push_back(descriptor_set);
 
-            VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->default_sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             image_infos.push_back(descriptor_image_info);
 
             VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
@@ -840,21 +837,8 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     { // wireframe pipeline
         vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
 
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
-
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-            buffer_infos.push_back(descriptor_buffer_info);
-
-            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        std::vector<VkDescriptorSet> descriptor_sets;
+        descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
         for (const Geometry &geometry : app->wireframe_geometries) {
@@ -880,21 +864,8 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
         vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
         vk_cmd_set_depth_test_enable(command_buffer, true);
 
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
-
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-            buffer_infos.push_back(descriptor_buffer_info);
-
-            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        std::vector<VkDescriptorSet> descriptor_sets;
+        descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
         for (const Geometry &geometry : app->lit_geometries) {
@@ -916,25 +887,8 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
 
     { // draw lines
-        // vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
-        // vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-        // vk_cmd_set_depth_test_enable(command_buffer, true);
-
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
-
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-            buffer_infos.push_back(descriptor_buffer_info);
-
-            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+        std::vector<VkDescriptorSet> descriptor_sets;
+        descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
         vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
         for (const Geometry &geometry : app->line_geometries) {
@@ -962,44 +916,14 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline);
     vk_cmd_set_depth_test_enable(command_buffer, false);
 
-    std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-    std::deque<VkDescriptorBufferInfo> buffer_infos;
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    {
-        VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-        descriptor_sets.push_back(descriptor_set);
-
-        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-        buffer_infos.push_back(descriptor_buffer_info);
-
-        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-        write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+    std::vector<VkDescriptorSet> descriptor_sets;
+    descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
     const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
     if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
       if (app->gizmo.rotation_start_pos != glm::vec3(FLT_MAX) && app->gizmo.rotation_end_pos != glm::vec3(FLT_MAX)) { // 绘制旋转角度扇形平面
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-          VkDescriptorSet descriptor_set;
-          vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-          descriptor_sets.push_back(descriptor_set);
-
-          VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-          buffer_infos.push_back(descriptor_buffer_info);
-
-          VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-          write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
         // 等待上次使用完毕，即上一帧渲染完毕
         if (app->frame_number > 0) {
           uint32_t last_frame_number = --app->frame_number;
@@ -1035,23 +959,6 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
 
     { // 绘制旋转环
-      std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-      std::deque<VkDescriptorBufferInfo> buffer_infos;
-      std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-      {
-        VkDescriptorSet descriptor_set;
-        vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-        descriptor_sets.push_back(descriptor_set);
-
-        VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-        buffer_infos.push_back(descriptor_buffer_info);
-
-        VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-        write_descriptor_sets.push_back(write_descriptor_set);
-      }
-      vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
       for (const Mesh &mesh : app->gizmo.ring_geometry.meshes) {
         { // y axis
           glm::mat4 model_matrix(1.0f);
@@ -1193,23 +1100,6 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
 
     {
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
-
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-            buffer_infos.push_back(descriptor_buffer_info);
-
-            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
         for (const Mesh &mesh : app->gizmo.arrow_geometry.meshes) {
             { // x axis
                 glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
@@ -1277,23 +1167,6 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
 
     {
-        std::vector<VkDescriptorSet> descriptor_sets; // todo 提前预留空间，防止 resize 导致被其他地方引用的原有元素失效
-        std::deque<VkDescriptorBufferInfo> buffer_infos;
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        {
-            VkDescriptorSet descriptor_set;
-            vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-            descriptor_sets.push_back(descriptor_set);
-
-            VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-            buffer_infos.push_back(descriptor_buffer_info);
-
-            VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-            write_descriptor_sets.push_back(write_descriptor_set);
-        }
-        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-        vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->gizmo_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
         for (const Mesh &mesh : app->gizmo.cube_geometry.meshes) {
         { // x axis
             glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length + app->gizmo.config.arrow_length + app->gizmo.config.cube_offset + app->gizmo.config.cube_size * 0.5f, 0.0f, 0.0f));
@@ -1349,20 +1222,7 @@ void pick_object(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   vk_cmd_set_scissor(command_buffer, app->mouse_pos[0], app->mouse_pos[1], 1, 1);
 
   std::vector<VkDescriptorSet> descriptor_sets; // todo 1）提前预留空间，防止 resize 导致被其他地方引用的原有元素失效；2）如何释放这些 descriptor_set
-  std::deque<VkDescriptorBufferInfo> buffer_infos;
-  std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-  {
-    VkDescriptorSet descriptor_set;
-    vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_descriptor_set_layout, &descriptor_set);
-    descriptor_sets.push_back(descriptor_set);
-
-    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_buffer->handle, sizeof(GlobalState));
-    buffer_infos.push_back(descriptor_buffer_info);
-
-    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-    write_descriptor_sets.push_back(write_descriptor_set);
-  }
-  vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+  descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline);
   vk_cmd_set_depth_test_enable(command_buffer, true);
   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->object_picking_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
@@ -1420,7 +1280,7 @@ void update_scene(App *app) {
       }
     }
   }
-  app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
+  gizmo_set_scale(&app->gizmo, glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f));
 }
 
 bool begin_frame(App *app) { return false; }
@@ -1437,6 +1297,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
 
+    frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
     vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
     vk_reset_command_pool(app->vk_context->device, frame->command_pool);
 
@@ -1799,17 +1660,17 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
   if (mouse_button != MOUSE_BUTTON_LEFT) {
     return;
   }
-  {
-    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
-    // gizmo_check_ray(app, &ray);
-
-    Vertex vertices[2];
-    memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
-    memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
-    Geometry geometry{};
-    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
-    app->line_geometries.push_back(geometry);
-  }
+  // {
+  //   const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+  //   // gizmo_check_ray(app, &ray);
+  //
+  //   Vertex vertices[2];
+  //   memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
+  //   memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
+  //   Geometry geometry{};
+  //   create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
+  //   app->line_geometries.push_back(geometry);
+  // }
 
   // reset gizmo runtime data
   app->gizmo.is_mouse_any_button_down = false;

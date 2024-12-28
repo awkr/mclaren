@@ -29,6 +29,10 @@ void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position) {
   gizmo->transform.position = position;
 }
 
+void gizmo_set_scale(Gizmo *gizmo, const glm::vec3 &scale) {
+  gizmo->transform.scale = scale;
+}
+
 const Transform &gizmo_get_transform(const Gizmo *gizmo) {
   return gizmo->transform;
 }

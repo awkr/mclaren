@@ -57,6 +57,7 @@ void vk_descriptor_allocator_alloc(VkDevice device, DescriptorAllocator *allocat
 
     VkResult result = vk_allocate_descriptor_set(device, pool, layout, descriptor_set);
     if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
+        log_warning("all descriptor pools are exhausted, create a new one");
         allocator->exhausted_pools.push_back(pool);
 
         pool = create_descriptor_pool(device, allocator);

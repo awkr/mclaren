@@ -24,10 +24,10 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
 }
 
 void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const void *data, size_t size) {
-    void *mapped_ptr = nullptr;
-    VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &mapped_ptr);
+    void *dst = nullptr;
+    VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &dst);
     ASSERT(result == VK_SUCCESS);
-    memcpy(mapped_ptr, data, size);
+    memcpy(dst, data, size);
     vmaUnmapMemory(vk_context->allocator, buffer->allocation);
     result = vmaFlushAllocation(vk_context->allocator, buffer->allocation, 0, size);
     ASSERT(result == VK_SUCCESS);
