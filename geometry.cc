@@ -197,7 +197,7 @@ void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}
 
-void generate_cone_geometry_config(float radius, float height, uint16_t sector, GeometryConfig *config) {
+void generate_cone_geometry_config_lit(float radius, float height, uint16_t sector, GeometryConfig *config) {
   const uint32_t vertex_count = 1 + (sector + 1) + sector * 3; // center point + points of base circle + points of side
   Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
   memset(vertices, 0, sizeof(Vertex) * vertex_count);
@@ -312,6 +312,109 @@ void generate_cone_geometry_config(float radius, float height, uint16_t sector, 
   config->index_stride = sizeof(uint32_t);
   config->indices = indices;
   config->aabb = aabb;
+}
+
+void generate_cone_geometry_config_vertex_lit(float radius, float height, uint16_t sector, GeometryConfig *config) {
+  const uint32_t vertex_count = 1 + (sector + 1) + sector * 3; // center point + points of base circle + points of side
+  ColoredVertex *vertices = (ColoredVertex *) malloc(sizeof(ColoredVertex) * vertex_count);
+  memset(vertices, 0, sizeof(ColoredVertex) * vertex_count);
+
+  const uint32_t index_count = sector * 3 * 2;
+  uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
+  memset(indices, 0, sizeof(uint32_t) * index_count);
+
+  const float sector_step = 2 * glm::pi<float>() / (float) sector;
+
+  // base circle
+
+  { // center vertex
+    ColoredVertex *vertex = &vertices[0];
+    vertex->position[0] = 0.0f;
+    vertex->position[1] = 0.0f;
+    vertex->position[2] = 0.0f;
+    vertex->normal[0] = 0.0f;
+    vertex->normal[1] = -1.0f;
+    vertex->normal[2] = 0.0f;
+  }
+
+  for (size_t i = 0; i <= sector; ++i) {
+    float sector_angle = i * sector_step;
+    float a = cos(sector_angle);
+    float b = sin(sector_angle);
+    ColoredVertex *vertex = &vertices[1 + i];
+    vertex->position[0] = a * radius; // x
+    vertex->position[1] = 0.0f; // y
+    vertex->position[2] = b * radius; // z
+    vertex->normal[0] = 0.0f;
+    vertex->normal[1] = -1.0f;
+    vertex->normal[2] = 0.0f;
+  }
+
+  for (size_t i = 0; i < sector; ++i) {
+    indices[i * 3] = 0;
+    indices[i * 3 + 1] = i + 1;
+    indices[i * 3 + 2] = i + 2;
+  }
+
+  // side
+
+  uint32_t base_index = 1 + (sector + 1);
+  for (size_t i = 0; i < sector; ++i) {
+    /*  2
+     * /  \
+     * 0 - 1
+     */
+    float sector_angle = i * sector_step;
+
+    float face_angle = sector_angle + sector_step * 0.5f;
+    float alpha = atan(radius / height); // 斜面与 Y 轴的夹角
+    glm::vec3 normal;
+    normal.x = sin(alpha) * height * cos(alpha) * cos(face_angle);
+    normal.y = sin(alpha) * height * sin(alpha);
+    normal.z = -sin(alpha) * height * cos(alpha) * sin(face_angle);
+    normal = glm::normalize(normal);
+
+    { // 0
+      ColoredVertex *vertex = &vertices[base_index + i * 3];
+      vertex->position[0] = cos(sector_angle) * radius; // x
+      vertex->position[1] = 0.0f; // y
+      vertex->position[2] = -sin(sector_angle) * radius; // z
+      vertex->normal[0] = normal.x;
+      vertex->normal[1] = normal.y;
+      vertex->normal[2] = normal.z;
+    }
+    { // 1
+      ColoredVertex *vertex = &vertices[base_index + i * 3 + 1];
+      vertex->position[0] = cos(sector_angle + sector_step) * radius; // x
+      vertex->position[1] = 0.0f; // y
+      vertex->position[2] = -sin(sector_angle + sector_step) * radius; // z
+      vertex->normal[0] = normal.x;
+      vertex->normal[1] = normal.y;
+      vertex->normal[2] = normal.z;
+    }
+    { // 2
+      ColoredVertex *vertex = &vertices[base_index + i * 3 + 2];
+      vertex->position[0] = 0.0f; // x
+      vertex->position[1] = height; // y
+      vertex->position[2] = 0.0f; // z
+      vertex->normal[0] = normal.x;
+      vertex->normal[1] = normal.y;
+      vertex->normal[2] = normal.z;
+    }
+  }
+
+  for (size_t i = 0; i < sector; ++i) {
+    indices[3 * sector + i * 3] = base_index + i * 3;
+    indices[3 * sector + i * 3 + 1] = base_index + i * 3 + 1;
+    indices[3 * sector + i * 3 + 2] = base_index + i * 3 + 2;
+  }
+
+  config->vertex_count = vertex_count;
+  config->vertex_stride = sizeof(Vertex);
+  config->vertices = vertices;
+  config->index_count = index_count;
+  config->index_stride = sizeof(uint32_t);
+  config->indices = indices;
 }
 
 void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_facing_up, float radius, uint16_t sector, GeometryConfig *config) noexcept {

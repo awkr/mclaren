@@ -403,7 +403,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     { // create a cone geometry
       GeometryConfig config{};
-      generate_cone_geometry_config(0.5f, 1.0f, 8, &config);
+      generate_cone_geometry_config_lit(0.5f, 1.0f, 8, &config);
       Geometry geometry{};
       create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
       geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
@@ -450,97 +450,10 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-        const float radius = app->gizmo.config.arrow_radius;
-        const float height = app->gizmo.config.arrow_length;
-        constexpr uint32_t sector = 8;
-
-        std::vector<ColoredVertex> vertices;
-        std::vector<uint32_t> indices;
-
-        const float sector_step = 2 * glm::pi<float>() / (float) sector;
-
-        // base circle
-
-        { // center vertex
-            ColoredVertex vertex{};
-            vertex.position = glm::vec3(0.0f);
-            vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-            vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
-            vertices.push_back(vertex);
-        }
-
-        for (size_t i = 0; i <= sector; ++i) {
-            float sector_angle = i * sector_step;
-            float a = cos(sector_angle);
-            float b = sin(sector_angle);
-            ColoredVertex vertex{};
-            vertex.position = glm::vec3(a * radius, 0.0f, b * radius);
-            vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-            vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
-            vertices.push_back(vertex);
-        }
-
-        for (size_t i = 0; i < sector; ++i) {
-            indices.push_back(0);
-            indices.push_back(i + 1);
-            indices.push_back(i + 2);
-        }
-
-        // side
-
-        uint32_t base_index = vertices.size();
-        for (size_t i = 0; i < sector; ++i) {
-            /*  2
-             * /  \
-             * 0 - 1
-             */
-            float sector_angle = i * sector_step;
-
-            float face_angle = sector_angle + sector_step * 0.5f;
-            float alpha = atan(radius / height); // 斜面与 Y 轴的夹角
-            glm::vec3 normal;
-            normal.x = sin(alpha) * height * cos(alpha) * cos(face_angle);
-            normal.y = sin(alpha) * height * sin(alpha);
-            normal.z = -sin(alpha) * height * cos(alpha) * sin(face_angle);
-            normal = glm::normalize(normal);
-
-            { // 0
-                ColoredVertex vertex{};
-                vertex.position = glm::vec3(cos(sector_angle) * radius, 0.0f, -sin(sector_angle) * radius);
-                vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-                vertex.normal = normal;
-                vertices.push_back(vertex);
-            }
-            { // 1
-                ColoredVertex vertex{};
-                vertex.position = glm::vec3(cos(sector_angle + sector_step) * radius, 0.0f, -sin(sector_angle + sector_step) * radius);
-                vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-                vertex.normal = normal;
-                vertices.push_back(vertex);
-            }
-            { // 2
-                ColoredVertex vertex{};
-                vertex.position = glm::vec3(0.0f, height, 0.0f);
-                vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-                vertex.normal = normal;
-                vertices.push_back(vertex);
-            }
-        }
-
-        for (size_t i = 0; i < sector; ++i) {
-            indices.push_back(base_index + i * 3);
-            indices.push_back(base_index + i * 3 + 1);
-            indices.push_back(base_index + i * 3 + 2);
-        }
-
-        AABB aabb{};
-        for (size_t i = 0; i < 4; ++i) {
-            const ColoredVertex &vertex = vertices[i];
-            aabb.min = glm::min(aabb.min, vertex.position);
-            aabb.max = glm::max(aabb.max, vertex.position);
-        }
-
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, &app->gizmo.arrow_geometry);
+      GeometryConfig config{};
+      generate_cone_geometry_config_vertex_lit(app->gizmo.config.arrow_radius, app->gizmo.config.arrow_length, 8, &config);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.arrow_geometry);
+      dispose_geometry_config(&config);
     }
 
     {
