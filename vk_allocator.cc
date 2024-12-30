@@ -1,5 +1,5 @@
 #include "vk_allocator.h"
-#include "core/logging.h"
+#include "logging.h"
 #include "vk_context.h"
 
 #define VMA_IMPLEMENTATION

@@ -1,6 +1,6 @@
 #include "vk_instance.h"
+#include "logging.h"
 #include "vk_context.h"
-#include "core/logging.h"
 #include <vector>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,

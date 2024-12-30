@@ -1,5 +1,5 @@
 #include "vk_descriptor.h"
-#include "core/logging.h"
+#include "logging.h"
 
 void vk_create_descriptor_set_layout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings,
                                      VkDescriptorSetLayout *descriptor_set_layout) {

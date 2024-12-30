@@ -1,5 +1,5 @@
 #include "vk_sampler.h"
-#include "core/logging.h"
+#include "logging.h"
 
 void vk_create_sampler(VkDevice device, VkFilter mag_filter, VkFilter min_filter, VkSampler *sampler) {
     VkSamplerCreateInfo sampler_create_info = {};

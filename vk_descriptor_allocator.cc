@@ -1,5 +1,5 @@
 #include "vk_descriptor_allocator.h"
-#include "core/logging.h"
+#include "logging.h"
 #include "vk_descriptor.h"
 
 static VkDescriptorPool create_descriptor_pool(VkDevice device, DescriptorAllocator *allocator) {

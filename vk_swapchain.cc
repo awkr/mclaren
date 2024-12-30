@@ -1,6 +1,7 @@
 #include "vk_swapchain.h"
+#include "logging.h"
 #include "vk_context.h"
-#include "core/logging.h"
+#include "vk_image_view.h"
 
 static bool
 select_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR *surface_format) {
@@ -112,15 +113,21 @@ bool vk_create_swapchain(VkContext *vk_context, uint32_t width, uint32_t height)
                                      vk_context->swapchain_images.data());
     if (result != VK_SUCCESS) { return false; }
 
+    for (size_t i = 0; i < desired_image_count; ++i) {
+      VkImageView image_view = VK_NULL_HANDLE;
+      vk_create_image_view(vk_context->device, vk_context->swapchain_images[i], surface_format.format, VK_IMAGE_ASPECT_COLOR_BIT, 1, &image_view);
+      vk_context->swapchain_image_views.push_back(image_view);
+    }
+
     log_debug("vk swapchain created");
 
     return true;
 }
 
 void vk_destroy_swapchain(VkContext *vk_context) {
-    // for (uint16_t i = 0; i < vk_context->swapchain_image_count; ++i) {
-    //     vk_destroy_image_view(vk_context->device, vk_context->swapchain_image_views[i]);
-    // }
+    for (uint16_t i = 0; i < vk_context->swapchain_image_count; ++i) {
+        vk_destroy_image_view(vk_context->device, vk_context->swapchain_image_views[i]);
+    }
     vkDestroySwapchainKHR(vk_context->device, vk_context->swapchain, nullptr);
     log_debug("vk swapchain destroyed");
 }

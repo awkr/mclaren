@@ -1,5 +1,5 @@
 #include "vk_buffer.h"
-#include "core/logging.h"
+#include "logging.h"
 
 void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage, Buffer **out_buffer) {
     Buffer *buffer = new Buffer();

@@ -1,5 +1,5 @@
 #include "mesh_loader.h"
-#include "core/logging.h"
+#include "logging.h"
 #include "vk_command_buffer.h"
 
 void load_gltf(MeshSystemState *mesh_system_state, VkContext *vk_context, const char *filepath, Geometry *geometry) {

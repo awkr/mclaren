@@ -1,5 +1,5 @@
 #include "mesh.h"
-#include "core/logging.h"
+#include "logging.h"
 #include "vk_command_buffer.h"
 
 void generate_aabb_from_vertices(const Vertex *vertices, uint32_t vertex_count, AABB *out_aabb) noexcept {

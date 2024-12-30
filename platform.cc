@@ -1,8 +1,8 @@
 #include "platform.h"
 #include "app.h"
-#include "core/logging.h"
 #include "event_system.h"
 #include "input_system.h"
+#include "logging.h"
 #include <SDL3/SDL.h>
 #include <thread>
 

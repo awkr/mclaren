@@ -7,36 +7,40 @@ add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc camera.cc)
-set(CORE_SRCS core/logging.cc core/deletion_queue.cc
-        mesh_loader.cc
-        mesh.cc
-        geometry.cc
-        raycast.cc
-        event_system.cc
-        input_system.cc
-        gizmo.cc
-        frame_graph.cc
-        # scene.cc
+set(CORE_SRCS
+    logging.cc
+    core/deletion_queue.cc
+    mesh_loader.cc
+    mesh.cc
+    geometry.cc
+    raycast.cc
+    event_system.cc
+    input_system.cc
+    gizmo.cc
+    frame_graph.cc
+    # scene.cc
 )
 set(VK_SRCS
-        vk.cc
-        vk_instance.cc
-        vk_device.cc
-        vk_swapchain.cc
-        vk_command_pool.cc
-        vk_command_buffer.cc
-        vk_fence.cc
-        vk_semaphore.cc
-        vk_image.cc
-        vk_image_view.cc
-        vk_sampler.cc
-        vk_buffer.cc
-        vk_queue.cc
-        vk_descriptor.cc
-        vk_descriptor_allocator.cc
-        vk_descriptor_writer.cc
-        vk_pipeline.cc
-        vk_allocator.cc
+    vk.cc
+    vk_instance.cc
+    vk_device.cc
+    vk_swapchain.cc
+    vk_command_pool.cc
+    vk_command_buffer.cc
+    vk_fence.cc
+    vk_semaphore.cc
+    vk_image.cc
+    vk_image_view.cc
+    vk_sampler.cc
+    vk_buffer.cc
+    vk_queue.cc
+    vk_descriptor.cc
+    vk_descriptor_allocator.cc
+    vk_descriptor_writer.cc
+    vk_pipeline.cc
+    vk_allocator.cc
+    vk_render_pass.cc
+    vk_framebuffer.cc
 )
 
 add_executable(mclaren main.cc ${PLATFORM_SRCS} ${APP_SRCS} ${CORE_SRCS} ${VK_SRCS})
@@ -47,9 +51,9 @@ target_compile_definitions(mclaren PRIVATE GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_compile_definitions(mclaren PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
 target_compile_options(mclaren PRIVATE
-        $<$<CXX_COMPILER_ID:GNU>:-fno-exceptions>
-        $<$<CXX_COMPILER_ID:Clang>:-fno-exceptions>
-        $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+    $<$<CXX_COMPILER_ID:GNU>:-fno-exceptions>
+    $<$<CXX_COMPILER_ID:Clang>:-fno-exceptions>
+    $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
 )
 
 if (IOS)
@@ -68,7 +72,7 @@ elseif (APPLE)
         message(FATAL_ERROR "VULKAN_SDK environment variable is not set")
     endif ()
     set_target_properties(${PROJECT_NAME} PROPERTIES
-            INSTALL_RPATH "$ENV{VULKAN_SDK}/lib"
-            BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH "$ENV{VULKAN_SDK}/lib"
+        BUILD_WITH_INSTALL_RPATH TRUE
     )
 endif ()

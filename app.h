@@ -57,6 +57,9 @@ struct App {
     uint64_t frame_number;
     uint32_t frame_index;
 
+    VkRenderPass render_pass;
+    std::vector<VkFramebuffer> framebuffers;
+
     RenderFrame frames[FRAMES_IN_FLIGHT];
 
     Image *color_image;

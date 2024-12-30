@@ -1,10 +1,10 @@
 #include "vk_image.h"
-#include "vk_context.h"
+#include "logging.h"
 #include "vk_buffer.h"
 #include "vk_command_buffer.h"
+#include "vk_context.h"
 #include "vk_fence.h"
 #include "vk_queue.h"
-#include "core/logging.h"
 
 void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image) {
     Image *image = new Image();

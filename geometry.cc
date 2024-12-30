@@ -2,7 +2,7 @@
 #include "glm/gtx/string_cast.hpp"
 #include "vk_command_buffer.h"
 
-#include <core/logging.h>
+#include "logging.h"
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <microprofile.h>

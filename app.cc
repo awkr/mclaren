@@ -1,7 +1,7 @@
 #include "app.h"
 #include "core/deletion_queue.h"
-#include "core/logging.h"
 #include "frame_graph.h"
+#include "logging.h"
 #include "mesh_loader.h"
 #include "vk.h"
 #include "vk_buffer.h"
@@ -11,10 +11,12 @@
 #include "vk_descriptor.h"
 #include "vk_descriptor_allocator.h"
 #include "vk_fence.h"
+#include "vk_framebuffer.h"
 #include "vk_image.h"
 #include "vk_image_view.h"
 #include "vk_pipeline.h"
 #include "vk_queue.h"
+#include "vk_render_pass.h"
 #include "vk_sampler.h"
 #include "vk_semaphore.h"
 #include "vk_swapchain.h"
@@ -158,6 +160,13 @@ void app_create(SDL_Window *window, App **out_app) {
     vk_init(app->vk_context, window, render_width, render_height);
 
     VkContext *vk_context = app->vk_context;
+
+    vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, &app->render_pass);
+
+    app->framebuffers.resize(vk_context->swapchain_image_count);
+    for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
+      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->render_pass, vk_context->swapchain_image_views[i], &app->framebuffers[i]);
+    }
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
 
@@ -532,6 +541,11 @@ void app_destroy(App *app) {
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
     }
 
+    for (size_t i = 0; i < app->framebuffers.size(); ++i) {
+        vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
+    }
+    app->framebuffers.clear();
+    vk_destroy_render_pass(app->vk_context->device, app->render_pass);
     vk_terminate(app->vk_context);
     delete app->vk_context;
     delete app;

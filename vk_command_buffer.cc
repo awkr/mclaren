@@ -1,9 +1,9 @@
 #include "vk_command_buffer.h"
+#include "logging.h"
 #include "vk_context.h"
 #include "vk_fence.h"
 #include "vk_image.h"
 #include "vk_queue.h"
-#include "core/logging.h"
 
 bool vk_alloc_command_buffers(VkDevice device, VkCommandPool command_pool, uint32_t count,
                               VkCommandBuffer *command_buffers) {
