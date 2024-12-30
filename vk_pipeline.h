@@ -12,16 +12,16 @@ void vk_create_pipeline_layout(VkDevice device, uint32_t descriptor_set_layout_c
 
 void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layout);
 
-struct DepthBiasConfig {
-  bool enable;
-  float constant_factor;
-  float slope_factor;
-};
-
 struct DepthConfig {
   bool enable_test;
   bool enable_write;
   bool is_depth_test_dynamic;
+};
+
+struct DepthBiasConfig {
+  bool enable;
+  float constant_factor;
+  float slope_factor;
 };
 
 void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config, VkFormat depth_attachment_format,

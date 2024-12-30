@@ -7,7 +7,7 @@ add_subdirectory(third-party)
 
 set(PLATFORM_SRCS platform.cc)
 set(APP_SRCS app.cc camera.cc)
-set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc
+set(CORE_SRCS core/logging.cc core/deletion_queue.cc
         mesh_loader.cc
         mesh.cc
         geometry.cc
@@ -15,6 +15,7 @@ set(CORE_SRCS core/logging.cc core/deletion_queue.cc core/frame_graph.cc
         event_system.cc
         input_system.cc
         gizmo.cc
+        frame_graph.cc
         # scene.cc
 )
 set(VK_SRCS

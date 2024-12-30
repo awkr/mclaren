@@ -1,6 +1,7 @@
 #include "app.h"
 #include "core/deletion_queue.h"
 #include "core/logging.h"
+#include "frame_graph.h"
 #include "mesh_loader.h"
 #include "vk.h"
 #include "vk_buffer.h"
@@ -372,52 +373,6 @@ void app_create(SDL_Window *window, App **out_app) {
     create_gizmo(&app->mesh_system_state, vk_context, glm::vec3(0.0f, 1.5f, 0.0f), &app->gizmo);
     // app->gizmo.transform.scale = glm::vec3(glm::length(app->camera.position - app->gizmo.transform.position) * 0.2f);
 
-  // {
-  //     // app->gizmo.rotation_start = glm::vec3(app->gizmo.config.ring_major_radius, 0.0f, 0.0f);
-  //     app->gizmo.rotation_start = glm::vec3(0.5f, 0.0f, -0.5f);
-  //     // app->gizmo.rotation_start = glm::vec3(0.0f, 0.0f, -1.0f);
-  //     // app->gizmo.rotation_end = glm::vec3(-app->gizmo.config.ring_major_radius, 0.0f, 0.0f);
-  //     // app->gizmo.rotation_end = glm::vec3(0.0f, 0.0f, -app->gizmo.config.ring_major_radius);
-  //     app->gizmo.rotation_end = glm::vec3(-0.5f, 0.0f, -app->gizmo.config.ring_major_radius);
-  //
-  //     const float radius = app->gizmo.config.ring_major_radius;
-  //     constexpr uint32_t sector = 64; // todo 根据角度大小动态确定sector数量
-  //
-  //     std::vector<ColoredVertex> vertices;
-  //     std::vector<uint32_t> indices;
-  //
-  //     const glm::vec3 normal = glm::normalize(glm::cross(app->gizmo.rotation_start, app->gizmo.rotation_end));
-  //     const float angle = glm::acos(glm::dot(glm::normalize(app->gizmo.rotation_end), glm::normalize(app->gizmo.rotation_start)));
-  //     const float sector_step = angle / (float) sector;
-  //
-  //     { // center vertex
-  //       ColoredVertex vertex{};
-  //       vertex.position = glm::vec3(0.0f);
-  //       vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-  //       vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  //       vertices.push_back(vertex);
-  //     }
-  //
-  //     for (size_t i = 0; i <= sector; ++i) {
-  //       const float sector_angle = i * sector_step;
-  //       const glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), sector_angle, normal);
-  //       const glm::vec3 pos = glm::vec3(rotation * glm::vec4(app->gizmo.rotation_start, 1.0f));
-  //       ColoredVertex vertex{};
-  //       vertex.position = pos;
-  //       vertex.color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-  //       vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-  //       vertices.push_back(vertex);
-  //     }
-  //
-  //     for (size_t i = 0; i < sector; ++i) {
-  //       indices.push_back(0);
-  //       indices.push_back(i + 1);
-  //       indices.push_back(i + 2);
-  //     }
-  //
-  //     create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(ColoredVertex), indices.data(), indices.size(), sizeof(uint32_t), nullptr, &app->gizmo.rotation_sector_geometry);
-  // }
-
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
@@ -447,129 +402,13 @@ void app_create(SDL_Window *window, App **out_app) {
     app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
 
     { // create a cone geometry
-        // GeometryConfig config{};
-        // generate_cone_geometry_config(0.5f, 1.0f, 8, 1, &config);
-        // Geometry geometry;
-        // create_geometry_from_config(vk_context, &config, &geometry);
-        // cone_geometry.position = glm::vec3(-3.0f, 0.0f, 0.0f);
-        // app->lit_geometries.push_back(cone_geometry);
-        // dispose_geometry_config(&config);
-
-        float radius = 0.5f;
-        float height = 1.0f;
-        uint32_t sector = 8;
-
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-
-        const float sector_step = 2 * glm::pi<float>() / (float) sector;
-
-        // base circle
-
-        { // center vertex
-            Vertex vertex{};
-            vertex.position[0] = 0.0f;
-            vertex.position[1] = 0.0f;
-            vertex.position[2] = 0.0f;
-            vertex.tex_coord[0] = 0.5f;
-            vertex.tex_coord[1] = 0.5f;
-            vertex.normal[0] = 0.0f;
-            vertex.normal[1] = -1.0f;
-            vertex.normal[2] = 0.0f;
-            vertices.push_back(vertex);
-        }
-
-        for (size_t i = 0; i <= sector; ++i) {
-            float sector_angle = i * sector_step;
-            float a = cos(sector_angle);
-            float b = sin(sector_angle);
-            Vertex vertex{};
-            vertex.position[0] = a * radius; // x
-            vertex.position[1] = 0.0f; // y
-            vertex.position[2] = b * radius; // z
-            vertex.tex_coord[0] = a * 0.5f + 0.5f;
-            vertex.tex_coord[1] = b * 0.5f + 0.5f;
-            vertex.normal[0] = 0.0f;
-            vertex.normal[1] = -1.0f;
-            vertex.normal[2] = 0.0f;
-            vertices.push_back(vertex);
-        }
-
-        for (size_t i = 0; i < sector; ++i) {
-            indices.push_back(0);
-            indices.push_back(i + 1);
-            indices.push_back(i + 2);
-        }
-
-        // side
-
-        uint32_t base_index = vertices.size();
-        for (size_t i = 0; i < sector; ++i) {
-            /*  2
-             * /  \
-             * 0 - 1
-             */
-            float sector_angle = i * sector_step;
-
-            float face_angle = sector_angle + sector_step * 0.5f;
-            float alpha = atan(radius / height); // 斜面与 Y 轴的夹角
-            glm::vec3 normal;
-            normal.x = sin(alpha) * height * cos(alpha) * cos(face_angle);
-            normal.y = sin(alpha) * height * sin(alpha);
-            normal.z = -sin(alpha) * height * cos(alpha) * sin(face_angle);
-            normal = glm::normalize(normal);
-
-            { // 0
-                Vertex vertex{};
-                vertex.position[0] = cos(sector_angle) * radius; // x
-                vertex.position[1] = 0.0f; // y
-                vertex.position[2] = -sin(sector_angle) * radius; // z
-                vertex.tex_coord[0] = (float) i / (float) sector;
-                vertex.tex_coord[1] = 0.0f;
-                vertex.normal[0] = normal.x;
-                vertex.normal[1] = normal.y;
-                vertex.normal[2] = normal.z;
-                vertices.push_back(vertex);
-            }
-            { // 1
-                Vertex vertex{};
-                vertex.position[0] = cos(sector_angle + sector_step) * radius; // x
-                vertex.position[1] = 0.0f; // y
-                vertex.position[2] = -sin(sector_angle + sector_step) * radius; // z
-                vertex.tex_coord[0] = (float) (i + 1) / (float) sector;
-                vertex.tex_coord[1] = 0.0f;
-                vertex.normal[0] = normal.x;
-                vertex.normal[1] = normal.y;
-                vertex.normal[2] = normal.z;
-                vertices.push_back(vertex);
-            }
-            { // 2
-                Vertex vertex{};
-                vertex.position[0] = 0.0f; // x
-                vertex.position[1] = height; // y
-                vertex.position[2] = 0.0f; // z
-                vertex.tex_coord[0] = ((float) i / (float) sector + (float) (i + 1) / (float) sector) * 0.5f;
-                vertex.tex_coord[1] = 1.0f;
-                vertex.normal[0] = normal.x;
-                vertex.normal[1] = normal.y;
-                vertex.normal[2] = normal.z;
-                vertices.push_back(vertex);
-            }
-        }
-
-        for (size_t i = 0; i < sector; ++i) {
-            indices.push_back(base_index + i * 3);
-            indices.push_back(base_index + i * 3 + 1);
-            indices.push_back(base_index + i * 3 + 2);
-        }
-
-        AABB aabb{};
-        generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
-
-        Geometry geometry{};
-        create_geometry(&app->mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, &geometry);
-        geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
-        app->lit_geometries.push_back(geometry);
+      GeometryConfig config{};
+      generate_cone_geometry_config(0.5f, 1.0f, 8, &config);
+      Geometry geometry{};
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+      geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
+      app->lit_geometries.push_back(geometry);
+      dispose_geometry_config(&config);
     }
 
     {
