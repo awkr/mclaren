@@ -96,8 +96,8 @@ struct App {
 
     ImGuiContext *gui_context;
 
-    VkPipelineLayout gizmo_pipeline_layout;
-    VkPipeline gizmo_pipeline;
+    VkPipelineLayout vertex_lit_pipeline_layout;
+    VkPipeline vertex_lit_pipeline;
 
     VkPipelineLayout line_pipeline_layout;
     VkPipeline line_pipeline;
