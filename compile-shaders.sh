@@ -11,5 +11,5 @@ glslangValidator -V shaders/vertex-lit.vert -o shaders/vertex-lit.vert.spv
 glslangValidator -V shaders/vertex-lit.frag -o shaders/vertex-lit.frag.spv
 glslangValidator -V shaders/line.vert -o shaders/line.vert.spv
 glslangValidator -V shaders/line.frag -o shaders/line.frag.spv
-glslangValidator -V shaders/object-picking.vert -o shaders/object-picking.vert.spv
-glslangValidator -V shaders/object-picking.frag -o shaders/object-picking.frag.spv
+glslangValidator -V shaders/entity-picking.vert -o shaders/entity-picking.vert.spv
+glslangValidator -V shaders/entity-picking.frag -o shaders/entity-picking.frag.spv

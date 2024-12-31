@@ -55,6 +55,7 @@ struct App {
     uint64_t frame_count;
 
     VkRenderPass lit_render_pass;
+    VkRenderPass entity_picking_render_pass;
     std::vector<VkFramebuffer> framebuffers;
     std::vector<VkSemaphore> present_complete_semaphores;
     std::vector<VkSemaphore> render_complete_semaphores;
@@ -105,14 +106,12 @@ struct App {
     VkPipelineLayout line_pipeline_layout;
     VkPipeline line_pipeline;
 
-    VkPipelineLayout object_picking_pipeline_layout;
-    VkPipeline object_picking_pipeline;
+    VkPipelineLayout entity_picking_pipeline_layout;
+    VkPipeline entity_picking_pipeline;
 
-    Image *object_picking_color_image;
-    VkImageView object_picking_color_image_view;
-
-    Image *object_picking_depth_image;
-    VkImageView object_picking_depth_image_view;
+    std::vector<Image *> entity_picking_color_images;
+    std::vector<VkImageView> entity_picking_color_image_views;
+    std::vector<VkFramebuffer> entity_picking_framebuffers;
 
     Buffer *object_picking_buffer;
 

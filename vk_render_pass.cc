@@ -1,26 +1,26 @@
 #include "vk_render_pass.h"
 #include "logging.h"
 
-void vk_create_render_pass(VkDevice device, VkFormat color_image_format, VkFormat depth_image_format, VkRenderPass *render_pass) {
+void vk_create_render_pass(VkDevice device, const AttachmentConfig &color_attachment_config, const AttachmentConfig &depth_attachment_config, VkRenderPass *render_pass) {
   VkAttachmentDescription attachments[2] = {};
 
-  attachments[0].format = color_image_format;
+  attachments[0].format = color_attachment_config.format;
   attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-  attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+  attachments[0].loadOp = color_attachment_config.load_op;
+  attachments[0].storeOp = color_attachment_config.store_op;
   attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  attachments[0].initialLayout = color_attachment_config.initial_layout;
+  attachments[0].finalLayout = color_attachment_config.final_layout;
 
-  attachments[1].format = depth_image_format;
+  attachments[1].format = depth_attachment_config.format;
   attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-  attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  attachments[1].loadOp = depth_attachment_config.load_op;
+  attachments[1].storeOp = depth_attachment_config.store_op;
   attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  attachments[1].initialLayout = depth_attachment_config.initial_layout;
+  attachments[1].finalLayout = depth_attachment_config.final_layout;
 
   VkAttachmentReference color_attachment_ref = {};
   color_attachment_ref.attachment = 0;

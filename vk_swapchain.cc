@@ -115,7 +115,7 @@ bool vk_create_swapchain(VkContext *vk_context, uint32_t width, uint32_t height)
 
     vk_context->swapchain_image_views.resize(desired_image_count);
     for (size_t i = 0; i < desired_image_count; ++i) {
-      vk_create_image_view(vk_context->device, vk_context->swapchain_images[i], surface_format.format, VK_IMAGE_ASPECT_COLOR_BIT, 1, &vk_context->swapchain_image_views[i]);
+      vk_create_image_view(vk_context->device, vk_context->swapchain_images[i], surface_format.format, VK_IMAGE_ASPECT_COLOR_BIT, &vk_context->swapchain_image_views[i]);
     }
 
     log_debug("vk swapchain created");
