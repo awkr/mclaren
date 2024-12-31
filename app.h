@@ -54,7 +54,7 @@ struct App {
     VkContext *vk_context;
     uint64_t frame_count;
 
-    VkRenderPass render_pass;
+    VkRenderPass lit_render_pass;
     std::vector<VkFramebuffer> framebuffers;
     std::vector<VkSemaphore> present_complete_semaphores;
     std::vector<VkSemaphore> render_complete_semaphores;

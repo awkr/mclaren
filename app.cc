@@ -137,13 +137,13 @@ void app_create(SDL_Window *window, App **out_app) {
 
     const VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
 
-    vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, depth_image_format, &app->render_pass);
+    vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, depth_image_format, &app->lit_render_pass);
 
     create_depth_image(app, depth_image_format);
     app->framebuffers.resize(vk_context->swapchain_image_count);
     for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
       VkImageView attachments[2] = {vk_context->swapchain_image_views[i], app->depth_image_view};
-      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->render_pass, attachments, 2, &app->framebuffers[i]);
+      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
     }
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
@@ -224,7 +224,7 @@ void app_create(SDL_Window *window, App **out_app) {
         depth_bias_config.constant_factor = 1.0f;
         depth_bias_config.slope_factor = 0.5f;
         vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, true, depth_config, depth_bias_config,
-                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, app->render_pass, &app->lit_pipeline);
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, app->lit_render_pass, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
         vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -248,7 +248,7 @@ void app_create(SDL_Window *window, App **out_app) {
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = false;
       vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, true, depth_config, {},
-                                  {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, app->render_pass, &app->wireframe_pipeline);
+                                  {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, app->lit_render_pass, &app->wireframe_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
       vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -294,7 +294,7 @@ void app_create(SDL_Window *window, App **out_app) {
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = true;
       vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, true, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
-                                  primitive_topologies, VK_POLYGON_MODE_FILL, app->render_pass, &app->line_pipeline);
+                                  primitive_topologies, VK_POLYGON_MODE_FILL, app->lit_render_pass, &app->line_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
       vk_destroy_shader_module(vk_context->device, vert_shader);
@@ -563,7 +563,7 @@ void app_destroy(App *app) {
         vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
     }
     app->framebuffers.clear();
-    vk_destroy_render_pass(app->vk_context->device, app->render_pass);
+    vk_destroy_render_pass(app->vk_context->device, app->lit_render_pass);
     vk_terminate(app->vk_context);
     delete app->vk_context;
     delete app;
@@ -1123,7 +1123,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   VkClearValue clear_values[2] = {};
   clear_values[0].color = {0.2f, 0.1f, 0.1f, 0.2f};
   clear_values[1].depthStencil = {1.0f, 0};
-  vk_begin_render_pass(command_buffer, app->render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
+  vk_begin_render_pass(command_buffer, app->lit_render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
   draw_world(app, command_buffer, frame);
   vk_end_render_pass(command_buffer);
   vk_end_command_buffer(command_buffer);
@@ -1301,7 +1301,7 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     app->framebuffers.resize(app->vk_context->swapchain_image_count);
     for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
       VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
-      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, app->render_pass, attachments, 2, &app->framebuffers[i]);
+      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
     }
 
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
