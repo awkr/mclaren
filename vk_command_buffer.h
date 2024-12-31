@@ -17,9 +17,9 @@ void vk_free_command_buffer(VkDevice device, VkCommandPool command_pool, VkComma
 
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer);
 
-bool vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags);
+void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags);
 
-bool vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer);
+void vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer);
 
 bool vk_end_command_buffer(VkCommandBuffer command_buffer);
 

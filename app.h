@@ -21,8 +21,8 @@ struct RenderFrame {
     VkCommandPool command_pool;
     VkCommandBuffer command_buffer;
 
-    VkSemaphore image_acquired_semaphore;
-    VkSemaphore render_finished_semaphore;
+    VkSemaphore present_complete_semaphore;
+    VkSemaphore render_complete_semaphore;
     VkFence in_flight_fence;
 
     DescriptorAllocator descriptor_allocator;
@@ -55,7 +55,6 @@ struct App {
     SDL_Window *window;
     VkContext *vk_context;
     uint64_t frame_number;
-    uint32_t frame_index;
 
     VkRenderPass render_pass;
     std::vector<VkFramebuffer> framebuffers;

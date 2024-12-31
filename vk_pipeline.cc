@@ -59,11 +59,12 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
 void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config,
                                  VkFormat depth_attachment_format, const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline) {
-    VkPipelineRenderingCreateInfo rendering_create_info{};
-    rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    rendering_create_info.colorAttachmentCount = 1;
-    rendering_create_info.pColorAttachmentFormats = &color_attachment_format;
-    rendering_create_info.depthAttachmentFormat = depth_attachment_format;
+  return;
+    // VkPipelineRenderingCreateInfo rendering_create_info{};
+    // rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    // rendering_create_info.colorAttachmentCount = 1;
+    // rendering_create_info.pColorAttachmentFormats = &color_attachment_format;
+    // rendering_create_info.depthAttachmentFormat = depth_attachment_format;
 
     std::vector<VkPipelineShaderStageCreateInfo> shader_stage_create_infos;
     for (const auto &[shader_stage, shader_module]: shader_modules) {
@@ -147,7 +148,7 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFor
 
     VkGraphicsPipelineCreateInfo pipeline_create_info{};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipeline_create_info.pNext = &rendering_create_info;
+    // pipeline_create_info.pNext = &rendering_create_info;
     pipeline_create_info.layout = layout;
     pipeline_create_info.stageCount = shader_stage_create_infos.size();
     pipeline_create_info.pStages = shader_stage_create_infos.data();

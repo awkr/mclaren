@@ -175,8 +175,8 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_alloc_command_buffers(vk_context->device, app->frames[i].command_pool, 1, &frame->command_buffer);
 
         vk_create_fence(vk_context->device, true, &frame->in_flight_fence);
-        vk_create_semaphore(vk_context->device, &frame->image_acquired_semaphore);
-        vk_create_semaphore(vk_context->device, &frame->render_finished_semaphore);
+        vk_create_semaphore(vk_context->device, &frame->present_complete_semaphore);
+        vk_create_semaphore(vk_context->device, &frame->render_complete_semaphore);
 
         uint32_t max_sets = 100;
         std::unordered_map<VkDescriptorType, uint32_t> descriptor_count;
@@ -190,11 +190,11 @@ void app_create(SDL_Window *window, App **out_app) {
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     create_color_image(app, color_image_format);
-    create_object_picking_color_image(app);
+    // create_object_picking_color_image(app);
 
     VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
-    create_depth_image(app, depth_image_format);
-    create_object_picking_depth_image(app, depth_image_format);
+    // create_depth_image(app, depth_image_format);
+    // create_object_picking_depth_image(app, depth_image_format);
 
     create_object_picking_staging_buffer(app);
 
@@ -346,34 +346,34 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    { // create checkerboard image
-        uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
-        uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-        uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
-        for (uint8_t x = 0; x < 16; ++x) {
-            for (uint8_t y = 0; y < 16; ++y) {
-                pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
-            }
-        }
-        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->checkerboard_image);
-        vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->checkerboard_image_view);
-    }
+    // { // create checkerboard image
+    //     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    //     uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+    //     uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
+    //     for (uint8_t x = 0; x < 16; ++x) {
+    //         for (uint8_t y = 0; y < 16; ++y) {
+    //             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+    //         }
+    //     }
+    //     vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->checkerboard_image);
+    //     vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->checkerboard_image_view);
+    // }
 
-    {
-        constexpr size_t texture_size = 8;
-        std::array<uint8_t, 32> palette = {
-            255, 102, 159, 255, 255, 159, 102, 255, 236, 255, 102, 255, 121, 255, 102, 255,
-            102, 255, 198, 255, 102, 198, 255, 255, 121, 102, 255, 255, 236, 102, 255, 255};
-        std::vector<uint8_t> texture_data(texture_size * texture_size * 4, 0);
-        for (size_t y = 0; y < texture_size; ++y) {
-            size_t offset = texture_size * y * 4;
-            std::copy(palette.begin(), palette.end(), texture_data.begin() + offset);
-            std::rotate(palette.rbegin(), palette.rbegin() + 4, palette.rend()); // 向右旋转4个元素
-        }
-
-        vk_create_image_from_data(vk_context, texture_data.data(), texture_size, texture_size, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->uv_debug_image);
-        vk_create_image_view(vk_context->device, app->uv_debug_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->uv_debug_image_view);
-    }
+    // {
+    //     constexpr size_t texture_size = 8;
+    //     std::array<uint8_t, 32> palette = {
+    //         255, 102, 159, 255, 255, 159, 102, 255, 236, 255, 102, 255, 121, 255, 102, 255,
+    //         102, 255, 198, 255, 102, 198, 255, 255, 121, 102, 255, 255, 236, 102, 255, 255};
+    //     std::vector<uint8_t> texture_data(texture_size * texture_size * 4, 0);
+    //     for (size_t y = 0; y < texture_size; ++y) {
+    //         size_t offset = texture_size * y * 4;
+    //         std::copy(palette.begin(), palette.end(), texture_data.begin() + offset);
+    //         std::rotate(palette.rbegin(), palette.rbegin() + 4, palette.rend()); // 向右旋转4个元素
+    //     }
+    //
+    //     vk_create_image_from_data(vk_context, texture_data.data(), texture_size, texture_size, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->uv_debug_image);
+    //     vk_create_image_view(vk_context->device, app->uv_debug_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->uv_debug_image_view);
+    // }
 
     vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->sampler_nearest);
 
@@ -384,95 +384,95 @@ void app_create(SDL_Window *window, App **out_app) {
     // create ui
     // (*app)->gui_context = ImGui::CreateContext();
 
-    Geometry gltf_model_geometry{};
-    // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
-    load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
-    // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
-    // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
-    gltf_model_geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
-    gltf_model_geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    gltf_model_geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-    app->lit_geometries.push_back(gltf_model_geometry);
-
-    Geometry plane_geometry{};
-    create_plane_geometry(&app->mesh_system_state, vk_context, 1.5f, 1.0f, &plane_geometry);
-    plane_geometry.transform.position = glm::vec3(0.0f, 0.0f, 2.0f);
-    app->lit_geometries.push_back(plane_geometry);
-
-    Geometry cube_geometry{};
-    create_cube_geometry(&app->mesh_system_state, vk_context, 1.0f, &cube_geometry);
-    app->lit_geometries.push_back(cube_geometry);
-
-    Geometry uv_sphere_geometry{};
-    create_uv_sphere_geometry(&app->mesh_system_state, vk_context, 1, 16, 16, &uv_sphere_geometry);
-    uv_sphere_geometry.transform.position = glm::vec3(0.0f, 0.0f, -5.0f);
-    app->lit_geometries.push_back(uv_sphere_geometry);
-    app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
-
-    { // create a cone geometry
-      GeometryConfig config{};
-      generate_cone_geometry_config_lit(0.5f, 1.0f, 8, &config);
-      Geometry geometry{};
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
-      geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
-      app->lit_geometries.push_back(geometry);
-      dispose_geometry_config(&config);
-    }
-
-    {
-        GeometryConfig config{};
-        generate_solid_circle_geometry_config(glm::vec3(0, 0, 0), true, 0.5f, 16, &config);
-        Geometry geometry{};
-        create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
-        geometry.transform.position = glm::vec3(-4.0f, 0.0f, 0.0f);
-        geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        app->lit_geometries.push_back(geometry);
-        dispose_geometry_config(&config);
-    }
-
-    { // add cylinder geometry
-      GeometryConfig config{};
-      generate_cylinder_geometry_config(2, 0.5f, 16, &config);
-      Geometry geometry{};
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
-      geometry.transform.position = glm::vec3(-5.0f, 1.0f, 0.0f);
-      app->lit_geometries.push_back(geometry);
-      dispose_geometry_config(&config);
-    }
-
-    { // add torus geometry
-      GeometryConfig config{};
-      generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
-      Geometry geometry{};
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
-      geometry.transform.position = glm::vec3(-4.0f, 1.0f, 2.0f);
-      app->lit_geometries.push_back(geometry);
-      dispose_geometry_config(&config);
-    }
-
-    {
-      GeometryConfig config{};
-      generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.axis_geometry);
-      dispose_geometry_config(&config);
-    }
-
-    {
-      GeometryConfig config{};
-      generate_cone_geometry_config_vertex_lit(app->gizmo.config.arrow_radius, app->gizmo.config.arrow_length, 8, &config);
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.arrow_geometry);
-      dispose_geometry_config(&config);
-    }
-
-    {
-      GeometryConfig config{};
-      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
-      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
-      dispose_geometry_config(&config);
-    }
-    {
-        create_cube_geometry(&app->mesh_system_state, vk_context, app->gizmo.config.cube_size, &app->gizmo.cube_geometry);
-    }
+    // Geometry gltf_model_geometry{};
+    // // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
+    // load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &gltf_model_geometry);
+    // // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
+    // // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
+    // gltf_model_geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+    // gltf_model_geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    // gltf_model_geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+    // app->lit_geometries.push_back(gltf_model_geometry);
+    //
+    // Geometry plane_geometry{};
+    // create_plane_geometry(&app->mesh_system_state, vk_context, 1.5f, 1.0f, &plane_geometry);
+    // plane_geometry.transform.position = glm::vec3(0.0f, 0.0f, 2.0f);
+    // app->lit_geometries.push_back(plane_geometry);
+    //
+    // Geometry cube_geometry{};
+    // create_cube_geometry(&app->mesh_system_state, vk_context, 1.0f, &cube_geometry);
+    // app->lit_geometries.push_back(cube_geometry);
+    //
+    // Geometry uv_sphere_geometry{};
+    // create_uv_sphere_geometry(&app->mesh_system_state, vk_context, 1, 16, 16, &uv_sphere_geometry);
+    // uv_sphere_geometry.transform.position = glm::vec3(0.0f, 0.0f, -5.0f);
+    // app->lit_geometries.push_back(uv_sphere_geometry);
+    // app->wireframe_geometries.push_back(uv_sphere_geometry); // just reference the same geometry
+    //
+    // { // create a cone geometry
+    //   GeometryConfig config{};
+    //   generate_cone_geometry_config_lit(0.5f, 1.0f, 8, &config);
+    //   Geometry geometry{};
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+    //   geometry.transform.position = glm::vec3(-3.0f, -1.0f, 0.0f);
+    //   app->lit_geometries.push_back(geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    //
+    // {
+    //     GeometryConfig config{};
+    //     generate_solid_circle_geometry_config(glm::vec3(0, 0, 0), true, 0.5f, 16, &config);
+    //     Geometry geometry{};
+    //     create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+    //     geometry.transform.position = glm::vec3(-4.0f, 0.0f, 0.0f);
+    //     geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    //     app->lit_geometries.push_back(geometry);
+    //     dispose_geometry_config(&config);
+    // }
+    //
+    // { // add cylinder geometry
+    //   GeometryConfig config{};
+    //   generate_cylinder_geometry_config(2, 0.5f, 16, &config);
+    //   Geometry geometry{};
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+    //   geometry.transform.position = glm::vec3(-5.0f, 1.0f, 0.0f);
+    //   app->lit_geometries.push_back(geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    //
+    // { // add torus geometry
+    //   GeometryConfig config{};
+    //   generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
+    //   Geometry geometry{};
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+    //   geometry.transform.position = glm::vec3(-4.0f, 1.0f, 2.0f);
+    //   app->lit_geometries.push_back(geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    //
+    // {
+    //   GeometryConfig config{};
+    //   generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.axis_geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    //
+    // {
+    //   GeometryConfig config{};
+    //   generate_cone_geometry_config_vertex_lit(app->gizmo.config.arrow_radius, app->gizmo.config.arrow_length, 8, &config);
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.arrow_geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    //
+    // {
+    //   GeometryConfig config{};
+    //   generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
+    //   create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
+    //   dispose_geometry_config(&config);
+    // }
+    // {
+    //     create_cube_geometry(&app->mesh_system_state, vk_context, app->gizmo.config.cube_size, &app->gizmo.cube_geometry);
+    // }
 
     app->frame_number = 0;
     memset(app->mouse_pos, -1.0f, sizeof(float) * 2);
@@ -534,8 +534,8 @@ void app_destroy(App *app) {
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_buffer(app->vk_context, app->frames[i].global_state_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_complete_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].present_complete_semaphore);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
     }
@@ -1072,142 +1072,280 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
+static void recordPipelineImageBarrier(VkCommandBuffer commandBuffer,
+                                       VkAccessFlags sourceAccessMask,
+                                       VkAccessFlags destAccessMask,
+                                       VkImageLayout sourceLayout,
+                                       VkImageLayout destLayout,
+                                       VkImage image)
+{
+  VkImageMemoryBarrier barrier = {};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.srcAccessMask = sourceAccessMask;
+  barrier.dstAccessMask = destAccessMask;
+  barrier.oldLayout = sourceLayout;
+  barrier.newLayout = destLayout;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseArrayLayer = 0;
+  barrier.subresourceRange.layerCount = 1;
+  vkCmdPipelineBarrier(commandBuffer,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       0,
+                       0,
+                       NULL,
+                       0,
+                       NULL,
+                       1,
+                       &barrier);
+}
+
 void app_update(App *app, InputSystemState *input_system_state) {
-    update_scene(app);
+  uint32_t frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+  RenderFrame *frame = &app->frames[frame_index];
+  vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+  vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
+  vk_reset_command_pool(app->vk_context->device, frame->command_pool);
+  uint32_t image_index = UINT32_MAX;
+  // vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
+  VkResult result = vkAcquireNextImageKHR(app->vk_context->device, app->vk_context->swapchain, UINT64_MAX, frame->present_complete_semaphore, VK_NULL_HANDLE, &image_index);
+  ASSERT(result == VK_SUCCESS);
+  log_debug("frame %lld, frame index %d, image index %d", app->frame_number, frame_index, image_index);
+  vk_begin_command_buffer(frame->command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+  VkClearValue clear_value = {};
+  clear_value.color = {0.2f, 0.2f, 0.2f, 0.2f};
+  // vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[frame_index], app->vk_context->swapchain_extent, clear_value);
+  // vk_end_render_pass(frame->command_buffer);
+  // recordPipelineImageBarrier(frame->command_buffer,
+  //                            0,
+  //                            VK_ACCESS_TRANSFER_WRITE_BIT,
+  //                            VK_IMAGE_LAYOUT_UNDEFINED,
+  //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+  //                            app->vk_context->swapchain_images[image_index]);
+  {
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_NONE;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = app->vk_context->swapchain_images[image_index];
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    vkCmdPipelineBarrier(frame->command_buffer,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0,
+                         0,
+                         NULL,
+                         0,
+                         NULL,
+                         1,
+                         &barrier);
+  }
+  VkImageSubresourceRange clearRange = { 0 };
+  clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  clearRange.baseMipLevel = 0;
+  clearRange.levelCount = 1;
+  clearRange.baseArrayLayer = 0;
+  clearRange.layerCount = 1;
+  vkCmdClearColorImage(frame->command_buffer, app->vk_context->swapchain_images[image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_value.color, 1, &clearRange);
+  // recordPipelineImageBarrier(frame->command_buffer,
+  //                            VK_ACCESS_TRANSFER_WRITE_BIT,
+  //                            VK_ACCESS_MEMORY_READ_BIT,
+  //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+  //                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+  //                            app->vk_context->swapchain_images[image_index]);
+  {
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = app->vk_context->swapchain_images[image_index];
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    vkCmdPipelineBarrier(frame->command_buffer,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0,
+                         0,
+                         NULL,
+                         0,
+                         NULL,
+                         1,
+                         &barrier);
+  }
+  vk_end_command_buffer(frame->command_buffer);
+  // vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
+  VkSubmitInfo submit_info = {};
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  // VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  submit_info.pWaitDstStageMask = &dst_stage;
+  submit_info.waitSemaphoreCount = 1;
+  submit_info.pWaitSemaphores = &frame->present_complete_semaphore;
+  submit_info.signalSemaphoreCount = 1;
+  submit_info.pSignalSemaphores = &frame->render_complete_semaphore;
+  submit_info.commandBufferCount = 1;
+  submit_info.pCommandBuffers = &frame->command_buffer;
+  result = vkQueueSubmit(app->vk_context->graphics_queue, 1, &submit_info, frame->in_flight_fence);
+  ASSERT(result == VK_SUCCESS);
+  result = vk_queue_present(app->vk_context, frame->render_complete_semaphore, image_index);
+  ASSERT(result == VK_SUCCESS);
+  ++app->frame_number;
 
-    app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
-
-    RenderFrame *frame = &app->frames[app->frame_index];
-
-    vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
-    vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
-
-    frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
-    vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
-    vk_reset_command_pool(app->vk_context->device, frame->command_pool);
-
-    uint32_t image_index;
-    VkResult result = vk_acquire_next_image(app->vk_context, frame->image_acquired_semaphore, &image_index);
-    ASSERT(result == VK_SUCCESS);
-
-    VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
-
-    // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
-
-    VkCommandBuffer command_buffer = frame->command_buffer;
-    {
-        vk_begin_one_flight_command_buffer(command_buffer);
-
-        vk_transition_image_layout(command_buffer, app->color_image->image,
-                                   VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
-                                   VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
-                                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
-                                   VK_ACCESS_2_TRANSFER_READ_BIT,
-                                   VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
-        draw_background(app, command_buffer, frame);
-
-        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-        VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        color_attachment.imageView = app->color_image_view;
-        color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-        VkRenderingAttachmentInfo depth_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        depth_attachment.imageView = app->depth_image_view;
-        depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth_attachment.clearValue.depthStencil.depth = 1.0f;
-
-        VkOffset2D offset = {.x = 0, .y = 0};
-        VkExtent2D extent = app->vk_context->swapchain_extent;
-        vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment, 1, &depth_attachment);
-        draw_world(app, command_buffer, frame);
-        draw_gizmo(app, command_buffer, frame);
-        // draw_gui(app, command_buffer, frame);
-        vk_cmd_end_rendering(command_buffer);
-
-        if (was_mouse_button_down(input_system_state, MOUSE_BUTTON_LEFT) && is_mouse_button_up(input_system_state, MOUSE_BUTTON_LEFT)) {
-          VkRenderingAttachmentInfo color_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-          color_attachment_info.imageView = app->object_picking_color_image_view;
-          color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-          color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-          color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-          VkRenderingAttachmentInfo depth_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-          depth_attachment_info.imageView = app->object_picking_depth_image_view;
-          depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-          depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-          depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-          depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
-
-          offset.x = app->mouse_pos[0];
-          offset.y = app->mouse_pos[1];
-          extent.width = 1;
-          extent.height = 1;
-          vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment_info, 1, &depth_attachment_info);
-          pick_object(app, command_buffer, frame);
-          vk_cmd_end_rendering(command_buffer);
-
-          vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-          vk_cmd_copy_image_to_buffer(command_buffer, app->object_picking_color_image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, offset, extent, app->object_picking_buffer->handle);
-          vk_cmd_pipeline_barrier(command_buffer, app->object_picking_buffer->handle, 0, sizeof(uint32_t), VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
-          vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-          app->clicked = true;
-        }
-
-        vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        vk_cmd_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
-
-        vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-        vk_end_command_buffer(command_buffer);
-    }
-
-    VkSemaphoreSubmitInfo wait_semaphore = vk_semaphore_submit_info(frame->image_acquired_semaphore, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
-    VkSemaphoreSubmitInfo signal_semaphore = vk_semaphore_submit_info(frame->render_finished_semaphore, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
-    VkCommandBufferSubmitInfo command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
-    VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
-    vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
-
-    if (app->clicked) {
-      vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
-
-      uint32_t id = 0;
-      vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
-      if (id > 0) {
-        app->selected_mesh_id = id;
-        log_debug("mesh id: %u", id);
-      }
-
-      app->clicked = false;
-    }
-
-    result = vk_queue_present(app->vk_context, image_index, frame->render_finished_semaphore);
-    ASSERT(result == VK_SUCCESS);
-
-    ++app->frame_number;
+  // update_scene(app);
+    //
+    // app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+    //
+    // RenderFrame *frame = &app->frames[app->frame_index];
+    //
+    // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+    // vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
+    //
+    // frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
+    // vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
+    // vk_reset_command_pool(app->vk_context->device, frame->command_pool);
+    //
+    // uint32_t image_index;
+    // VkResult result = vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
+    // ASSERT(result == VK_SUCCESS);
+    //
+    // VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
+    //
+    // // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    //
+    // VkCommandBuffer command_buffer = frame->command_buffer;
+    // {
+    //     vk_begin_one_flight_command_buffer(command_buffer);
+    //
+    //     vk_transition_image_layout(command_buffer, app->color_image->image,
+    //                                VK_PIPELINE_STAGE_2_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+    //                                VK_PIPELINE_STAGE_2_BLIT_BIT, // could be in layout transition or computer shader writing or blit operation of current frame or previous frame
+    //                                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+    //                                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT |
+    //                                VK_ACCESS_2_TRANSFER_READ_BIT,
+    //                                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+    //                                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    //
+    //     draw_background(app, command_buffer, frame);
+    //
+    //     vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    //
+    //     VkRenderingAttachmentInfo color_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    //     color_attachment.imageView = app->color_image_view;
+    //     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    //     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    //     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    //
+    //     VkRenderingAttachmentInfo depth_attachment = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    //     depth_attachment.imageView = app->depth_image_view;
+    //     depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    //     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    //     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //     depth_attachment.clearValue.depthStencil.depth = 1.0f;
+    //
+    //     VkOffset2D offset = {.x = 0, .y = 0};
+    //     VkExtent2D extent = app->vk_context->swapchain_extent;
+    //     vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment, 1, &depth_attachment);
+    //     draw_world(app, command_buffer, frame);
+    //     draw_gizmo(app, command_buffer, frame);
+    //     // draw_gui(app, command_buffer, frame);
+    //     vk_cmd_end_rendering(command_buffer);
+    //
+    //     if (was_mouse_button_down(input_system_state, MOUSE_BUTTON_LEFT) && is_mouse_button_up(input_system_state, MOUSE_BUTTON_LEFT)) {
+    //       VkRenderingAttachmentInfo color_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    //       color_attachment_info.imageView = app->object_picking_color_image_view;
+    //       color_attachment_info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    //       color_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    //       color_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    //
+    //       VkRenderingAttachmentInfo depth_attachment_info = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    //       depth_attachment_info.imageView = app->object_picking_depth_image_view;
+    //       depth_attachment_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    //       depth_attachment_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    //       depth_attachment_info.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //       depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+    //
+    //       offset.x = app->mouse_pos[0];
+    //       offset.y = app->mouse_pos[1];
+    //       extent.width = 1;
+    //       extent.height = 1;
+    //       vk_cmd_begin_rendering(command_buffer, offset, extent, &color_attachment_info, 1, &depth_attachment_info);
+    //       pick_object(app, command_buffer, frame);
+    //       vk_cmd_end_rendering(command_buffer);
+    //
+    //       vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    //       vk_cmd_copy_image_to_buffer(command_buffer, app->object_picking_color_image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, offset, extent, app->object_picking_buffer->handle);
+    //       vk_cmd_pipeline_barrier(command_buffer, app->object_picking_buffer->handle, 0, sizeof(uint32_t), VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_PIPELINE_STAGE_2_COPY_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
+    //       vk_transition_image_layout(command_buffer, app->object_picking_color_image->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    //
+    //       app->clicked = true;
+    //     }
+    //
+    //     vk_transition_image_layout(command_buffer, app->color_image->image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    //
+    //     vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    //
+    //     vk_cmd_blit_image(command_buffer, app->color_image->image, swapchain_image, &app->vk_context->swapchain_extent);
+    //
+    //     vk_transition_image_layout(command_buffer, swapchain_image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    //
+    //     vk_end_command_buffer(command_buffer);
+    // }
+    //
+    // VkSemaphoreSubmitInfo wait_semaphore = vk_semaphore_submit_info(frame->present_complete_semaphore, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT);
+    // VkSemaphoreSubmitInfo signal_semaphore = vk_semaphore_submit_info(frame->render_complete_semaphore, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    // VkCommandBufferSubmitInfo command_buffer_submit_info = vk_command_buffer_submit_info(command_buffer);
+    // VkSubmitInfo2 submit_info = vk_submit_info(&command_buffer_submit_info, &wait_semaphore, &signal_semaphore);
+    // vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
+    //
+    // if (app->clicked) {
+    //   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+    //
+    //   uint32_t id = 0;
+    //   vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
+    //   if (id > 0) {
+    //     app->selected_mesh_id = id;
+    //     log_debug("mesh id: %u", id);
+    //   }
+    //
+    //   app->clicked = false;
+    // }
+    //
+    // result = vk_queue_present(app->vk_context, frame->render_complete_semaphore, image_index);
+    // ASSERT(result == VK_SUCCESS);
+    //
+    // ++app->frame_number;
 }
 
 void app_resize(App *app, uint32_t width, uint32_t height) {
     vk_resize(app->vk_context, width, height);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_finished_semaphore);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].image_acquired_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_complete_semaphore);
+        vk_destroy_semaphore(app->vk_context->device, app->frames[i].present_complete_semaphore);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
 
-        vk_create_semaphore(app->vk_context->device, &app->frames[i].image_acquired_semaphore);
-        vk_create_semaphore(app->vk_context->device, &app->frames[i].render_finished_semaphore);
+        vk_create_semaphore(app->vk_context->device, &app->frames[i].present_complete_semaphore);
+        vk_create_semaphore(app->vk_context->device, &app->frames[i].render_complete_semaphore);
         vk_create_fence(app->vk_context->device, true, &app->frames[i].in_flight_fence);
 
         vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);

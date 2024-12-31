@@ -33,15 +33,15 @@ bool vk_reset_command_buffer(VkCommandBuffer command_buffer) {
     return result == VK_SUCCESS;
 }
 
-bool vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags) {
+void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags) {
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = flags;
     VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
-    return result == VK_SUCCESS;
+    ASSERT(result == VK_SUCCESS);
 }
 
-bool vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer) {
+void vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer) {
     return vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 }
 

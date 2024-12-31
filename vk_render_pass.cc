@@ -1,9 +1,9 @@
 #include "vk_render_pass.h"
 #include "logging.h"
 
-void vk_create_render_pass(VkDevice device, VkFormat image_format, VkRenderPass *render_pass) {
+void vk_create_render_pass(VkDevice device, VkFormat color_image_format, VkRenderPass *render_pass) {
   VkAttachmentDescription color_attachment = {};
-  color_attachment.format = image_format;
+  color_attachment.format = color_image_format;
   color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
   color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -26,8 +26,8 @@ void vk_create_render_pass(VkDevice device, VkFormat image_format, VkRenderPass 
   dependency.dstSubpass = 0;
   dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // 确保外部的颜色附件操作完成后，才开始当前帧的颜色附件操作
   dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.srcAccessMask = 0; // 不关心之前的访问类型，因为初始布局是 VK_IMAGE_LAYOUT_UNDEFINED
-  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  dependency.srcAccessMask = VK_ACCESS_NONE; // 不关心之前的访问类型，因为初始布局是 VK_IMAGE_LAYOUT_UNDEFINED
+  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
 
   VkRenderPassCreateInfo render_pass_info = {};
   render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -40,13 +40,15 @@ void vk_create_render_pass(VkDevice device, VkFormat image_format, VkRenderPass 
 
   VkResult result = vkCreateRenderPass(device, &render_pass_info, nullptr, render_pass);
   ASSERT(result == VK_SUCCESS);
+
+  log_debug("vk render pass created");
 }
 
 void vk_destroy_render_pass(VkDevice device, VkRenderPass render_pass) {
   vkDestroyRenderPass(device, render_pass, nullptr);
 }
 
-void vk_begin_render_pass(VkCommandBuffer command_buffer, VkRenderPass render_pass, VkFramebuffer framebuffer, const VkOffset2D &offset, const VkExtent2D &extent, const VkClearValue &clear_value) {
+void vk_begin_render_pass(VkCommandBuffer command_buffer, VkRenderPass render_pass, VkFramebuffer framebuffer, const VkExtent2D &extent, const VkClearValue &clear_value) {
   VkRenderPassBeginInfo render_pass_begin_info = {};
   render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   render_pass_begin_info.renderPass = render_pass;

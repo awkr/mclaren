@@ -8,4 +8,4 @@ void vk_queue_submit(VkQueue queue, const VkSubmitInfo2 *submit_info, VkFence fe
 
 void vk_queue_submit(VkQueue queue, VkCommandBuffer command_buffer, VkFence fence);
 
-VkResult vk_queue_present(VkContext *vk_context, uint32_t image_index, VkSemaphore wait_semaphore);
+VkResult vk_queue_present(VkContext *vk_context, VkSemaphore wait_semaphore, uint32_t image_index);
