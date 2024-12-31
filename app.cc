@@ -1115,8 +1115,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
   log_debug("frame %lld, frame index %d, image index %d", app->frame_number, frame_index, image_index);
   vk_begin_command_buffer(frame->command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-  VkClearValue clear_value = {};
-  clear_value.color = {0.2f, 0.2f, 0.2f, 0.2f};
+  // VkClearValue clear_value = {};
+  // clear_value.color = {0.2f, 0.2f, 0.2f, 0.2f};
   // vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[frame_index], app->vk_context->swapchain_extent, clear_value);
   // vk_end_render_pass(frame->command_buffer);
   // recordPipelineImageBarrier(frame->command_buffer,
@@ -1125,13 +1125,13 @@ void app_update(App *app, InputSystemState *input_system_state) {
   //                            VK_IMAGE_LAYOUT_UNDEFINED,
   //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                            app->vk_context->swapchain_images[image_index]);
-  { // 布局转换：UNDEFINED -> TRANSFER_DST
+  { // 布局转换：UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_NONE;
-    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = app->vk_context->swapchain_images[image_index];
@@ -1141,8 +1141,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
     vkCmdPipelineBarrier(frame->command_buffer,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                          0,
                          0,
                          NULL,
@@ -1151,25 +1151,18 @@ void app_update(App *app, InputSystemState *input_system_state) {
                          1,
                          &barrier);
   }
-  VkImageSubresourceRange clearRange = { 0 };
-  clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  clearRange.baseMipLevel = 0;
-  clearRange.levelCount = 1;
-  clearRange.baseArrayLayer = 0;
-  clearRange.layerCount = 1;
-  vkCmdClearColorImage(frame->command_buffer, app->vk_context->swapchain_images[image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_value.color, 1, &clearRange);
   // recordPipelineImageBarrier(frame->command_buffer,
   //                            VK_ACCESS_TRANSFER_WRITE_BIT,
   //                            VK_ACCESS_MEMORY_READ_BIT,
   //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
   //                            app->vk_context->swapchain_images[image_index]);
-  { // 布局转换：TRANSFER_DST -> PRESENT
+  { // 布局转换：COLOR_ATTACHMENT_OPTIMAL -> PRESENT_SRC
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_NONE; // 呈现操作由 Vulkan 实现内部处理
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1180,8 +1173,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
     vkCmdPipelineBarrier(frame->command_buffer,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                          0,
                          0,
                          NULL,
@@ -1194,8 +1187,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   // vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
   VkSubmitInfo submit_info = {};
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  // VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   submit_info.pWaitDstStageMask = &dst_stage;
   submit_info.waitSemaphoreCount = 1;
   submit_info.pWaitSemaphores = &frame->present_complete_semaphore;
