@@ -1120,6 +1120,28 @@ void app_update(App *app, InputSystemState *input_system_state) {
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   vk_alloc_command_buffers(app->vk_context->device, frame->command_pool, 1, &command_buffer);
   vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+  // 清理颜色附件（在初始布局为 UNDEFINED 时，必须保证颜色附件已准备好用于写入）
+  vk_cmd_pipeline_image_barrier(command_buffer,
+                                app->vk_context->swapchain_images[image_index],
+                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                VK_ACCESS_NONE,
+                                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+  // 清理深度附件（保证深度附件已准备好进行写入）
+  vk_cmd_pipeline_image_barrier(command_buffer,
+                                app->depth_image->image,
+                                VK_IMAGE_ASPECT_DEPTH_BIT,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+
   VkClearValue clear_values[2] = {};
   clear_values[0].color = {0.2f, 0.1f, 0.1f, 0.2f};
   clear_values[1].depthStencil = {1.0f, 0};

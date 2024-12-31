@@ -36,31 +36,12 @@ void vk_create_render_pass(VkDevice device, VkFormat color_image_format, VkForma
   subpass.pColorAttachments = &color_attachment_ref;
   subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
-  VkSubpassDependency dependencies[2] = {};
-
-  dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-  dependencies[0].dstSubpass = 0;
-  dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // 确保外部的颜色附件操作完成后，才开始当前帧的颜色附件操作
-  dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependencies[0].srcAccessMask = VK_ACCESS_NONE; // 不关心之前的访问类型，因为初始布局是 VK_IMAGE_LAYOUT_UNDEFINED
-  dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-  // depth buffer is shared between swapchain images
-  dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
-  dependencies[1].dstSubpass = 0;
-  dependencies[1].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-  dependencies[1].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-  dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-  dependencies[1].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
   VkRenderPassCreateInfo render_pass_info = {};
   render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   render_pass_info.attachmentCount = 2;
   render_pass_info.pAttachments = attachments;
   render_pass_info.subpassCount = 1;
   render_pass_info.pSubpasses = &subpass;
-  render_pass_info.dependencyCount = 2;
-  render_pass_info.pDependencies = dependencies;
 
   VkResult result = vkCreateRenderPass(device, &render_pass_info, nullptr, render_pass);
   ASSERT(result == VK_SUCCESS);
