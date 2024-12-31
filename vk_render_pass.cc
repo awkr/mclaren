@@ -45,3 +45,16 @@ void vk_create_render_pass(VkDevice device, VkFormat image_format, VkRenderPass 
 void vk_destroy_render_pass(VkDevice device, VkRenderPass render_pass) {
   vkDestroyRenderPass(device, render_pass, nullptr);
 }
+
+void vk_begin_render_pass(VkCommandBuffer command_buffer, VkRenderPass render_pass, VkFramebuffer framebuffer, const VkOffset2D &offset, const VkExtent2D &extent, const VkClearValue &clear_value) {
+  VkRenderPassBeginInfo render_pass_begin_info = {};
+  render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  render_pass_begin_info.renderPass = render_pass;
+  render_pass_begin_info.framebuffer = framebuffer;
+  render_pass_begin_info.renderArea.extent = extent;
+  render_pass_begin_info.clearValueCount = 1;
+  render_pass_begin_info.pClearValues = &clear_value;
+  vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void vk_end_render_pass(VkCommandBuffer command_buffer) { vkCmdEndRenderPass(command_buffer); }

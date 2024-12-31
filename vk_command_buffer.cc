@@ -89,7 +89,7 @@ void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(Vk
 
     vk_queue_submit(vk_context->graphics_queue, command_buffer, fence); // todo: 区分 graphics queue 和 transfer queue
 
-    vk_wait_fence(vk_context->device, fence);
+    vk_wait_fence(vk_context->device, fence, UINT64_MAX);
     vk_destroy_fence(vk_context->device, fence);
 }
 

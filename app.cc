@@ -99,7 +99,7 @@ void create_depth_image(App *app, const VkFormat format) {
 
     vk_queue_submit(app->vk_context->graphics_queue, command_buffer, fence);
 
-    vk_wait_fence(app->vk_context->device, fence);
+    vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
     vk_destroy_fence(app->vk_context->device, fence);
 
     vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
@@ -137,7 +137,7 @@ void create_object_picking_depth_image(App *app, const VkFormat format) {
 
   vk_queue_submit(app->vk_context->graphics_queue, command_buffer, fence);
 
-  vk_wait_fence(app->vk_context->device, fence);
+  vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
   vk_destroy_fence(app->vk_context->device, fence);
 
   vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
@@ -162,7 +162,6 @@ void app_create(SDL_Window *window, App **out_app) {
     VkContext *vk_context = app->vk_context;
 
     vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, &app->render_pass);
-
     app->framebuffers.resize(vk_context->swapchain_image_count);
     for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
       vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->render_pass, vk_context->swapchain_image_views[i], &app->framebuffers[i]);
@@ -715,7 +714,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
           uint32_t last_frame_number = --app->frame_number;
           uint8_t last_frame_index = last_frame_number % FRAMES_IN_FLIGHT;
           RenderFrame *last_frame = &app->frames[last_frame_index];
-          vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence);
+          vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence, UINT64_MAX);
         }
 
         destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo.sector_geometry);
@@ -1080,7 +1079,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
     RenderFrame *frame = &app->frames[app->frame_index];
 
-    vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
+    vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
     vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
 
     frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
@@ -1181,7 +1180,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
 
     if (app->clicked) {
-      vk_wait_fence(app->vk_context->device, frame->in_flight_fence);
+      vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
       uint32_t id = 0;
       vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
@@ -1193,7 +1192,6 @@ void app_update(App *app, InputSystemState *input_system_state) {
       app->clicked = false;
     }
 
-    // end frame
     result = vk_queue_present(app->vk_context, image_index, frame->render_finished_semaphore);
     ASSERT(result == VK_SUCCESS);
 
@@ -1228,6 +1226,16 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
     vk_destroy_image(app->vk_context, app->color_image);
+
+    for (size_t i = 0; i < app->framebuffers.size(); ++i) {
+      vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
+    }
+    app->framebuffers.clear();
+
+    app->framebuffers.resize(app->vk_context->swapchain_image_count);
+    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, app->render_pass, app->vk_context->swapchain_image_views[i], &app->framebuffers[i]);
+    }
 
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
     create_object_picking_color_image(app);
