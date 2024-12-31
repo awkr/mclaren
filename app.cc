@@ -1112,9 +1112,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
   vk_reset_command_pool(app->vk_context->device, frame->command_pool);
   uint32_t image_index = UINT32_MAX;
-  // vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
-  VkResult result = vkAcquireNextImageKHR(app->vk_context->device, app->vk_context->swapchain, UINT64_MAX, frame->present_complete_semaphore, VK_NULL_HANDLE, &image_index);
-  ASSERT(result == VK_SUCCESS);
+  vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
   log_debug("frame %lld, frame index %d, image index %d", app->frame_number, frame_index, image_index);
   vk_begin_command_buffer(frame->command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   VkClearValue clear_value = {};
@@ -1127,7 +1125,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   //                            VK_IMAGE_LAYOUT_UNDEFINED,
   //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                            app->vk_context->swapchain_images[image_index]);
-  {
+  { // 布局转换：UNDEFINED -> TRANSFER_DST
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_NONE;
@@ -1166,11 +1164,11 @@ void app_update(App *app, InputSystemState *input_system_state) {
   //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
   //                            app->vk_context->swapchain_images[image_index]);
-  {
+  { // 布局转换：TRANSFER_DST -> PRESENT
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_NONE; // 呈现操作由 Vulkan 实现内部处理
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1205,7 +1203,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   submit_info.pSignalSemaphores = &frame->render_complete_semaphore;
   submit_info.commandBufferCount = 1;
   submit_info.pCommandBuffers = &frame->command_buffer;
-  result = vkQueueSubmit(app->vk_context->graphics_queue, 1, &submit_info, frame->in_flight_fence);
+  VkResult result = vkQueueSubmit(app->vk_context->graphics_queue, 1, &submit_info, frame->in_flight_fence);
   ASSERT(result == VK_SUCCESS);
   result = vk_queue_present(app->vk_context, frame->render_complete_semaphore, image_index);
   ASSERT(result == VK_SUCCESS);
