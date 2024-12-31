@@ -24,8 +24,8 @@ struct DepthBiasConfig {
   float slope_factor;
 };
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, VkFormat color_attachment_format, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config, VkFormat depth_attachment_format,
-                                 const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkPipeline *pipeline);
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config,
+                                 const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules, const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkRenderPass render_pass, VkPipeline *pipeline);
 
 void vk_create_compute_pipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader_module, VkPipeline *pipeline);
 

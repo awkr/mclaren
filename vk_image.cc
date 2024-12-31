@@ -43,7 +43,7 @@ void vk_create_image(VkContext *vk_context, uint32_t width, uint32_t height, VkF
     *out_image = image;
 }
 
-void vk_create_image_from_data(VkContext *vk_context, const void *data, uint32_t width, uint32_t height,
+void vk_create_image_from_data(VkContext *vk_context, VkCommandBuffer command_buffer, const void *data, uint32_t width, uint32_t height,
                                VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image) {
     vk_create_image(vk_context, width, height, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT, enable_mipmap, out_image);
 

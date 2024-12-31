@@ -20,14 +20,13 @@ struct Image;
 
 struct RenderFrame {
     VkCommandPool command_pool;
-    VkCommandBuffer command_buffer;
 
     VkFence in_flight_fence;
 
     DescriptorAllocator descriptor_allocator;
 
-    Buffer *global_state_uniform_buffer;
-    VkDescriptorSet global_state_uniform_buffer_descriptor_set;
+    Buffer *global_uniform_buffer;
+    VkDescriptorSet global_uniform_buffer_descriptor_set;
 };
 
 struct GlobalState {
@@ -71,7 +70,7 @@ struct App {
 
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
-    VkDescriptorSetLayout global_state_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
+    VkDescriptorSetLayout global_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
