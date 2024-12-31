@@ -79,30 +79,32 @@ void create_depth_image(App *app, const VkFormat format) {
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, false, &app->depth_image);
     vk_create_image_view(app->vk_context->device, app->depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT, app->depth_image->mip_levels, &app->depth_image_view);
 
-    // transition depth image layout once and for all
-    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-    vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
-
-    vk_begin_one_flight_command_buffer(command_buffer);
-    vk_transition_image_layout(command_buffer, app->depth_image->image,
-                               VK_PIPELINE_STAGE_2_NONE,
-                               VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-                               VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                               VK_ACCESS_2_NONE,
-                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                               VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-    vk_end_command_buffer(command_buffer);
-
-    VkFence fence;
-    vk_create_fence(app->vk_context->device, false, &fence);
-
-    vk_queue_submit(app->vk_context->graphics_queue, command_buffer, fence);
-
-    vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
-    vk_destroy_fence(app->vk_context->device, fence);
-
-    vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
+    // 以下布局转换将由 render pass 负责
+    // // transition depth image layout once and for all
+    // VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    // vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
+    //
+    // vk_begin_one_flight_command_buffer(command_buffer);
+    // vk_cmd_pipeline_image_barrier(command_buffer,
+    //                               app->depth_image->image,
+    //                               VK_IMAGE_ASPECT_DEPTH_BIT,
+    //                               VK_IMAGE_LAYOUT_UNDEFINED,
+    //                               VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+    //                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    //                               VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+    //                               VK_ACCESS_NONE,
+    //                               VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+    // vk_end_command_buffer(command_buffer);
+    //
+    // VkFence fence;
+    // vk_create_fence(app->vk_context->device, false, &fence);
+    //
+    // vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence);
+    //
+    // vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
+    // vk_destroy_fence(app->vk_context->device, fence);
+    //
+    // vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 }
 
 void create_object_picking_color_image(App *app) {
@@ -161,10 +163,15 @@ void app_create(SDL_Window *window, App **out_app) {
 
     VkContext *vk_context = app->vk_context;
 
-    vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, &app->render_pass);
+    const VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
+
+    vk_create_render_pass(vk_context->device, vk_context->swapchain_image_format, depth_image_format, &app->render_pass);
+
+    create_depth_image(app, depth_image_format);
     app->framebuffers.resize(vk_context->swapchain_image_count);
     for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
-      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->render_pass, vk_context->swapchain_image_views[i], &app->framebuffers[i]);
+      VkImageView attachments[2] = {vk_context->swapchain_image_views[i], app->depth_image_view};
+      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent.width, vk_context->swapchain_extent.height, app->render_pass, attachments, 2, &app->framebuffers[i]);
     }
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
@@ -193,8 +200,6 @@ void app_create(SDL_Window *window, App **out_app) {
     create_color_image(app, color_image_format);
     // create_object_picking_color_image(app);
 
-    VkFormat depth_image_format = VK_FORMAT_D32_SFLOAT;
-    // create_depth_image(app, depth_image_format);
     // create_object_picking_depth_image(app, depth_image_format);
 
     create_object_picking_staging_buffer(app);
@@ -347,18 +352,18 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    // { // create checkerboard image
-    //     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
-    //     uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-    //     uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
-    //     for (uint8_t x = 0; x < 16; ++x) {
-    //         for (uint8_t y = 0; y < 16; ++y) {
-    //             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
-    //         }
-    //     }
-    //     vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->checkerboard_image);
-    //     vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->checkerboard_image_view);
-    // }
+    { // create checkerboard image
+        uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+        uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+        uint32_t pixels[16 * 16]; // 16x16 checkerboard texture
+        for (uint8_t x = 0; x < 16; ++x) {
+            for (uint8_t y = 0; y < 16; ++y) {
+                pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            }
+        }
+        vk_create_image_from_data(vk_context, pixels, 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->checkerboard_image);
+        vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1, &app->checkerboard_image_view);
+    }
 
     // {
     //     constexpr size_t texture_size = 8;
@@ -1083,7 +1088,6 @@ void end_frame(App *app) {}
 
 static VkSemaphore pop_semaphore_from_pool(App *app) {
   if (app->semaphore_pool.empty()) {
-    log_debug("create semaphore");
     VkSemaphore semaphore = VK_NULL_HANDLE;
     vk_create_semaphore(app->vk_context->device, &semaphore);
     return semaphore;
@@ -1093,7 +1097,9 @@ static VkSemaphore pop_semaphore_from_pool(App *app) {
   return semaphore;
 }
 
-static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) { app->semaphore_pool.push(semaphore); }
+static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
+  app->semaphore_pool.push(semaphore);
+}
 
 void app_update(App *app, InputSystemState *input_system_state) {
   uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
@@ -1108,13 +1114,14 @@ void app_update(App *app, InputSystemState *input_system_state) {
   app->present_complete_semaphores[image_index] = present_complete_semaphore;
   // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
   vk_begin_command_buffer(frame->command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-  VkClearValue clear_value = {};
-  clear_value.color = {0.2f, 0.1f, 0.1f, 0.2f};
-  vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_value);
+  VkClearValue clear_values[2] = {};
+  clear_values[0].color = {0.2f, 0.1f, 0.1f, 0.2f};
+  clear_values[1].depthStencil = {1.0f, 0};
+  vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
   vk_end_render_pass(frame->command_buffer);
   vk_end_command_buffer(frame->command_buffer);
   if (app->render_complete_semaphores[image_index] == VK_NULL_HANDLE) { app->render_complete_semaphores[image_index] = pop_semaphore_from_pool(app); }
-  vk_queue_submit(app->vk_context->graphics_queue, frame->command_buffer, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
+  vk_queue_submit(app->vk_context->graphics_queue, frame->command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
   ++app->frame_count;
@@ -1283,14 +1290,15 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     }
     app->framebuffers.clear();
 
+    create_depth_image(app, VK_FORMAT_D32_SFLOAT);
     app->framebuffers.resize(app->vk_context->swapchain_image_count);
     for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
-      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, app->render_pass, app->vk_context->swapchain_image_views[i], &app->framebuffers[i]);
+      VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
+      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height, app->render_pass, attachments, 2, &app->framebuffers[i]);
     }
 
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
     create_object_picking_color_image(app);
-    create_depth_image(app, VK_FORMAT_D32_SFLOAT);
     create_object_picking_depth_image(app, VK_FORMAT_D32_SFLOAT);
     create_object_picking_staging_buffer(app);
 }

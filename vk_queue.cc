@@ -15,15 +15,20 @@ void vk_queue_submit(VkQueue queue, VkCommandBuffer command_buffer, VkFence fenc
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_queue_submit(VkQueue queue, VkCommandBuffer command_buffer, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore, VkFence fence) {
+void vk_queue_submit(VkQueue queue, VkCommandBuffer command_buffer, VkPipelineStageFlags wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore, VkFence fence) {
   VkSubmitInfo submit_info = {};
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  submit_info.pWaitDstStageMask = &dst_stage;
-  submit_info.waitSemaphoreCount = 1;
-  submit_info.pWaitSemaphores = &wait_semaphore;
-  submit_info.signalSemaphoreCount = 1;
-  submit_info.pSignalSemaphores = &signal_semaphore;
+  if (wait_stage != VK_PIPELINE_STAGE_NONE) {
+    submit_info.pWaitDstStageMask = &wait_stage;
+  }
+  if (wait_semaphore) {
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &wait_semaphore;
+  }
+  if (signal_semaphore) {
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &signal_semaphore;
+  }
   submit_info.commandBufferCount = 1;
   submit_info.pCommandBuffers = &command_buffer;
   VkResult result = vkQueueSubmit(queue, 1, &submit_info, fence);
