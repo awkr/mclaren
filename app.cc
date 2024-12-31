@@ -169,14 +169,15 @@ void app_create(SDL_Window *window, App **out_app) {
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
 
+    app->present_complete_semaphores.resize(vk_context->swapchain_image_count, VK_NULL_HANDLE);
+    app->render_complete_semaphores.resize(vk_context->swapchain_image_count, VK_NULL_HANDLE);
+
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         RenderFrame *frame = &app->frames[i];
         vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &frame->command_pool);
         vk_alloc_command_buffers(vk_context->device, app->frames[i].command_pool, 1, &frame->command_buffer);
 
         vk_create_fence(vk_context->device, true, &frame->in_flight_fence);
-        vk_create_semaphore(vk_context->device, &frame->present_complete_semaphore);
-        vk_create_semaphore(vk_context->device, &frame->render_complete_semaphore);
 
         uint32_t max_sets = 100;
         std::unordered_map<VkDescriptorType, uint32_t> descriptor_count;
@@ -474,7 +475,7 @@ void app_create(SDL_Window *window, App **out_app) {
     //     create_cube_geometry(&app->mesh_system_state, vk_context, app->gizmo.config.cube_size, &app->gizmo.cube_geometry);
     // }
 
-    app->frame_number = 0;
+    app->frame_count = 0;
     memset(app->mouse_pos, -1.0f, sizeof(float) * 2);
     app->selected_mesh_id = UINT32_MAX;
 }
@@ -534,10 +535,18 @@ void app_destroy(App *app) {
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
         vk_destroy_buffer(app->vk_context, app->frames[i].global_state_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_complete_semaphore);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].present_complete_semaphore);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
+    }
+    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) { // 归还 semaphore 到 pool
+      app->semaphore_pool.push(app->render_complete_semaphores[i]);
+      app->semaphore_pool.push(app->present_complete_semaphores[i]);
+    }
+    app->present_complete_semaphores.clear();
+    app->render_complete_semaphores.clear();
+    while (!app->semaphore_pool.empty()) { // 由 pool 统一销毁
+      vk_destroy_semaphore(app->vk_context->device, app->semaphore_pool.front());
+      app->semaphore_pool.pop();
     }
 
     for (size_t i = 0; i < app->framebuffers.size(); ++i) {
@@ -710,8 +719,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
       if (app->gizmo.rotation_start_pos != glm::vec3(FLT_MAX) && app->gizmo.rotation_end_pos != glm::vec3(FLT_MAX)) { // 绘制旋转角度扇形平面
         // 等待上次使用完毕，即上一帧渲染完毕
-        if (app->frame_number > 0) {
-          uint32_t last_frame_number = --app->frame_number;
+        if (app->frame_count > 0) {
+          uint32_t last_frame_number = --app->frame_count;
           uint8_t last_frame_index = last_frame_number % FRAMES_IN_FLIGHT;
           RenderFrame *last_frame = &app->frames[last_frame_index];
           vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence, UINT64_MAX);
@@ -1072,138 +1081,47 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
-static void recordPipelineImageBarrier(VkCommandBuffer commandBuffer,
-                                       VkAccessFlags sourceAccessMask,
-                                       VkAccessFlags destAccessMask,
-                                       VkImageLayout sourceLayout,
-                                       VkImageLayout destLayout,
-                                       VkImage image)
-{
-  VkImageMemoryBarrier barrier = {};
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.srcAccessMask = sourceAccessMask;
-  barrier.dstAccessMask = destAccessMask;
-  barrier.oldLayout = sourceLayout;
-  barrier.newLayout = destLayout;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = image;
-  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = 1;
-  barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(commandBuffer,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       0,
-                       0,
-                       NULL,
-                       0,
-                       NULL,
-                       1,
-                       &barrier);
+static VkSemaphore pop_semaphore_from_pool(App *app) {
+  if (app->semaphore_pool.empty()) {
+    log_debug("create semaphore");
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    vk_create_semaphore(app->vk_context->device, &semaphore);
+    return semaphore;
+  }
+  VkSemaphore semaphore = app->semaphore_pool.front();
+  app->semaphore_pool.pop();
+  return semaphore;
 }
 
+static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) { app->semaphore_pool.push(semaphore); }
+
 void app_update(App *app, InputSystemState *input_system_state) {
-  uint32_t frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+  uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
   RenderFrame *frame = &app->frames[frame_index];
   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
   vk_reset_command_pool(app->vk_context->device, frame->command_pool);
+  VkSemaphore present_complete_semaphore = pop_semaphore_from_pool(app);
   uint32_t image_index = UINT32_MAX;
-  vk_acquire_next_image(app->vk_context, frame->present_complete_semaphore, &image_index);
-  log_debug("frame %lld, frame index %d, image index %d", app->frame_number, frame_index, image_index);
+  vk_acquire_next_image(app->vk_context, present_complete_semaphore, &image_index);
+  if (app->present_complete_semaphores[image_index] != VK_NULL_HANDLE) { push_semaphore_to_pool(app, app->present_complete_semaphores[image_index]); }
+  app->present_complete_semaphores[image_index] = present_complete_semaphore;
+  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
   vk_begin_command_buffer(frame->command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-  // VkClearValue clear_value = {};
-  // clear_value.color = {0.2f, 0.2f, 0.2f, 0.2f};
-  // vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[frame_index], app->vk_context->swapchain_extent, clear_value);
-  // vk_end_render_pass(frame->command_buffer);
-  // recordPipelineImageBarrier(frame->command_buffer,
-  //                            0,
-  //                            VK_ACCESS_TRANSFER_WRITE_BIT,
-  //                            VK_IMAGE_LAYOUT_UNDEFINED,
-  //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-  //                            app->vk_context->swapchain_images[image_index]);
-  { // 布局转换：UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
-    VkImageMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_NONE;
-    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = app->vk_context->swapchain_images[image_index];
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    vkCmdPipelineBarrier(frame->command_buffer,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         0,
-                         0,
-                         NULL,
-                         0,
-                         NULL,
-                         1,
-                         &barrier);
-  }
-  // recordPipelineImageBarrier(frame->command_buffer,
-  //                            VK_ACCESS_TRANSFER_WRITE_BIT,
-  //                            VK_ACCESS_MEMORY_READ_BIT,
-  //                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-  //                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-  //                            app->vk_context->swapchain_images[image_index]);
-  { // 布局转换：COLOR_ATTACHMENT_OPTIMAL -> PRESENT_SRC
-    VkImageMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_NONE; // 呈现操作由 Vulkan 实现内部处理
-    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = app->vk_context->swapchain_images[image_index];
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    vkCmdPipelineBarrier(frame->command_buffer,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                         0,
-                         0,
-                         NULL,
-                         0,
-                         NULL,
-                         1,
-                         &barrier);
-  }
+  VkClearValue clear_value = {};
+  clear_value.color = {0.2f, 0.1f, 0.1f, 0.2f};
+  vk_begin_render_pass(frame->command_buffer, app->render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_value);
+  vk_end_render_pass(frame->command_buffer);
   vk_end_command_buffer(frame->command_buffer);
-  // vk_queue_submit(app->vk_context->graphics_queue, &submit_info, frame->in_flight_fence);
-  VkSubmitInfo submit_info = {};
-  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  submit_info.pWaitDstStageMask = &dst_stage;
-  submit_info.waitSemaphoreCount = 1;
-  submit_info.pWaitSemaphores = &frame->present_complete_semaphore;
-  submit_info.signalSemaphoreCount = 1;
-  submit_info.pSignalSemaphores = &frame->render_complete_semaphore;
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &frame->command_buffer;
-  VkResult result = vkQueueSubmit(app->vk_context->graphics_queue, 1, &submit_info, frame->in_flight_fence);
+  if (app->render_complete_semaphores[image_index] == VK_NULL_HANDLE) { app->render_complete_semaphores[image_index] = pop_semaphore_from_pool(app); }
+  vk_queue_submit(app->vk_context->graphics_queue, frame->command_buffer, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
+  VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
-  result = vk_queue_present(app->vk_context, frame->render_complete_semaphore, image_index);
-  ASSERT(result == VK_SUCCESS);
-  ++app->frame_number;
+  ++app->frame_count;
 
   // update_scene(app);
     //
-    // app->frame_index = app->frame_number % FRAMES_IN_FLIGHT;
+    // app->frame_index = app->frame_count % FRAMES_IN_FLIGHT;
     //
     // RenderFrame *frame = &app->frames[app->frame_index];
     //
@@ -1220,7 +1138,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     //
     // VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
     //
-    // // log_debug("frame %lld, frame index %d, image index %d", app->frame_number, app->frame_index, image_index);
+    // // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, app->frame_index, image_index);
     //
     // VkCommandBuffer command_buffer = frame->command_buffer;
     // {
@@ -1323,22 +1241,27 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // result = vk_queue_present(app->vk_context, frame->render_complete_semaphore, image_index);
     // ASSERT(result == VK_SUCCESS);
     //
-    // ++app->frame_number;
+    // ++app->frame_count;
 }
 
 void app_resize(App *app, uint32_t width, uint32_t height) {
     vk_resize(app->vk_context, width, height);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].render_complete_semaphore);
-        vk_destroy_semaphore(app->vk_context->device, app->frames[i].present_complete_semaphore);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
-
-        vk_create_semaphore(app->vk_context->device, &app->frames[i].present_complete_semaphore);
-        vk_create_semaphore(app->vk_context->device, &app->frames[i].render_complete_semaphore);
         vk_create_fence(app->vk_context->device, true, &app->frames[i].in_flight_fence);
-
         vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
+    }
+    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_destroy_semaphore(app->vk_context->device, app->present_complete_semaphores[i]);
+      vk_destroy_semaphore(app->vk_context->device, app->render_complete_semaphores[i]);
+    }
+    app->present_complete_semaphores.clear();
+    app->render_complete_semaphores.clear();
+
+    app->present_complete_semaphores.resize(app->vk_context->swapchain_image_count);
+    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_create_semaphore(app->vk_context->device, &app->present_complete_semaphores[i]);
     }
 
     vk_destroy_buffer(app->vk_context, app->object_picking_buffer);

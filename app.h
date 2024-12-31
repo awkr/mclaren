@@ -7,6 +7,7 @@
 #include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
 #include <cstdint>
+#include <queue>
 #include <vk_mem_alloc.h>
 #include <volk.h>
 
@@ -21,8 +22,6 @@ struct RenderFrame {
     VkCommandPool command_pool;
     VkCommandBuffer command_buffer;
 
-    VkSemaphore present_complete_semaphore;
-    VkSemaphore render_complete_semaphore;
     VkFence in_flight_fence;
 
     DescriptorAllocator descriptor_allocator;
@@ -54,10 +53,13 @@ struct ObjectPickingInstanceState {
 struct App {
     SDL_Window *window;
     VkContext *vk_context;
-    uint64_t frame_number;
+    uint64_t frame_count;
 
     VkRenderPass render_pass;
     std::vector<VkFramebuffer> framebuffers;
+    std::vector<VkSemaphore> present_complete_semaphores;
+    std::vector<VkSemaphore> render_complete_semaphores;
+    std::queue<VkSemaphore> semaphore_pool;
 
     RenderFrame frames[FRAMES_IN_FLIGHT];
 
