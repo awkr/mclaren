@@ -237,7 +237,7 @@ void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, V
     vkCmdCopyBufferToImage(command_buffer, src, dst, layout, 1, &buffer_image_copy);
 }
 
-void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkImageLayout image_layout, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkBuffer dst_buffer) noexcept {
+void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkBuffer dst_buffer) noexcept {
   VkBufferImageCopy region = {};
   region.bufferOffset = 0; // 偏移到目标缓冲区的起始位置
   region.bufferRowLength = 0; // 紧密排列，按图像宽度
@@ -249,7 +249,7 @@ void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_ima
   region.imageOffset = {image_offset.x, image_offset.y, 0}; // 从图像的起始位置开始
   region.imageExtent = {image_extent.width, image_extent.height, 1}; // 图像尺寸
 
-  vkCmdCopyImageToBuffer(command_buffer, src_image, image_layout, dst_buffer, 1, &region);
+  vkCmdCopyImageToBuffer(command_buffer, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst_buffer, 1, &region);
 }
 
 void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask) {
