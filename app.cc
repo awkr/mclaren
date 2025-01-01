@@ -180,15 +180,15 @@ void app_create(SDL_Window *window, App **out_app) {
 
       vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
       for (const Image *image : app->entity_picking_color_images) {
-        vk_cmd_pipeline_image_barrier(command_buffer,
-                                      image->handle,
-                                      VK_IMAGE_ASPECT_COLOR_BIT,
-                                      VK_IMAGE_LAYOUT_UNDEFINED,
-                                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                      VK_ACCESS_NONE,
-                                      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+        vk_cmd_pipeline_image_barrier2(command_buffer,
+                                       image->handle,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       VK_IMAGE_LAYOUT_UNDEFINED,
+                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                       VK_ACCESS_2_NONE,
+                                       VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
       }
       vk_end_command_buffer(command_buffer);
 
@@ -393,9 +393,9 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
+        vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
         vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->checkerboard_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 16, 16);
-        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
       vk_destroy_buffer(vk_context, staging_buffer);
@@ -422,9 +422,9 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
+        vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
         vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->uv_debug_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
-        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
       vk_destroy_buffer(vk_context, staging_buffer);
@@ -1180,7 +1180,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
   // 清理颜色附件（在初始布局为 UNDEFINED 时，必须保证颜色附件已准备好用于写入）
-  vk_cmd_pipeline_image_barrier(command_buffer,
+  vk_cmd_pipeline_image_barrier2(command_buffer,
                                 app->vk_context->swapchain_images[image_index],
                                 VK_IMAGE_ASPECT_COLOR_BIT,
                                 VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1190,7 +1190,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                 VK_ACCESS_NONE,
                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
   // 清理深度附件（保证深度附件已准备好进行写入）
-  vk_cmd_pipeline_image_barrier(command_buffer,
+  vk_cmd_pipeline_image_barrier2(command_buffer,
                                 app->depth_image->handle,
                                 VK_IMAGE_ASPECT_DEPTH_BIT,
                                 VK_IMAGE_LAYOUT_UNDEFINED,

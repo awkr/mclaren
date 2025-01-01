@@ -75,6 +75,7 @@ bool vk_create_device(VkContext *vk_context) {
     std::vector<const char *> required_extensions;
     required_extensions.push_back("VK_KHR_swapchain");
     required_extensions.push_back("VK_KHR_portability_subset");
+    required_extensions.push_back("VK_KHR_synchronization2");
     required_extensions.push_back("VK_KHR_copy_commands2");
     required_extensions.push_back("VK_KHR_fragment_shader_barycentric");
     required_extensions.push_back("VK_EXT_extended_dynamic_state");
@@ -142,6 +143,11 @@ bool vk_create_device(VkContext *vk_context) {
     fragment_shader_barycentric_features.fragmentShaderBarycentric = VK_TRUE;
     fragment_shader_barycentric_features.pNext = &extended_dynamic_state_features;
 
+    VkPhysicalDeviceSynchronization2Features synchronization2_features{};
+    synchronization2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+    synchronization2_features.synchronization2 = VK_TRUE;
+    synchronization2_features.pNext = &fragment_shader_barycentric_features;
+
     VkPhysicalDeviceVulkan12Features vk_12_features{};
     vk_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vk_12_features.timelineSemaphore = VK_TRUE;
@@ -160,7 +166,7 @@ bool vk_create_device(VkContext *vk_context) {
     vk_12_features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
     vk_12_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
-    vk_12_features.pNext = &fragment_shader_barycentric_features;
+    vk_12_features.pNext = &synchronization2_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_create_info.queueCreateInfoCount = queue_create_infos.size();

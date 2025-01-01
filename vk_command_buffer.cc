@@ -279,7 +279,29 @@ void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image
                        &barrier);
 }
 
-void vk_cmd_pipeline_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
+void vk_cmd_pipeline_image_barrier2(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
+  VkImageMemoryBarrier2 image_memory_barrier = {};
+  image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+  image_memory_barrier.srcStageMask = src_stage_mask;
+  image_memory_barrier.srcAccessMask = src_access_mask;
+  image_memory_barrier.dstStageMask = dst_stage_mask;
+  image_memory_barrier.dstAccessMask = dst_access_mask;
+  image_memory_barrier.oldLayout = old_layout;
+  image_memory_barrier.newLayout = new_layout;
+  image_memory_barrier.image = image;
+  image_memory_barrier.subresourceRange.aspectMask = aspect_mask;
+  image_memory_barrier.subresourceRange.levelCount = 1;
+  image_memory_barrier.subresourceRange.layerCount = 1;
+
+  VkDependencyInfo dependency_info = {};
+  dependency_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+  dependency_info.imageMemoryBarrierCount = 1;
+  dependency_info.pImageMemoryBarriers = &image_memory_barrier;
+
+  vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
+}
+
+void vk_cmd_pipeline_memory_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
   VkBufferMemoryBarrier2 buffer_memory_barrier = {};
   buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 
