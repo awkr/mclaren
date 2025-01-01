@@ -167,12 +167,12 @@ void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkOffset2D &of
 
 void vk_cmd_end_rendering(VkCommandBuffer command_buffer) { vkCmdEndRenderingKHR(command_buffer); }
 
-void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, const VkExtent2D &extent) {
     VkViewport viewport{};
     viewport.x = (float) x;
     viewport.y = (float) y;
-    viewport.width = (float) w;
-    viewport.height = (float) h;
+    viewport.width = (float) extent.width;
+    viewport.height = (float) extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
@@ -237,7 +237,7 @@ void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, V
     vkCmdCopyBufferToImage(command_buffer, src, dst, layout, 1, &buffer_image_copy);
 }
 
-void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, const VkOffset2D &image_offset, const VkExtent2D &image_extent, VkBuffer dst_buffer) noexcept {
+void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkBuffer dst_buffer, const VkOffset2D &offset, const VkExtent2D &extent) noexcept {
   VkBufferImageCopy region = {};
   region.bufferOffset = 0; // 偏移到目标缓冲区的起始位置
   region.bufferRowLength = 0; // 紧密排列，按图像宽度
@@ -246,8 +246,8 @@ void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_ima
   region.imageSubresource.mipLevel = 0; // 使用 mip 0
   region.imageSubresource.baseArrayLayer = 0;
   region.imageSubresource.layerCount = 1;
-  region.imageOffset = {image_offset.x, image_offset.y, 0}; // 从图像的起始位置开始
-  region.imageExtent = {image_extent.width, image_extent.height, 1}; // 图像尺寸
+  region.imageOffset = {offset.x, offset.y, 0}; // 从图像的起始位置开始
+  region.imageExtent = {extent.width, extent.height, 1}; // 图像尺寸
 
   vkCmdCopyImageToBuffer(command_buffer, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst_buffer, 1, &region);
 }
@@ -301,7 +301,7 @@ void vk_cmd_pipeline_image_barrier2(VkCommandBuffer command_buffer, VkImage imag
   vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
 }
 
-void vk_cmd_pipeline_memory_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
+void vk_cmd_pipeline_buffer_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
   VkBufferMemoryBarrier2 buffer_memory_barrier = {};
   buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 

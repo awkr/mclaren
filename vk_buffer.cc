@@ -24,19 +24,19 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
 }
 
 void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const void *data, size_t size) {
-    void *dst = nullptr;
-    VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &dst);
+    void *p = nullptr;
+    VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &p);
     ASSERT(result == VK_SUCCESS);
-    memcpy(dst, data, size);
+    memcpy(p, data, size);
     vmaUnmapMemory(vk_context->allocator, buffer->allocation);
     result = vmaFlushAllocation(vk_context->allocator, buffer->allocation, 0, size);
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_read_data_from_buffer(VkContext *vk_context, const Buffer *buffer, void *data, size_t size) {
-  void *mapped_ptr = nullptr;
-  const VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &mapped_ptr);
+void vk_read_data_from_buffer(VkContext *vk_context, const Buffer *buffer, void *dst, size_t size) {
+  void *p = nullptr;
+  const VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &p);
   ASSERT(result == VK_SUCCESS);
-  memcpy(data, mapped_ptr, size);
+  memcpy(dst, p, size);
   vmaUnmapMemory(vk_context->allocator, buffer->allocation);
 }

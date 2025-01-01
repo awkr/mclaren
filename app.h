@@ -16,7 +16,7 @@ struct SDL_Window;
 struct ImGuiContext;
 struct Image;
 
-#define FRAMES_IN_FLIGHT 2
+#define FRAMES_IN_FLIGHT 1
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -43,7 +43,7 @@ struct InstanceState {
     VkDeviceAddress vertex_buffer_device_address;
 };
 
-struct ObjectPickingInstanceState {
+struct EntityPickingInstanceState {
     glm::mat4 model_matrix;
     uint32_t id;
     VkDeviceAddress vertex_buffer_device_address;
