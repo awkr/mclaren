@@ -6,7 +6,7 @@
 struct VkContext;
 
 struct Image {
-    VkImage image;
+    VkImage handle;
     VmaAllocation allocation;
 };
 

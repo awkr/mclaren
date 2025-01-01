@@ -71,12 +71,12 @@ void create_color_image(App *app, const VkFormat format) {
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, usage, false, &app->color_image);
-    vk_create_image_view(app->vk_context->device, app->color_image->image, format, VK_IMAGE_ASPECT_COLOR_BIT, &app->color_image_view);
+    vk_create_image_view(app->vk_context->device, app->color_image->handle, format, VK_IMAGE_ASPECT_COLOR_BIT, &app->color_image_view);
 }
 
 void create_depth_image(App *app, const VkFormat format) {
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, false, &app->depth_image);
-    vk_create_image_view(app->vk_context->device, app->depth_image->image, format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->depth_image_view);
+    vk_create_image_view(app->vk_context->device, app->depth_image->handle, format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->depth_image_view);
 }
 
 // void create_object_picking_color_image(App *app) {
@@ -117,10 +117,10 @@ void create_depth_image(App *app, const VkFormat format) {
 //   vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
 // }
 
-void create_object_picking_staging_buffer(App *app) {
-  constexpr size_t buffer_size = 4; // size of one pixel
-  vk_create_buffer(app->vk_context, buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &app->object_picking_buffer);
-}
+// void create_object_picking_staging_buffer(App *app) {
+//   constexpr size_t buffer_size = 4; // size of one pixel
+//   vk_create_buffer(app->vk_context, buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &app->object_picking_buffer);
+// }
 
 void app_create(SDL_Window *window, App **out_app) {
     int render_width, render_height;
@@ -142,7 +142,7 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-      AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+      AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
       vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->entity_picking_render_pass);
     }
@@ -151,9 +151,11 @@ void app_create(SDL_Window *window, App **out_app) {
 
     app->framebuffers.resize(vk_context->swapchain_image_count);
 
+    // todo 移入类似 on_plugin_create 方法
     app->entity_picking_color_images.resize(vk_context->swapchain_image_count);
     app->entity_picking_color_image_views.resize(vk_context->swapchain_image_count);
     app->entity_picking_framebuffers.resize(vk_context->swapchain_image_count);
+    app->entity_picking_buffers.resize(vk_context->swapchain_image_count);
 
     for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
       {
@@ -162,12 +164,14 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       vk_create_image(app->vk_context, app->vk_context->swapchain_extent, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false, &app->entity_picking_color_images[i]);
-      vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->image, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
+      vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->handle, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
 
       {
         VkImageView attachments[2] = {app->entity_picking_color_image_views[i], app->depth_image_view};
         vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
       }
+
+      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &app->entity_picking_buffers[i]);
     }
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
@@ -193,11 +197,6 @@ void app_create(SDL_Window *window, App **out_app) {
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     create_color_image(app, color_image_format);
-    // create_object_picking_color_image(app);
-
-    // create_object_picking_depth_image(app, depth_image_format);
-
-    create_object_picking_staging_buffer(app);
 
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -357,7 +356,7 @@ void app_create(SDL_Window *window, App **out_app) {
         }
       }
       vk_create_image(vk_context, {16, 16}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->checkerboard_image);
-      vk_create_image_view(vk_context->device, app->checkerboard_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->checkerboard_image_view);
+      vk_create_image_view(vk_context->device, app->checkerboard_image->handle, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->checkerboard_image_view);
 
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
@@ -365,9 +364,9 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
-        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->checkerboard_image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 16, 16);
-        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
+        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->checkerboard_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 16, 16);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
       });
 
       vk_destroy_buffer(vk_context, staging_buffer);
@@ -386,7 +385,7 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       vk_create_image(vk_context, {width, width}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->uv_debug_image);
-      vk_create_image_view(vk_context->device, app->uv_debug_image->image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->uv_debug_image_view);
+      vk_create_image_view(vk_context->device, app->uv_debug_image->handle, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->uv_debug_image_view);
 
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
@@ -394,9 +393,9 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
-        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->uv_debug_image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
-        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT);
+        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->uv_debug_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
       });
 
       vk_destroy_buffer(vk_context, staging_buffer);
@@ -552,13 +551,19 @@ void app_destroy(App *app) {
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_uniform_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
-    vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
+    // 清理 entity picking 相关资源
+    // todo 移入类似 on_plugin_destroy 方法
+    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
+      vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
+      vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
+    }
+    app->entity_picking_buffers.clear();
+    app->entity_picking_color_image_views.clear();
+    app->entity_picking_color_images.clear();
 
     // vk_destroy_image_view(app->vk_context->device, app->object_picking_depth_image_view);
     // vk_destroy_image(app->vk_context, app->object_picking_depth_image);
-    //
-    // vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_view);
-    // vk_destroy_image(app->vk_context, app->entity_picking_color_image);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image);
@@ -1140,7 +1145,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_acquire_next_image(app->vk_context, present_complete_semaphore, &image_index);
   if (app->present_complete_semaphores[image_index] != VK_NULL_HANDLE) { push_semaphore_to_pool(app, app->present_complete_semaphores[image_index]); }
   app->present_complete_semaphores[image_index] = present_complete_semaphore;
-  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
+  log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   vk_alloc_command_buffers(app->vk_context->device, frame->command_pool, 1, &command_buffer);
   vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -1157,7 +1162,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
   // 清理深度附件（保证深度附件已准备好进行写入）
   vk_cmd_pipeline_image_barrier(command_buffer,
-                                app->depth_image->image,
+                                app->depth_image->handle,
                                 VK_IMAGE_ASPECT_DEPTH_BIT,
                                 VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -1166,12 +1171,122 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
-  VkClearValue clear_values[2] = {};
-  clear_values[0].color = {0.2f, 0.1f, 0.1f, 0.2f};
-  clear_values[1].depthStencil = {1.0f, 0};
-  vk_begin_render_pass(command_buffer, app->lit_render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
-  draw_world(app, command_buffer, frame);
-  vk_end_render_pass(command_buffer);
+  {
+    VkClearValue clear_values[2] = {};
+    clear_values[0].color = {.float32 = {0.2f, 0.1f, 0.1f, 0.2f}};
+    clear_values[1].depthStencil = {1.0f, 0};
+    vk_begin_render_pass(command_buffer, app->lit_render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
+    draw_world(app, command_buffer, frame);
+    vk_end_render_pass(command_buffer);
+  }
+  {
+    static int n = 0;
+    if (n < 3) {
+      vk_cmd_pipeline_image_barrier(command_buffer,
+                                    app->entity_picking_color_images[image_index]->handle,
+                                    VK_IMAGE_ASPECT_COLOR_BIT,
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                    VK_ACCESS_NONE,
+                                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+    }
+    ++n;
+
+    VkClearValue clear_values[1] = {};
+    clear_values[0].color = {.uint32 = {0}};
+    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 1);
+    vk_end_render_pass(command_buffer);
+
+    // {
+    //   VkImageMemoryBarrier readBarrier = {};
+    //   readBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    //   readBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    //   readBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    //   readBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    //   readBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    //   readBarrier.image = app->entity_picking_color_images[image_index]->handle;
+    //   readBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    //   readBarrier.subresourceRange.baseMipLevel = 0;
+    //   readBarrier.subresourceRange.levelCount = 1;
+    //   readBarrier.subresourceRange.baseArrayLayer = 0;
+    //   readBarrier.subresourceRange.layerCount = 1;
+    //
+    //   vkCmdPipelineBarrier(
+    //       command_buffer,
+    //       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    //       VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //       0,
+    //       0, nullptr,
+    //       0, nullptr,
+    //       1, &readBarrier);
+    // }
+
+    // {
+    //   VkImageMemoryBarrier barrier = {};
+    //   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    //   barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;  // RenderPass 的 finalLayout
+    //   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;  // 保持一致
+    //   barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;  // RenderPass 写操作
+    //   barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;          // 准备读取
+    //   barrier.image = app->entity_picking_color_images[image_index]->handle;                                   // 颜色附件的图像句柄
+    //   barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    //   barrier.subresourceRange.baseMipLevel = 0;
+    //   barrier.subresourceRange.levelCount = 1;
+    //   barrier.subresourceRange.baseArrayLayer = 0;
+    //   barrier.subresourceRange.layerCount = 1;
+    //
+    //   // 插入 barrier，确保渲染完成后才能读取
+    //   vkCmdPipelineBarrier(
+    //       command_buffer,
+    //       VK_PIPELINE_STAGE_TRANSFER_BIT,  // RenderPass 写阶段
+    //       VK_PIPELINE_STAGE_TRANSFER_BIT,                // 传输读取阶段
+    //       0,
+    //       0, nullptr,
+    //       0, nullptr,
+    //       1, &barrier
+    //   );
+    // }
+
+    // VkImageMemoryBarrier barrier = {};
+    // barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;  // RenderPass 的 finalLayout
+    // barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;  // 保持一致
+    // barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;  // RenderPass 写操作
+    // barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;          // 准备读取
+    // barrier.image = app->entity_picking_color_images[image_index]->handle;                                   // 颜色附件的图像句柄
+    // barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // barrier.subresourceRange.baseMipLevel = 0;
+    // barrier.subresourceRange.levelCount = 1;
+    // barrier.subresourceRange.baseArrayLayer = 0;
+    // barrier.subresourceRange.layerCount = 1;
+    //
+    // // 插入 barrier，确保渲染完成后才能读取
+    // vkCmdPipelineBarrier(
+    //     command_buffer,
+    //     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // RenderPass 写阶段
+    //     VK_PIPELINE_STAGE_TRANSFER_BIT,                // 传输读取阶段
+    //     0,
+    //     0, nullptr,
+    //     0, nullptr,
+    //     1, &barrier
+    // );
+
+
+    // VkBufferImageCopy region = {};
+    // region.bufferOffset = 0; // 偏移到目标缓冲区的起始位置
+    // region.bufferRowLength = 0; // 紧密排列，按图像宽度
+    // region.bufferImageHeight = 0; // 紧密排列，按图像高度
+    // region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // 假设是颜色图像
+    // region.imageSubresource.mipLevel = 0; // 使用 mip 0
+    // region.imageSubresource.baseArrayLayer = 0;
+    // region.imageSubresource.layerCount = 1;
+    // region.imageOffset = {0, 0, 0}; // 从图像的起始位置开始
+    // region.imageExtent = {1, 1, 1}; // 图像尺寸
+    //
+    // vkCmdCopyImageToBuffer(command_buffer, app->entity_picking_color_images[image_index]->handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->entity_picking_buffers[image_index]->handle, 1, &region);
+  }
 
   vk_end_command_buffer(command_buffer);
   if (app->render_complete_semaphores[image_index] == VK_NULL_HANDLE) { app->render_complete_semaphores[image_index] = pop_semaphore_from_pool(app); }
@@ -1325,7 +1440,7 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
       vk_create_semaphore(app->vk_context->device, &app->present_complete_semaphores[i]);
     }
 
-    vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
+    // vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
 
     // vk_destroy_image_view(app->vk_context->device, app->object_picking_depth_image_view);
     // vk_destroy_image(app->vk_context, app->object_picking_depth_image);
@@ -1354,7 +1469,7 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
     // create_object_picking_color_image(app);
     // create_object_picking_depth_image(app, VK_FORMAT_D32_SFLOAT);
-    create_object_picking_staging_buffer(app);
+    // create_object_picking_staging_buffer(app);
 }
 
 void app_key_down(App *app, Key key) {

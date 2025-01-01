@@ -112,8 +112,7 @@ struct App {
     std::vector<Image *> entity_picking_color_images;
     std::vector<VkImageView> entity_picking_color_image_views;
     std::vector<VkFramebuffer> entity_picking_framebuffers;
-
-    Buffer *object_picking_buffer;
+    std::vector<Buffer *> entity_picking_buffers;
 
     Gizmo gizmo;
 

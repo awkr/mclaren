@@ -35,7 +35,7 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
       allocation_create_info.requiredFlags |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
     }
 
-    VkResult result = vmaCreateImage(vk_context->allocator, &image_create_info, &allocation_create_info, &image->image,
+    VkResult result = vmaCreateImage(vk_context->allocator, &image_create_info, &allocation_create_info, &image->handle,
                                      &image->allocation, nullptr);
     ASSERT(result == VK_SUCCESS);
 
@@ -43,7 +43,7 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
 }
 
 void vk_destroy_image(VkContext *vk_context, Image *image) {
-    vmaDestroyImage(vk_context->allocator, image->image, image->allocation);
+    vmaDestroyImage(vk_context->allocator, image->handle, image->allocation);
     delete image;
 }
 
