@@ -16,7 +16,7 @@ struct SDL_Window;
 struct ImGuiContext;
 struct Image;
 
-#define FRAMES_IN_FLIGHT 1
+#define FRAMES_IN_FLIGHT 2
 
 struct RenderFrame {
     VkCommandPool command_pool;
