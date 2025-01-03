@@ -117,7 +117,7 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
     }
 
-    // todo 移入类似 on_plugin_create 方法
+    // 创建 entity picking 相关资源 todo 移入类似 on_plugin_prepare 方法
     app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
@@ -556,7 +556,7 @@ void app_destroy(App *app) {
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
-    // 清理 entity picking 相关资源 (todo 移入类似 on_plugin_destroy 方法)
+    // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
       vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
@@ -1223,6 +1223,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // todo gizmo render pass
   }
   {
+    vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
+
     VkClearValue clear_values[2] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
     clear_values[1].depthStencil = {1.0f, 0};
@@ -1407,55 +1409,113 @@ void app_update(App *app, InputSystemState *input_system_state) {
 }
 
 void app_resize(App *app, uint32_t width, uint32_t height) {
-    vk_resize(app->vk_context, width, height);
+  vk_resize(app->vk_context, width, height);
 
-    for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
-        vk_create_fence(app->vk_context->device, true, &app->frames[i].in_flight_fence);
-        vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
+  for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+    vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
+    vk_create_fence(app->vk_context->device, true, &app->frames[i].in_flight_fence);
+    vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
+  }
+  for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) { // 归还 semaphore 到 pool
+    app->semaphore_pool.push(app->render_complete_semaphores[i]);
+    app->semaphore_pool.push(app->present_complete_semaphores[i]);
+  }
+  app->present_complete_semaphores.resize(app->vk_context->swapchain_image_count, VK_NULL_HANDLE);
+  app->render_complete_semaphores.resize(app->vk_context->swapchain_image_count, VK_NULL_HANDLE);
+
+  vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
+  vk_destroy_image(app->vk_context, app->depth_image);
+
+  vk_destroy_image_view(app->vk_context->device, app->color_image_view);
+  vk_destroy_image(app->vk_context, app->color_image);
+
+  for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+    vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
+  }
+  app->framebuffers.clear();
+
+  create_depth_image(app, VK_FORMAT_D32_SFLOAT);
+  app->framebuffers.resize(app->vk_context->swapchain_image_count);
+  for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+    VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
+    vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
+  }
+
+  create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
+
+  {
+    // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
+    for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+      vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
+      vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
+      vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
+      vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
+      vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
     }
-    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
-      vk_destroy_semaphore(app->vk_context->device, app->present_complete_semaphores[i]);
-      vk_destroy_semaphore(app->vk_context->device, app->render_complete_semaphores[i]);
-    }
-    app->present_complete_semaphores.clear();
-    app->render_complete_semaphores.clear();
+    app->entity_picking_storage_buffers.clear();
+    app->entity_picking_buffers.clear();
+    app->entity_picking_framebuffers.clear();
+    app->entity_picking_color_image_views.clear();
+    app->entity_picking_color_images.clear();
 
-    app->present_complete_semaphores.resize(app->vk_context->swapchain_image_count);
-    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
-      vk_create_semaphore(app->vk_context->device, &app->present_complete_semaphores[i]);
-    }
+    // 重新创建 entity picking 相关资源
+    app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_buffers.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_storage_buffers.resize(FRAMES_IN_FLIGHT);
 
-    // vk_destroy_buffer(app->vk_context, app->object_picking_buffer);
+    for (size_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+      vk_create_image(app->vk_context, app->vk_context->swapchain_extent, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false, &app->entity_picking_color_images[i]);
+      vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->handle, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
 
-    // vk_destroy_image_view(app->vk_context->device, app->object_picking_depth_image_view);
-    // vk_destroy_image(app->vk_context, app->object_picking_depth_image);
-    //
-    // vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_view);
-    // vk_destroy_image(app->vk_context, app->entity_picking_color_image);
+      {
+        VkImageView attachments[2] = {app->entity_picking_color_image_views[i], app->depth_image_view};
+        vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
+      }
 
-    vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-    vk_destroy_image(app->vk_context, app->depth_image);
-
-    vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-    vk_destroy_image(app->vk_context, app->color_image);
-
-    for (size_t i = 0; i < app->framebuffers.size(); ++i) {
-      vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
-    }
-    app->framebuffers.clear();
-
-    create_depth_image(app, VK_FORMAT_D32_SFLOAT);
-    app->framebuffers.resize(app->vk_context->swapchain_image_count);
-    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
-      VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
-      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
+      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
+      size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
+      vk_create_buffer(app->vk_context, storage_buffer_size,
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                       VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                       &app->entity_picking_storage_buffers[i]);
     }
 
-    create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
-    // create_object_picking_color_image(app);
-    // create_object_picking_depth_image(app, VK_FORMAT_D32_SFLOAT);
-    // create_object_picking_staging_buffer(app);
+    {
+      VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+      vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
+
+      vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+      for (const Image *image : app->entity_picking_color_images) {
+        vk_cmd_pipeline_image_barrier2(command_buffer,
+                                       image->handle,
+                                       VK_IMAGE_ASPECT_COLOR_BIT,
+                                       VK_IMAGE_LAYOUT_UNDEFINED,
+                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                       VK_ACCESS_2_NONE,
+                                       VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+      }
+      vk_end_command_buffer(command_buffer);
+
+      VkFence fence;
+      vk_create_fence(app->vk_context->device, false, &fence);
+
+      vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence);
+
+      vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
+      vk_destroy_fence(app->vk_context->device, fence);
+
+      vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
+    }
+  }
+
+  app->mouse_pos = glm::vec2(0.0f);
+  memset(last_mouse_positions, 0, sizeof(last_mouse_positions));
+  app->frame_count = 0;
 }
 
 void app_key_down(App *app, Key key) {
