@@ -118,7 +118,7 @@ struct App {
 
     Gizmo gizmo;
 
-    float mouse_pos[2];
+    glm::fvec2 mouse_pos;
     uint32_t selected_mesh_id;
     Transform selected_mesh_transform;
     bool is_mouse_any_button_down;

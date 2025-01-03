@@ -510,7 +510,6 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     app->frame_count = 0;
-    memset(app->mouse_pos, -1.0f, sizeof(float) * 2);
     app->selected_mesh_id = UINT32_MAX;
 }
 
@@ -1051,7 +1050,7 @@ void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame 
 
 void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint32_t frame_index) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
-  vk_cmd_set_scissor(command_buffer, app->mouse_pos[0], app->mouse_pos[1], 1, 1);
+  vk_cmd_set_scissor(command_buffer, app->mouse_pos.x, app->mouse_pos.y, 1, 1);
 
   std::vector<VkDescriptorSet> descriptor_sets{};
   descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
@@ -1259,8 +1258,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                     VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     VkOffset2D offset = {};
-    offset.x = app->mouse_pos[0];
-    offset.y = app->mouse_pos[1];
+    offset.x = app->mouse_pos.x;
+    offset.y = app->mouse_pos.y;
     VkExtent2D extent = {1, 1};
     vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[frame_index]->handle, app->entity_picking_buffers[frame_index]->handle, offset, extent);
 
@@ -1285,7 +1284,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
-  last_mouse_positions[frame_index] = glm::fvec2(app->mouse_pos[0], app->mouse_pos[1]);
+  last_mouse_positions[frame_index] = app->mouse_pos;
   ++app->frame_count;
 
   // update_scene(app);
@@ -1703,8 +1702,7 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
 
 void app_mouse_move(App *app, float x, float y) {
   // log_debug("mouse moving %f, %f", x, y);
-  app->mouse_pos[0] = x;
-  app->mouse_pos[1] = y;
+  app->mouse_pos = glm::fvec2(x, y);
   const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
   if (app->is_mouse_any_button_down) {
     if (app->gizmo.mode & GIZMO_MODE_TRANSLATE) {
