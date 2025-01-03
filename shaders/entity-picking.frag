@@ -5,14 +5,20 @@
 
 #include "vertex.glsl"
 
-layout (push_constant) uniform InstanceState {
-    mat4 model_matrix;
-    uint id;
-    VertexBuffer vertex_buffer;
-} instance_state;
+layout (early_fragment_tests) in;
 
-layout (location = 0) out uint id;
+layout (set = 1, binding = 0) buffer EntityPickingSSBO {
+  uint data[];
+};
+
+layout (location = 0) flat in uint id;
+layout (location = 0) out uint out_id;
 
 void main() {
-    id = instance_state.id;
+    out_id = id;
+
+    uint index = uint(gl_FragCoord.y) * 768 + uint(gl_FragCoord.x); // 根据片段的 x 坐标计算索引
+    // data[index] = uint(gl_FragCoord.y); // 将 y 坐标写入 SSBO
+
+    data[index] = id;
 }

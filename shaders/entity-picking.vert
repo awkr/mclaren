@@ -12,7 +12,10 @@ layout (push_constant) uniform InstanceState {
     VertexBuffer vertex_buffer;
 } instance_state;
 
+layout (location = 0) out uint id;
+
 void main() {
     Vertex vertex = instance_state.vertex_buffer.vertices[gl_VertexIndex];
     gl_Position = global_state.projection * global_state.view * instance_state.model_matrix * vec4(vertex.position.xyz, 1.0);
+    id = instance_state.id;
 }

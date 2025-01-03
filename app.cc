@@ -108,18 +108,19 @@ void app_create(SDL_Window *window, App **out_app) {
 
     app->framebuffers.resize(vk_context->swapchain_image_count);
 
-    // todo 移入类似 on_plugin_create 方法
-    app->entity_picking_color_images.resize(vk_context->swapchain_image_count);
-    app->entity_picking_color_image_views.resize(vk_context->swapchain_image_count);
-    app->entity_picking_framebuffers.resize(vk_context->swapchain_image_count);
-    app->entity_picking_buffers.resize(vk_context->swapchain_image_count);
-
     for (size_t i = 0; i < vk_context->swapchain_image_count; ++i) {
-      {
-        VkImageView attachments[2] = {vk_context->swapchain_image_views[i], app->depth_image_view};
-        vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
-      }
+      VkImageView attachments[2] = {vk_context->swapchain_image_views[i], app->depth_image_view};
+      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->lit_render_pass, attachments, 2, &app->framebuffers[i]);
+    }
 
+    // todo 移入类似 on_plugin_create 方法
+    app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_buffers.resize(FRAMES_IN_FLIGHT);
+    app->entity_picking_storage_buffers.resize(FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_create_image(app->vk_context, app->vk_context->swapchain_extent, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false, &app->entity_picking_color_images[i]);
       vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->handle, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
 
@@ -128,7 +129,13 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
       }
 
-      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &app->entity_picking_buffers[i]);
+      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
+      size_t storage_buffer_size = app->vk_context->swapchain_extent.width * app->vk_context->swapchain_extent.height * sizeof(uint32_t);
+      vk_create_buffer(app->vk_context, storage_buffer_size,
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                       VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                       &app->entity_picking_storage_buffers[i]);
     }
 
     {
@@ -174,11 +181,12 @@ void app_create(SDL_Window *window, App **out_app) {
         uint32_t max_sets = 100;
         std::unordered_map<VkDescriptorType, uint32_t> descriptor_count;
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100});
+        descriptor_count.insert({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100});
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100});
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, &frame->global_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, &frame->global_uniform_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -188,6 +196,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr});
         vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_storage_image_descriptor_set_layout);
+    }
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_storage_buffer_descriptor_set_layout);
     }
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -315,10 +328,12 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_create_shader_module(vk_context->device, "shaders/entity-picking.frag.spv", &frag_shader);
 
       VkPushConstantRange push_constant_range{};
-      push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+      push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(EntityPickingInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
+      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
+      descriptor_set_layouts.push_back(app->global_uniform_buffer_descriptor_set_layout);
+      descriptor_set_layouts.push_back(app->single_storage_buffer_descriptor_set_layout);
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->entity_picking_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
@@ -346,7 +361,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
-      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
+      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
       vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
@@ -375,7 +390,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
-      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, &staging_buffer);
+      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
       vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
@@ -535,15 +550,18 @@ void app_destroy(App *app) {
 
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_uniform_buffer_descriptor_set_layout);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
     // 清理 entity picking 相关资源 (todo 移入类似 on_plugin_destroy 方法)
-    for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+    for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+      vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
       vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
       vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
       vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
     }
+    app->entity_picking_storage_buffers.clear();
     app->entity_picking_buffers.clear();
     app->entity_picking_framebuffers.clear();
     app->entity_picking_color_image_views.clear();
@@ -1031,12 +1049,26 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
-void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
+void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint32_t frame_index) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, app->mouse_pos[0], app->mouse_pos[1], 1, 1);
 
-  std::vector<VkDescriptorSet> descriptor_sets;
+  std::vector<VkDescriptorSet> descriptor_sets{};
   descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  {
+    std::vector<VkWriteDescriptorSet> write_descriptor_sets{};
+
+    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+    vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_buffer_descriptor_set_layout, &descriptor_set);
+    descriptor_sets.push_back(descriptor_set);
+
+    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[frame_index]->handle, VK_WHOLE_SIZE);
+
+    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &descriptor_buffer_info);
+    write_descriptor_sets.push_back(write_descriptor_set);
+
+    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+  }
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->entity_picking_pipeline);
   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->entity_picking_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
@@ -1047,7 +1079,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
       instance_state.model_matrix = model_matrix;
       instance_state.id = mesh.id;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(EntityPickingInstanceState), &instance_state);
+      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(EntityPickingInstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1113,9 +1145,29 @@ static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
   app->semaphore_pool.push(semaphore);
 }
 
+glm::fvec2 last_mouse_positions[FRAMES_IN_FLIGHT] = {};
+
 void app_update(App *app, InputSystemState *input_system_state) {
-  update_scene(app);
   uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+
+  if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
+    uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + FRAMES_IN_FLIGHT - (FRAMES_IN_FLIGHT - 1)) : 0;
+    RenderFrame *frame = &app->frames[earliest_frame_index];
+    vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+    {
+      void *mappedData;
+      vmaMapMemory(app->vk_context->allocator, app->entity_picking_storage_buffers[earliest_frame_index]->allocation, &mappedData);
+
+      // 读取数据
+      uint32_t *data = static_cast<uint32_t *>(mappedData);
+      const glm::fvec2 *last_mouse_pos = &last_mouse_positions[earliest_frame_index];
+      log_debug("data: %u", data[(uint32_t) last_mouse_pos->y * 768 + (uint32_t) last_mouse_pos->x]);
+
+      vmaUnmapMemory(app->vk_context->allocator, app->entity_picking_storage_buffers[earliest_frame_index]->allocation);
+    }
+  }
+
+  update_scene(app);
   RenderFrame *frame = &app->frames[frame_index];
   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
@@ -1169,17 +1221,25 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+  vk_cmd_pipeline_buffer_barrier2(command_buffer,
+                                  app->entity_picking_storage_buffers[frame_index]->handle,
+                                  0,
+                                  VK_WHOLE_SIZE,
+                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                  VK_ACCESS_2_SHADER_WRITE_BIT,
+                                  VK_ACCESS_2_SHADER_WRITE_BIT);
   {
     VkClearValue clear_values[2] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
     clear_values[1].depthStencil = {1.0f, 0};
-    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
-    draw_entity_picking(app, command_buffer, frame);
+    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, clear_values, 2);
+    draw_entity_picking(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
 
     // 读出 color 之前转换为 transfer_src
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                  app->entity_picking_color_images[image_index]->handle,
+                                  app->entity_picking_color_images[frame_index]->handle,
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -1190,7 +1250,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
     // 写入 buffer 之前确保之前的读写操作完成
     vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                    app->entity_picking_buffers[image_index]->handle,
+                                    app->entity_picking_buffers[frame_index]->handle,
                                     0,
                                     VK_WHOLE_SIZE,
                                     VK_PIPELINE_STAGE_2_COPY_BIT,
@@ -1202,11 +1262,11 @@ void app_update(App *app, InputSystemState *input_system_state) {
     offset.x = app->mouse_pos[0];
     offset.y = app->mouse_pos[1];
     VkExtent2D extent = {1, 1};
-    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[image_index]->handle, app->entity_picking_buffers[image_index]->handle, offset, extent);
+    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[frame_index]->handle, app->entity_picking_buffers[frame_index]->handle, offset, extent);
 
     // 读取 color 完毕后转换为 color_attachment
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                   app->entity_picking_color_images[image_index]->handle,
+                                   app->entity_picking_color_images[frame_index]->handle,
                                    VK_IMAGE_ASPECT_COLOR_BIT,
                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1216,7 +1276,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
     uint32_t id = UINT32_MAX;
-    vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[image_index], &id, sizeof(uint32_t));
+    vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[frame_index], &id, sizeof(uint32_t));
     log_debug("id: %u", id);
   }
 
@@ -1225,6 +1285,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
+  last_mouse_positions[frame_index] = glm::fvec2(app->mouse_pos[0], app->mouse_pos[1]);
   ++app->frame_count;
 
   // update_scene(app);

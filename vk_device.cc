@@ -132,6 +132,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_device_features.wideLines = features.wideLines;
     required_device_features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
     required_device_features.depthBiasClamp = VK_TRUE;
+    required_device_features.fragmentStoresAndAtomics = VK_TRUE;
 
     VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state_features{};
     extended_dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;

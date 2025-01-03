@@ -65,7 +65,7 @@ void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count,
     vkUpdateDescriptorSets(device, descriptor_write_count, writes, 0, nullptr);
 }
 
-VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint32_t size) {
+VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint64_t size) {
     VkDescriptorBufferInfo descriptor_buffer_info = {};
     descriptor_buffer_info.buffer = buffer;
     descriptor_buffer_info.offset = 0;

@@ -7,7 +7,7 @@ struct Buffer {
     VmaAllocation allocation;
 };
 
-void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage, Buffer **out_buffer);
+void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer);
 
 void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer);
 

@@ -1,16 +1,17 @@
 #include "vk_buffer.h"
 #include "logging.h"
 
-void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage, Buffer **out_buffer) {
+void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer) {
     Buffer *buffer = new Buffer();
 
     VkBufferCreateInfo buffer_create_info = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     buffer_create_info.size = size;
-    buffer_create_info.usage = usage;
+    buffer_create_info.usage = buffer_usage;
+    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocation_create_info{};
     allocation_create_info.usage = memory_usage;
-    allocation_create_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocation_create_info.flags = flag;
 
     VkResult result = vmaCreateBuffer(vk_context->allocator, &buffer_create_info, &allocation_create_info, &buffer->handle, &buffer->allocation, nullptr);
     ASSERT(result == VK_SUCCESS);

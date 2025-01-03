@@ -16,7 +16,7 @@ struct SDL_Window;
 struct ImGuiContext;
 struct Image;
 
-#define FRAMES_IN_FLIGHT 2
+#define FRAMES_IN_FLIGHT 3
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -70,6 +70,7 @@ struct App {
     VkImageView depth_image_view;
 
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
+    VkDescriptorSetLayout single_storage_buffer_descriptor_set_layout;
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
     VkDescriptorSetLayout global_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
 
@@ -113,6 +114,7 @@ struct App {
     std::vector<VkImageView> entity_picking_color_image_views;
     std::vector<VkFramebuffer> entity_picking_framebuffers;
     std::vector<Buffer *> entity_picking_buffers;
+    std::vector<Buffer *> entity_picking_storage_buffers;
 
     Gizmo gizmo;
 
