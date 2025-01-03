@@ -1213,14 +1213,6 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
-  vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                  app->entity_picking_storage_buffers[frame_index]->handle,
-                                  0,
-                                  VK_WHOLE_SIZE,
-                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                                  VK_ACCESS_2_SHADER_WRITE_BIT,
-                                  VK_ACCESS_2_SHADER_WRITE_BIT);
   {
     VkClearValue clear_values[2] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
