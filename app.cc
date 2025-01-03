@@ -130,7 +130,7 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
-      size_t storage_buffer_size = app->vk_context->swapchain_extent.width * app->vk_context->swapchain_extent.height * sizeof(uint32_t);
+      size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
       vk_create_buffer(app->vk_context, storage_buffer_size,
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -1147,23 +1147,16 @@ static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
 glm::fvec2 last_mouse_positions[FRAMES_IN_FLIGHT] = {};
 
 void app_update(App *app, InputSystemState *input_system_state) {
-  uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+  const uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
   if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-    uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + FRAMES_IN_FLIGHT - (FRAMES_IN_FLIGHT - 1)) : 0;
+    uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + 1) : 0;
     RenderFrame *frame = &app->frames[earliest_frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
-    {
-      void *mappedData;
-      vmaMapMemory(app->vk_context->allocator, app->entity_picking_storage_buffers[earliest_frame_index]->allocation, &mappedData);
 
-      // 读取数据
-      uint32_t *data = static_cast<uint32_t *>(mappedData);
-      const glm::fvec2 *last_mouse_pos = &last_mouse_positions[earliest_frame_index];
-      log_debug("data: %u", data[(uint32_t) last_mouse_pos->y * 768 + (uint32_t) last_mouse_pos->x]);
-
-      vmaUnmapMemory(app->vk_context->allocator, app->entity_picking_storage_buffers[earliest_frame_index]->allocation);
-    }
+    uint32_t id = UINT32_MAX;
+    vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[earliest_frame_index], &id, sizeof(uint32_t));
+    log_debug("data: %u", id);
   }
 
   update_scene(app);
