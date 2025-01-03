@@ -55,6 +55,7 @@ struct App {
     uint64_t frame_count;
 
     VkRenderPass lit_render_pass;
+    VkRenderPass vertex_lit_render_pass;
     VkRenderPass entity_picking_render_pass;
     std::vector<VkFramebuffer> framebuffers;
     std::vector<VkSemaphore> present_complete_semaphores;

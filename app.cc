@@ -97,7 +97,11 @@ void app_create(SDL_Window *window, App **out_app) {
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
       vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->lit_render_pass);
     }
-
+    {
+      AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+      AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
+      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->vertex_lit_render_pass);
+    }
     {
       AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
@@ -276,28 +280,28 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_destroy_shader_module(vk_context->device, vert_shader);
     }
 
-    // {
-    //     VkShaderModule vert_shader, frag_shader;
-    //     vk_create_shader_module(vk_context->device, "shaders/vertex-lit.vert.spv", &vert_shader);
-    //     vk_create_shader_module(vk_context->device, "shaders/vertex-lit.frag.spv", &frag_shader);
-    //
-    //     VkPushConstantRange push_constant_range{};
-    //     push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    //     push_constant_range.size = sizeof(InstanceState);
-    //
-    //     std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
-    //     vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
-    //     std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-    //     DepthConfig depth_config{};
-    //     depth_config.enable_test = true;
-    //     depth_config.enable_write = false;
-    //     depth_config.is_depth_test_dynamic = true;
-    //     vk_create_graphics_pipeline(vk_context->device, app->vertex_lit_pipeline_layout, color_image_format, true, depth_config, {}, depth_image_format, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
-    //                                 primitive_topologies, VK_POLYGON_MODE_FILL, &app->vertex_lit_pipeline);
-    //
-    //     vk_destroy_shader_module(vk_context->device, frag_shader);
-    //     vk_destroy_shader_module(vk_context->device, vert_shader);
-    // }
+    {
+      VkShaderModule vert_shader, frag_shader;
+      vk_create_shader_module(vk_context->device, "shaders/vertex-lit.vert.spv", &vert_shader);
+      vk_create_shader_module(vk_context->device, "shaders/vertex-lit.frag.spv", &frag_shader);
+
+      VkPushConstantRange push_constant_range{};
+      push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+      push_constant_range.size = sizeof(InstanceState);
+
+      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
+      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
+      std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
+      DepthConfig depth_config{};
+      depth_config.enable_test = true;
+      depth_config.enable_write = false;
+      depth_config.is_depth_test_dynamic = true;
+      vk_create_graphics_pipeline(vk_context->device, app->vertex_lit_pipeline_layout, true, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+                                  primitive_topologies, VK_POLYGON_MODE_FILL, app->vertex_lit_render_pass, &app->vertex_lit_pipeline);
+
+      vk_destroy_shader_module(vk_context->device, frag_shader);
+      vk_destroy_shader_module(vk_context->device, vert_shader);
+    }
 
     {
       VkShaderModule vert_shader, frag_shader;
@@ -566,6 +570,8 @@ void app_destroy(App *app) {
     app->entity_picking_color_image_views.clear();
     app->entity_picking_color_images.clear();
     vk_destroy_render_pass(app->vk_context->device, app->entity_picking_render_pass);
+
+    vk_destroy_render_pass(app->vk_context->device, app->vertex_lit_render_pass);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
     vk_destroy_image(app->vk_context, app->depth_image);
@@ -1213,6 +1219,9 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+  {
+    // todo gizmo render pass
+  }
   {
     VkClearValue clear_values[2] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
