@@ -93,19 +93,19 @@ void app_create(SDL_Window *window, App **out_app) {
     VkContext *vk_context = app->vk_context;
 
     {
-      AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
+      AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
       vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->lit_render_pass);
     }
     {
-      AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+      AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->vertex_lit_render_pass);
+      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->entity_picking_render_pass);
     }
     {
-      AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+      AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->entity_picking_render_pass);
+      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->vertex_lit_render_pass);
     }
 
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);
@@ -169,6 +169,13 @@ void app_create(SDL_Window *window, App **out_app) {
       vk_destroy_fence(app->vk_context->device, fence);
 
       vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
+    }
+
+    // 创建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法
+    app->gizmo_framebuffers.resize(app->vk_context->swapchain_image_count);
+    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
+      vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->vertex_lit_render_pass, attachments, 2, &app->gizmo_framebuffers[i]);
     }
 
     ASSERT(FRAMES_IN_FLIGHT <= vk_context->swapchain_image_count);
@@ -491,30 +498,46 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      // generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
-      // create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.axis_geometry);
+      generate_cylinder_geometry_config(app->gizmo.config.axis_length, app->gizmo.config.axis_radius, 8, &config);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.axis_geometry);
       dispose_geometry_config(&config);
     }
 
     {
       GeometryConfig config{};
-      // generate_cone_geometry_config_vertex_lit(app->gizmo.config.arrow_radius, app->gizmo.config.arrow_length, 8, &config);
-      // create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.arrow_geometry);
+      generate_cone_geometry_config_vertex_lit(app->gizmo.config.arrow_radius, app->gizmo.config.arrow_length, 8, &config);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.arrow_geometry);
       dispose_geometry_config(&config);
     }
 
     {
       GeometryConfig config{};
-      // generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
-      // create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
+      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
       dispose_geometry_config(&config);
     }
     {
-      // create_cube_geometry(&app->mesh_system_state, vk_context, app->gizmo.config.cube_size, &app->gizmo.cube_geometry);
+      create_cube_geometry(&app->mesh_system_state, vk_context, app->gizmo.config.cube_size, &app->gizmo.cube_geometry);
     }
 
     app->frame_count = 0;
     app->selected_mesh_id = UINT32_MAX;
+}
+
+static VkSemaphore pop_semaphore_from_pool(App *app) {
+  if (app->semaphore_pool.empty()) {
+    log_warning("semaphore pool is empty, creating a new one");
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    vk_create_semaphore(app->vk_context->device, &semaphore);
+    return semaphore;
+  }
+  VkSemaphore semaphore = app->semaphore_pool.front();
+  app->semaphore_pool.pop();
+  return semaphore;
+}
+
+static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
+  app->semaphore_pool.push(semaphore);
 }
 
 void app_destroy(App *app) {
@@ -556,6 +579,12 @@ void app_destroy(App *app) {
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
+    // 清理 gizmo render pass 相关资源 todo 移入类似 on_plugin_clean_up 方法
+    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_destroy_framebuffer(app->vk_context->device, app->gizmo_framebuffers[i]);
+    }
+    app->gizmo_framebuffers.clear();
+
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
@@ -586,8 +615,8 @@ void app_destroy(App *app) {
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
     }
     for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) { // 归还 semaphore 到 pool
-      app->semaphore_pool.push(app->render_complete_semaphores[i]);
-      app->semaphore_pool.push(app->present_complete_semaphores[i]);
+      if (app->present_complete_semaphores[i]) { push_semaphore_to_pool(app, app->present_complete_semaphores[i]); }
+      if (app->render_complete_semaphores[i]) { push_semaphore_to_pool(app, app->render_complete_semaphores[i]); }
     }
     app->present_complete_semaphores.clear();
     app->render_complete_semaphores.clear();
@@ -673,28 +702,28 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
   }
 
-  {
-    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-
-    std::vector<VkDescriptorSet> descriptor_sets;
-    descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
-    for (const Geometry &geometry : app->wireframe_geometries) {
-      glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-
-      for (const Mesh &mesh : geometry.meshes) {
-        InstanceState instance_state{};
-        instance_state.model_matrix = model_matrix;
-        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-        for (const Primitive &primitive : mesh.primitives) {
-          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-        }
-      }
-    }
-  }
+  // {
+  //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+  //
+  //   std::vector<VkDescriptorSet> descriptor_sets;
+  //   descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  //   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  //
+  //   for (const Geometry &geometry : app->wireframe_geometries) {
+  //     glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+  //
+  //     for (const Mesh &mesh : geometry.meshes) {
+  //       InstanceState instance_state{};
+  //       instance_state.model_matrix = model_matrix;
+  //       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+  //       vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+  //       for (const Primitive &primitive : mesh.primitives) {
+  //         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+  //         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+  //       }
+  //     }
+  //   }
+  // }
 
   { // draw line, aabb
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
@@ -747,314 +776,314 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
 }
 
 void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
-    vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
-    vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
+  vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
+  vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent.width, app->vk_context->swapchain_extent.height);
 
-    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline);
-    vk_cmd_set_depth_test_enable(command_buffer, false);
+  vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline);
+  vk_cmd_set_depth_test_enable(command_buffer, false);
 
-    std::vector<VkDescriptorSet> descriptor_sets;
-    descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  std::vector<VkDescriptorSet> descriptor_sets;
+  descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
-    const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
+  const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
-    if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
-      if (app->gizmo.rotation_start_pos != glm::vec3(FLT_MAX) && app->gizmo.rotation_end_pos != glm::vec3(FLT_MAX)) { // 绘制旋转角度扇形平面
-        // 等待上次使用完毕，即上一帧渲染完毕
-        if (app->frame_count > 0) {
-          uint32_t last_frame_number = --app->frame_count;
-          uint8_t last_frame_index = last_frame_number % FRAMES_IN_FLIGHT;
-          RenderFrame *last_frame = &app->frames[last_frame_index];
-          vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence, UINT64_MAX);
+  // if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
+  //   if (app->gizmo.rotation_start_pos != glm::vec3(FLT_MAX) && app->gizmo.rotation_end_pos != glm::vec3(FLT_MAX)) { // 绘制旋转角度扇形平面
+  //     // 等待上次使用完毕，即上一帧渲染完毕
+  //     if (app->frame_count > 0) {
+  //       uint32_t last_frame_number = --app->frame_count;
+  //       uint8_t last_frame_index = last_frame_number % FRAMES_IN_FLIGHT;
+  //       RenderFrame *last_frame = &app->frames[last_frame_index];
+  //       vk_wait_fence(app->vk_context->device, last_frame->in_flight_fence, UINT64_MAX);
+  //     }
+  //
+  //     destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo.sector_geometry);
+  //
+  //     constexpr uint32_t sector = 64;
+  //     GeometryConfig config = {};
+  //     generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, sector, &config);
+  //     create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, &app->gizmo.sector_geometry);
+  //     dispose_geometry_config(&config);
+  //
+  //     for (const Mesh &mesh : app->gizmo.sector_geometry.meshes) {
+  //       glm::mat4 model_matrix(1.0f);
+  //       model_matrix = gizmo_model_matrix * model_matrix;
+  //
+  //       InstanceState instance_state{};
+  //       instance_state.model_matrix = model_matrix;
+  //       instance_state.color = glm::vec4(0.4f, 0.4f, 0.0f, 0.4f);
+  //       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+  //
+  //       vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+  //       for (const Primitive &primitive : mesh.primitives) {
+  //         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+  //         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+  //       }
+  //     }
+  //   }
+  // }
+
+  { // 绘制旋转环
+    for (const Mesh &mesh : app->gizmo.ring_geometry.meshes) {
+      { // y axis
+        glm::mat4 model_matrix(1.0f);
+        model_matrix = gizmo_model_matrix * model_matrix;
+
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Y) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
         }
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-        destroy_geometry(&app->mesh_system_state, app->vk_context, &app->gizmo.sector_geometry);
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
-        constexpr uint32_t sector = 64;
-        GeometryConfig config = {};
-        generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, sector, &config);
-        create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, &app->gizmo.sector_geometry);
-        dispose_geometry_config(&config);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+      { // z
+        glm::mat4 model_matrix(1.0f);
+        model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model_matrix = gizmo_model_matrix * model_matrix;
 
-        for (const Mesh &mesh : app->gizmo.sector_geometry.meshes) {
-          glm::mat4 model_matrix(1.0f);
-          model_matrix = gizmo_model_matrix * model_matrix;
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Z) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+        }
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-          InstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          instance_state.color = glm::vec4(0.4f, 0.4f, 0.0f, 0.4f);
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
 
-          vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-          }
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+      { // x
+        glm::mat4 model_matrix(1.0f);
+        model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        model_matrix = gizmo_model_matrix * model_matrix;
+
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_X) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+        }
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
       }
     }
+  }
 
-    { // 绘制旋转环
-      for (const Mesh &mesh : app->gizmo.ring_geometry.meshes) {
-        { // y axis
-          glm::mat4 model_matrix(1.0f);
-          model_matrix = gizmo_model_matrix * model_matrix;
+  for (const Mesh &mesh : app->gizmo.axis_geometry.meshes) {
+    { // x axis body
+      glm::mat4 model_matrix(1.0f);
+      model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+      model_matrix = gizmo_model_matrix * model_matrix;
 
-          InstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-          if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Y) {
-            color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-          } else if (app->gizmo.is_mouse_any_button_down) {
-            color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-          }
-          instance_state.color = color;
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      InstanceState instance_state{};
+      instance_state.model_matrix = model_matrix;
+      glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+      if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
+        color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+      } else if (app->gizmo.is_mouse_any_button_down) {
+        color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+      }
+      instance_state.color = color;
+      instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      for (const Primitive &primitive : mesh.primitives) {
+        vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+        vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      }
+    }
+    { // y axis
+      glm::mat4 model_matrix(1.0f);
+      model_matrix = gizmo_model_matrix * model_matrix;
 
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-          }
+      InstanceState instance_state{};
+      instance_state.model_matrix = model_matrix;
+      glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+      if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
+        color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+      } else if (app->gizmo.is_mouse_any_button_down) {
+        color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+      }
+      instance_state.color = color;
+      instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      for (const Primitive &primitive : mesh.primitives) {
+        vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+        vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      }
+    }
+    { // z axis
+      glm::mat4 model_matrix(1.0f);
+      model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+      model_matrix = gizmo_model_matrix * model_matrix;
+
+      InstanceState instance_state{};
+      instance_state.model_matrix = model_matrix;
+      glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+      if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
+        color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+      } else if (app->gizmo.is_mouse_any_button_down) {
+        color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+      }
+      instance_state.color = color;
+      instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      for (const Primitive &primitive : mesh.primitives) {
+        vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+        vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      }
+    }
+  }
+
+  {
+    for (const Mesh &mesh : app->gizmo.arrow_geometry.meshes) {
+      { // x axis
+        glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
+        model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
         }
-        { // z
-          glm::mat4 model_matrix(1.0f);
-          model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-          model_matrix = gizmo_model_matrix * model_matrix;
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-          InstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-          if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Z) {
-            color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-          } else if (app->gizmo.is_mouse_any_button_down) {
-            color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-          }
-          instance_state.color = color;
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-          }
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
-        { // x
-          glm::mat4 model_matrix(1.0f);
-          model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-          model_matrix = gizmo_model_matrix * model_matrix;
+      }
+      { // y axis
+        glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.config.axis_length, 0.0f));
 
-          InstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-          if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_X) {
-            color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-          } else if (app->gizmo.is_mouse_any_button_down) {
-            color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-          }
-          instance_state.color = color;
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+        }
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+      { // z axis
+        glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.config.axis_length));
+        model_matrix = glm::rotate(model_matrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-            vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-          }
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
+          color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+        } else if (app->gizmo.is_mouse_any_button_down) {
+          color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
+        }
+        instance_state.color = color;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
       }
     }
+  }
 
-    for (const Mesh &mesh : app->gizmo.axis_geometry.meshes) {
-        { // x axis body
-            glm::mat4 model_matrix(1.0f);
-            model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-            model_matrix = gizmo_model_matrix * model_matrix;
+  {
+    for (const Mesh &mesh : app->gizmo.cube_geometry.meshes) {
+      { // x axis
+        glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length + app->gizmo.config.arrow_length + app->gizmo.config.cube_offset + app->gizmo.config.cube_size * 0.5f, 0.0f, 0.0f));
 
-            InstanceState instance_state{};
-            instance_state.model_matrix = model_matrix;
-            glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
-              color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            } else if (app->gizmo.is_mouse_any_button_down) {
-              color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-            }
-            instance_state.color = color;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        InstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
 
-            vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            for (const Primitive &primitive : mesh.primitives) {
-              vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-              vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
         }
-        { // y axis
-            glm::mat4 model_matrix(1.0f);
-            model_matrix = gizmo_model_matrix * model_matrix;
-
-            InstanceState instance_state{};
-            instance_state.model_matrix = model_matrix;
-            glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-            if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
-              color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            } else if (app->gizmo.is_mouse_any_button_down) {
-              color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-            }
-            instance_state.color = color;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            for (const Primitive &primitive : mesh.primitives) {
-              vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-              vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
-        }
-        { // z axis
-            glm::mat4 model_matrix(1.0f);
-            model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-            model_matrix = gizmo_model_matrix * model_matrix;
-
-            InstanceState instance_state{};
-            instance_state.model_matrix = model_matrix;
-            glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-            if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
-              color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-            } else if (app->gizmo.is_mouse_any_button_down) {
-              color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-            }
-            instance_state.color = color;
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            for (const Primitive &primitive : mesh.primitives) {
-              vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-              vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
-        }
+      }
+      //         { // y axis
+      //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 1.0f, 0.0f));
+      //
+      //             InstanceState instance_state{};
+      //             instance_state.model_matrix = model;
+      //             instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
+      //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      //             for (const Primitive &primitive : mesh.primitives) {
+      //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+      //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      //             }
+      //         }
+      //         { // z axis
+      //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 1.0f));
+      //             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+      //
+      //             InstanceState instance_state{};
+      //             instance_state.model_matrix = model;
+      //             instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
+      //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+      //             for (const Primitive &primitive : mesh.primitives) {
+      //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+      //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+      //             }
+      //         }
     }
-
-    {
-        for (const Mesh &mesh : app->gizmo.arrow_geometry.meshes) {
-            { // x axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
-                model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-                InstanceState instance_state{};
-                instance_state.model_matrix = model_matrix;
-                glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-                if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
-                  color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-                } else if (app->gizmo.is_mouse_any_button_down) {
-                  color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-                }
-                instance_state.color = color;
-                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-                vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-                for (const Primitive &primitive : mesh.primitives) {
-                  vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                    vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-                }
-            }
-            { // y axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.config.axis_length, 0.0f));
-
-                InstanceState instance_state{};
-                instance_state.model_matrix = model_matrix;
-                glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-                if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
-                  color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-                } else if (app->gizmo.is_mouse_any_button_down) {
-                  color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-                }
-                instance_state.color = color;
-                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-                vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-                for (const Primitive &primitive : mesh.primitives) {
-                    vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                    vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-                }
-            }
-            { // z axis
-                glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.config.axis_length));
-                model_matrix = glm::rotate(model_matrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
-                InstanceState instance_state{};
-                instance_state.model_matrix = model_matrix;
-                glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-                if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
-                  color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-                } else if (app->gizmo.is_mouse_any_button_down) {
-                  color = glm::vec4(0.5f, 0.5f, 0.5f, 0.5f);
-                }
-                instance_state.color = color;
-                instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-                vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-                for (const Primitive &primitive : mesh.primitives) {
-                    vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                    vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-                }
-            }
-        }
-    }
-
-    {
-        for (const Mesh &mesh : app->gizmo.cube_geometry.meshes) {
-        { // x axis
-            glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length + app->gizmo.config.arrow_length + app->gizmo.config.cube_offset + app->gizmo.config.cube_size * 0.5f, 0.0f, 0.0f));
-
-            InstanceState instance_state{};
-            instance_state.model_matrix = model_matrix;
-            instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-            vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-            for (const Primitive &primitive : mesh.primitives) {
-                vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-                vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-            }
-        }
-    //         { // y axis
-    //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 1.0f, 0.0f));
-    //
-    //             InstanceState instance_state{};
-    //             instance_state.model_matrix = model;
-    //             instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
-    //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-    //
-    //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-    //             for (const Primitive &primitive : mesh.primitives) {
-    //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-    //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-    //             }
-    //         }
-    //         { // z axis
-    //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 1.0f));
-    //             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    //
-    //             InstanceState instance_state{};
-    //             instance_state.model_matrix = model;
-    //             instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
-    //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-    //
-    //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-    //             for (const Primitive &primitive : mesh.primitives) {
-    //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-    //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-        //             }
-        //         }
-        }
-    }
+  }
 }
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
-void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint32_t frame_index) {
+void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, app->mouse_pos.x, app->mouse_pos.y, 1, 1);
 
@@ -1067,7 +1096,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
     vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_buffer_descriptor_set_layout, &descriptor_set);
     descriptor_sets.push_back(descriptor_set);
 
-    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[frame_index]->handle, VK_WHOLE_SIZE);
+    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[app->frame_index]->handle, VK_WHOLE_SIZE);
 
     VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &descriptor_buffer_info);
     write_descriptor_sets.push_back(write_descriptor_set);
@@ -1135,38 +1164,34 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
-static VkSemaphore pop_semaphore_from_pool(App *app) {
-  if (app->semaphore_pool.empty()) {
-    VkSemaphore semaphore = VK_NULL_HANDLE;
-    vk_create_semaphore(app->vk_context->device, &semaphore);
-    return semaphore;
-  }
-  VkSemaphore semaphore = app->semaphore_pool.front();
-  app->semaphore_pool.pop();
-  return semaphore;
-}
+glm::fvec2 mouse_positions[FRAMES_IN_FLIGHT] = {};
 
-static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
-  app->semaphore_pool.push(semaphore);
-}
-
-glm::fvec2 last_mouse_positions[FRAMES_IN_FLIGHT] = {};
+struct {
+  bool up;
+  uint64_t frame_count;
+} is_mouse_start_up[FRAMES_IN_FLIGHT] = {};
 
 void app_update(App *app, InputSystemState *input_system_state) {
-  const uint32_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+  app->frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
   if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-    uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + 1) : 0;
+    uint8_t earliest_frame_index = (app->frame_index < FRAMES_IN_FLIGHT - 1) ? (app->frame_index + 1) : 0;
     RenderFrame *frame = &app->frames[earliest_frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
-    uint32_t id = UINT32_MAX;
-    vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[earliest_frame_index], &id, sizeof(uint32_t));
-    log_debug("data: %u", id);
+    if (is_mouse_start_up[earliest_frame_index].up && app->frame_count >= is_mouse_start_up[earliest_frame_index].frame_count) {
+      uint32_t id = UINT32_MAX;
+      vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[earliest_frame_index], &id, sizeof(uint32_t));
+      log_debug("frame count %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, earliest_frame_index);
+    }
+
+    // reset frame data
+    mouse_positions[earliest_frame_index] = {};
+    is_mouse_start_up[earliest_frame_index] = {};
   }
 
   update_scene(app);
-  RenderFrame *frame = &app->frames[frame_index];
+  RenderFrame *frame = &app->frames[app->frame_index];
   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
   frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
@@ -1175,9 +1200,9 @@ void app_update(App *app, InputSystemState *input_system_state) {
   VkSemaphore present_complete_semaphore = pop_semaphore_from_pool(app);
   uint32_t image_index = UINT32_MAX;
   vk_acquire_next_image(app->vk_context, present_complete_semaphore, &image_index);
-  if (app->present_complete_semaphores[image_index] != VK_NULL_HANDLE) { push_semaphore_to_pool(app, app->present_complete_semaphores[image_index]); }
+  if (app->present_complete_semaphores[image_index]) { push_semaphore_to_pool(app, app->present_complete_semaphores[image_index]); }
   app->present_complete_semaphores[image_index] = present_complete_semaphore;
-  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
+  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, app->frame_index, image_index);
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   vk_alloc_command_buffers(app->vk_context->device, frame->command_pool, 1, &command_buffer);
   vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -1219,22 +1244,26 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+  vk_cmd_pipeline_buffer_barrier2(command_buffer,
+                                  app->entity_picking_storage_buffers[app->frame_index]->handle,
+                                  0,
+                                  VK_WHOLE_SIZE,
+                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                  VK_ACCESS_2_SHADER_WRITE_BIT,
+                                  VK_ACCESS_2_SHADER_WRITE_BIT);
   {
-    // todo gizmo render pass
-  }
-  {
-    vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
+    vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[app->frame_index], sizeof(uint32_t));
 
-    VkClearValue clear_values[2] = {};
+    VkClearValue clear_values[1] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
-    clear_values[1].depthStencil = {1.0f, 0};
-    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, clear_values, 2);
-    draw_entity_picking(app, command_buffer, frame, frame_index);
+    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[app->frame_index], app->vk_context->swapchain_extent, clear_values, 1);
+    draw_entity_picking(app, command_buffer, frame);
     vk_end_render_pass(command_buffer);
 
     // 读出 color 之前转换为 transfer_src
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                  app->entity_picking_color_images[frame_index]->handle,
+                                  app->entity_picking_color_images[app->frame_index]->handle,
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -1245,7 +1274,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
     // 写入 buffer 之前确保之前的读写操作完成
     vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                    app->entity_picking_buffers[frame_index]->handle,
+                                    app->entity_picking_buffers[app->frame_index]->handle,
                                     0,
                                     VK_WHOLE_SIZE,
                                     VK_PIPELINE_STAGE_2_COPY_BIT,
@@ -1257,11 +1286,11 @@ void app_update(App *app, InputSystemState *input_system_state) {
     offset.x = app->mouse_pos.x;
     offset.y = app->mouse_pos.y;
     VkExtent2D extent = {1, 1};
-    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[frame_index]->handle, app->entity_picking_buffers[frame_index]->handle, offset, extent);
+    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[app->frame_index]->handle, app->entity_picking_buffers[app->frame_index]->handle, offset, extent);
 
     // 读取 color 完毕后转换为 color_attachment
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                   app->entity_picking_color_images[frame_index]->handle,
+                                   app->entity_picking_color_images[app->frame_index]->handle,
                                    VK_IMAGE_ASPECT_COLOR_BIT,
                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1270,9 +1299,14 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                    VK_ACCESS_2_TRANSFER_READ_BIT,
                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
-    uint32_t id = UINT32_MAX;
-    vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[frame_index], &id, sizeof(uint32_t));
-    log_debug("id: %u", id);
+    // uint32_t id = UINT32_MAX;
+    // vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[app->frame_index], &id, sizeof(uint32_t));
+    // log_debug("id: %u", id);
+  }
+  {
+    vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
+    draw_gizmo(app, command_buffer, frame);
+    vk_end_render_pass(command_buffer);
   }
 
   vk_end_command_buffer(command_buffer);
@@ -1280,7 +1314,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
-  last_mouse_positions[frame_index] = app->mouse_pos;
+  mouse_positions[app->frame_index] = app->mouse_pos;
   ++app->frame_count;
 
   // update_scene(app);
@@ -1417,11 +1451,11 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     vk_reset_command_pool(app->vk_context->device, app->frames[i].command_pool);
   }
   for (uint16_t i = 0; i < app->vk_context->swapchain_image_count; ++i) { // 归还 semaphore 到 pool
-    app->semaphore_pool.push(app->render_complete_semaphores[i]);
-    app->semaphore_pool.push(app->present_complete_semaphores[i]);
+    if (app->present_complete_semaphores[i]) { push_semaphore_to_pool(app, app->present_complete_semaphores[i]); }
+    if (app->render_complete_semaphores[i]) { push_semaphore_to_pool(app, app->render_complete_semaphores[i]); }
+    app->present_complete_semaphores[i] = VK_NULL_HANDLE;
+    app->render_complete_semaphores[i] = VK_NULL_HANDLE;
   }
-  app->present_complete_semaphores.resize(app->vk_context->swapchain_image_count, VK_NULL_HANDLE);
-  app->render_complete_semaphores.resize(app->vk_context->swapchain_image_count, VK_NULL_HANDLE);
 
   vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
   vk_destroy_image(app->vk_context, app->depth_image);
@@ -1443,7 +1477,13 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 
   create_color_image(app, VK_FORMAT_R16G16B16A16_SFLOAT);
 
-  {
+  { // 按序清理各 render pass 资源
+    // 清理 gizmo render pass 相关资源 todo 移入类似 on_plugin_clean_up 方法
+    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      vk_destroy_framebuffer(app->vk_context->device, app->gizmo_framebuffers[i]);
+    }
+    app->gizmo_framebuffers.clear();
+
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
@@ -1457,8 +1497,10 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     app->entity_picking_framebuffers.clear();
     app->entity_picking_color_image_views.clear();
     app->entity_picking_color_images.clear();
+  }
 
-    // 重新创建 entity picking 相关资源
+  { // 按序重建各 render pass 资源
+    // 重建 entity picking 相关资源 todo 移入类似 on_plugin_prepare 方法
     app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
@@ -1511,10 +1553,17 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 
       vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
     }
+
+    // 重建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法
+    app->gizmo_framebuffers.resize(app->vk_context->swapchain_image_count);
+    for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
+      VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
+      vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->vertex_lit_render_pass, attachments, 2, &app->gizmo_framebuffers[i]);
+    }
   }
 
   app->mouse_pos = glm::vec2(0.0f);
-  memset(last_mouse_positions, 0, sizeof(last_mouse_positions));
+  memset(mouse_positions, 0, sizeof(mouse_positions));
   app->frame_count = 0;
 }
 
@@ -1587,6 +1636,7 @@ void app_key_up(App *app, Key key) {
 }
 
 void app_mouse_button_down(App *app, MouseButton mouse_button, float x, float y) {
+  // log_debug("frame count %d frame index %d, mouse button down: %d, %f, %f", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, mouse_button, x, y);
     if (mouse_button != MOUSE_BUTTON_LEFT) {
         return;
     }
@@ -1724,7 +1774,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
 }
 
 void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
-  // log_debug("mouse button %d up at screen position (%f, %f)", mouse_button, x, y);
+  log_debug("frame count %d frame index %d, mouse button %d up at screen position (%f, %f)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, mouse_button, x, y);
   if (mouse_button != MOUSE_BUTTON_LEFT) {
     return;
   }
@@ -1752,6 +1802,7 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
 
   memset(app->mouse_pos_down, -1.0f, sizeof(float) * 2);
   app->is_mouse_any_button_down = false;
+  is_mouse_start_up[app->frame_count % FRAMES_IN_FLIGHT] = {.up = true, .frame_count = app->frame_count};
 }
 
 void app_mouse_move(App *app, float x, float y) {

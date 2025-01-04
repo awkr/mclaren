@@ -16,7 +16,7 @@ struct SDL_Window;
 struct ImGuiContext;
 struct Image;
 
-#define FRAMES_IN_FLIGHT 2
+#define FRAMES_IN_FLIGHT 1
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -117,6 +117,8 @@ struct App {
     std::vector<Buffer *> entity_picking_buffers;
     std::vector<Buffer *> entity_picking_storage_buffers;
 
+    std::vector<VkFramebuffer> gizmo_framebuffers;
+
     Gizmo gizmo;
 
     glm::fvec2 mouse_pos;
@@ -125,6 +127,7 @@ struct App {
     bool is_mouse_any_button_down;
     float mouse_pos_down[2];
     bool clicked;
+    uint16_t frame_index;
 };
 
 void app_create(SDL_Window *window, App **out_app);
