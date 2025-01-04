@@ -1083,7 +1083,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
 
 void draw_gui(const App *app, VkCommandBuffer command_buffer, const RenderFrame *frame) {}
 
-void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
+void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint8_t frame_index) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, app->mouse_pos.x, app->mouse_pos.y, 1, 1);
 
@@ -1096,7 +1096,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
     vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_buffer_descriptor_set_layout, &descriptor_set);
     descriptor_sets.push_back(descriptor_set);
 
-    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[app->frame_index]->handle, VK_WHOLE_SIZE);
+    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[frame_index]->handle, VK_WHOLE_SIZE);
 
     VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &descriptor_buffer_info);
     write_descriptor_sets.push_back(write_descriptor_set);
@@ -1172,10 +1172,10 @@ struct {
 } is_mouse_start_up[FRAMES_IN_FLIGHT] = {};
 
 void app_update(App *app, InputSystemState *input_system_state) {
-  app->frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+  uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
   if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-    uint8_t earliest_frame_index = (app->frame_index < FRAMES_IN_FLIGHT - 1) ? (app->frame_index + 1) : 0;
+    uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + 1) : 0;
     RenderFrame *frame = &app->frames[earliest_frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
@@ -1191,7 +1191,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   }
 
   update_scene(app);
-  RenderFrame *frame = &app->frames[app->frame_index];
+  RenderFrame *frame = &app->frames[frame_index];
   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
   frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
@@ -1202,7 +1202,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_acquire_next_image(app->vk_context, present_complete_semaphore, &image_index);
   if (app->present_complete_semaphores[image_index]) { push_semaphore_to_pool(app, app->present_complete_semaphores[image_index]); }
   app->present_complete_semaphores[image_index] = present_complete_semaphore;
-  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, app->frame_index, image_index);
+  // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   vk_alloc_command_buffers(app->vk_context->device, frame->command_pool, 1, &command_buffer);
   vk_begin_command_buffer(command_buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -1245,7 +1245,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
   vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                  app->entity_picking_storage_buffers[app->frame_index]->handle,
+                                  app->entity_picking_storage_buffers[frame_index]->handle,
                                   0,
                                   VK_WHOLE_SIZE,
                                   VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -1253,17 +1253,17 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                   VK_ACCESS_2_SHADER_WRITE_BIT,
                                   VK_ACCESS_2_SHADER_WRITE_BIT);
   {
-    vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[app->frame_index], sizeof(uint32_t));
+    vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
 
     VkClearValue clear_values[1] = {};
     clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
-    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[app->frame_index], app->vk_context->swapchain_extent, clear_values, 1);
-    draw_entity_picking(app, command_buffer, frame);
+    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, clear_values, 1);
+    draw_entity_picking(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
 
     // 读出 color 之前转换为 transfer_src
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                  app->entity_picking_color_images[app->frame_index]->handle,
+                                  app->entity_picking_color_images[frame_index]->handle,
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -1274,7 +1274,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
     // 写入 buffer 之前确保之前的读写操作完成
     vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                    app->entity_picking_buffers[app->frame_index]->handle,
+                                    app->entity_picking_buffers[frame_index]->handle,
                                     0,
                                     VK_WHOLE_SIZE,
                                     VK_PIPELINE_STAGE_2_COPY_BIT,
@@ -1286,11 +1286,11 @@ void app_update(App *app, InputSystemState *input_system_state) {
     offset.x = app->mouse_pos.x;
     offset.y = app->mouse_pos.y;
     VkExtent2D extent = {1, 1};
-    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[app->frame_index]->handle, app->entity_picking_buffers[app->frame_index]->handle, offset, extent);
+    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[frame_index]->handle, app->entity_picking_buffers[frame_index]->handle, offset, extent);
 
     // 读取 color 完毕后转换为 color_attachment
     vk_cmd_pipeline_image_barrier2(command_buffer,
-                                   app->entity_picking_color_images[app->frame_index]->handle,
+                                   app->entity_picking_color_images[frame_index]->handle,
                                    VK_IMAGE_ASPECT_COLOR_BIT,
                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1300,7 +1300,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
     // uint32_t id = UINT32_MAX;
-    // vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[app->frame_index], &id, sizeof(uint32_t));
+    // vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[frame_index], &id, sizeof(uint32_t));
     // log_debug("id: %u", id);
   }
   {
@@ -1314,14 +1314,14 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, present_complete_semaphore, app->render_complete_semaphores[image_index], frame->in_flight_fence);
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
-  mouse_positions[app->frame_index] = app->mouse_pos;
+  mouse_positions[frame_index] = app->mouse_pos;
   ++app->frame_count;
 
   // update_scene(app);
     //
-    // app->frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+    // frame_index = app->frame_count % FRAMES_IN_FLIGHT;
     //
-    // RenderFrame *frame = &app->frames[app->frame_index];
+    // RenderFrame *frame = &app->frames[frame_index];
     //
     // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
     // vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
@@ -1336,7 +1336,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     //
     // VkImage swapchain_image = app->vk_context->swapchain_images[image_index];
     //
-    // // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, app->frame_index, image_index);
+    // // log_debug("frame %lld, frame index %d, image index %d", app->frame_count, frame_index, image_index);
     //
     // VkCommandBuffer command_buffer = frame->command_buffer;
     // {

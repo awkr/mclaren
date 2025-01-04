@@ -16,7 +16,7 @@ struct SDL_Window;
 struct ImGuiContext;
 struct Image;
 
-#define FRAMES_IN_FLIGHT 1
+#define FRAMES_IN_FLIGHT 2
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -127,7 +127,6 @@ struct App {
     bool is_mouse_any_button_down;
     float mouse_pos_down[2];
     bool clicked;
-    uint16_t frame_index;
 };
 
 void app_create(SDL_Window *window, App **out_app);
