@@ -1232,7 +1232,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   GeometryConfig config{};
   generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
   Geometry *geometry = new Geometry();
-  create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
+  create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
   dispose_geometry_config(&config);
   rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
   log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);

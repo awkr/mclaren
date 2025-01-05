@@ -47,8 +47,34 @@ void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, 
     geometry->transform = transform_identity();
 }
 
+void create_geometry_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry) {
+    Mesh mesh{};
+    create_mesh_v2(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
+
+    Primitive primitive{};
+    primitive.vertex_offset = 0;
+    primitive.vertex_count = vertex_count;
+    primitive.index_offset = 0;
+    primitive.index_count = index_count;
+
+    mesh.primitives.push_back(primitive);
+
+    geometry->meshes.push_back(mesh);
+
+    if (aabb && is_aabb_valid(*aabb)) {
+      geometry->aabb = *aabb;
+      create_mesh_from_aabb(mesh_system_state, vk_context, *aabb, geometry->aabb_mesh);
+    }
+
+    geometry->transform = transform_identity();
+}
+
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
   create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
+}
+
+void create_geometry_from_config_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
+  create_geometry_v2(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
 }
 
 void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
