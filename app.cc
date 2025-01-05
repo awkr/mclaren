@@ -638,7 +638,6 @@ void app_destroy(App *app) {
 }
 
 glm::fvec2 mouse_positions[FRAMES_IN_FLIGHT] = {};
-VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT] = {};
 
 struct {
   bool up;
@@ -1343,73 +1342,6 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // log_debug("id: %u", id);
   }
   {
-    Geometry *geometry = rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT].geometry;
-    if (geometry) {
-      for (const Mesh &mesh : geometry->meshes) {
-        // vk_cmd_pipeline_buffer_barrier2(command_buffer,
-        //                                 mesh.vertex_buffer->handle,
-        //                                 0,
-        //                                 VK_WHOLE_SIZE,
-        //                                 VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        //                                 VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-        //                                 VK_ACCESS_2_MEMORY_WRITE_BIT,
-        //                                 VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT);
-        // vk_cmd_pipeline_buffer_barrier2(command_buffer,
-        //                                 mesh.index_buffer->handle,
-        //                                 0,
-        //                                 VK_WHOLE_SIZE,
-        //                                 VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        //                                 VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-        //                                 VK_ACCESS_2_MEMORY_WRITE_BIT,
-        //                                 VK_ACCESS_2_INDEX_READ_BIT);
-
-        {
-          VkBufferMemoryBarrier bufferBarrier = {};
-          bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-          bufferBarrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT;
-          bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-          bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-          bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-          bufferBarrier.buffer = mesh.index_buffer->handle;
-          bufferBarrier.offset = 0;
-          bufferBarrier.size = VK_WHOLE_SIZE;
-
-          vkCmdPipelineBarrier(
-              command_buffer,
-              VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,   // srcStageMask: 索引缓冲区读取阶段
-              VK_PIPELINE_STAGE_TRANSFER_BIT,      // dstStageMask: 拷贝写入阶段
-              0,                                   // dependencyFlags
-              0, NULL,                             // memory barriers
-              1, &bufferBarrier,                   // buffer memory barriers
-              0, NULL                              // image memory barriers
-          );
-
-        }
-
-        {
-          VkBufferMemoryBarrier bufferBarrier = {};
-          bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-          bufferBarrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
-          bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-          bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-          bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-          bufferBarrier.buffer = mesh.vertex_buffer->handle;
-          bufferBarrier.offset = 0;
-          bufferBarrier.size = VK_WHOLE_SIZE;
-
-          vkCmdPipelineBarrier(
-              command_buffer,
-              VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,   // srcStageMask: 索引缓冲区读取阶段
-              VK_PIPELINE_STAGE_TRANSFER_BIT,      // dstStageMask: 拷贝写入阶段
-              0,                                   // dependencyFlags
-              0, NULL,                             // memory barriers
-              1, &bufferBarrier,                   // buffer memory barriers
-              0, NULL                              // image memory barriers
-          );
-
-        }
-      }
-    }
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
     draw_gizmo(app, command_buffer, frame);
     vk_end_render_pass(command_buffer);
@@ -1443,10 +1375,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // reset frame data
     mouse_positions[earliest_frame_index] = {};
     is_mouse_start_up[earliest_frame_index] = {};
-    command_buffers[earliest_frame_index] = VK_NULL_HANDLE;
   }
   mouse_positions[frame_index] = app->mouse_pos;
-  command_buffers[frame_index] = command_buffer;
   // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
   // if (rotation_sector_geometries[frame_index].geometry) {
   //   // Geometry *geometry = rotation_sector_geometries[frame_index].geometry;
@@ -1912,7 +1842,7 @@ void gizmo_check_ray(App *app, const Ray *ray) {
 }
 
 void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
-  log_debug("frame %d frame index %d, mouse button %d up at screen position (%f, %f)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, mouse_button, x, y);
+  // log_debug("frame %d frame index %d, mouse button %d up at screen position (%f, %f)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, mouse_button, x, y);
   if (mouse_button != MOUSE_BUTTON_LEFT) {
     return;
   }
