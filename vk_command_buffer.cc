@@ -33,10 +33,10 @@ bool vk_reset_command_buffer(VkCommandBuffer command_buffer) {
     return result == VK_SUCCESS;
 }
 
-void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags) {
+void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flag) {
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = flags;
+    begin_info.flags = flag;
     VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
     ASSERT(result == VK_SUCCESS);
 }
@@ -178,12 +178,12 @@ void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y,
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 }
 
-void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, const VkExtent2D &extent) {
     VkRect2D scissor{};
     scissor.offset.x = x;
     scissor.offset.y = y;
-    scissor.extent.width = w;
-    scissor.extent.height = h;
+    scissor.extent.width = extent.width;
+    scissor.extent.height = extent.height;
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
@@ -205,7 +205,7 @@ void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count) {
     vkCmdDrawIndexed(command_buffer, index_count, 1, 0, 0, 0);
 }
 
-void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset) {
+void vk_cmd_copy_buffer2(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset) {
     VkBufferCopy2 buffer_copy{};
     buffer_copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
     buffer_copy.size = size;

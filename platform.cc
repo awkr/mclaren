@@ -6,10 +6,10 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-bool app_on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context);
-bool app_on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context);
-bool app_on_mouse_button_down(EventCode event_code, void *sender, void *listener, EventContext event_context);
-bool app_on_mouse_button_up(EventCode event_code, void *sender, void *listener, EventContext event_context);
+static bool on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context);
+static bool on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context);
+static bool on_mouse_button_down(EventCode event_code, void *sender, void *listener, EventContext event_context);
+static bool on_mouse_button_up(EventCode event_code, void *sender, void *listener, EventContext event_context);
 
 void create_window(PlatformContext *platform_context, uint16_t width, uint16_t height) {
     uint32_t flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
@@ -32,10 +32,10 @@ void platform_init(PlatformContext *platform_context) {
     }
     app_create(platform_context->window, &platform_context->app);
 
-    event_register(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, app_on_key_down);
-    event_register(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, app_on_key_up);
-    event_register(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_DOWN, platform_context->app, app_on_mouse_button_down);
-    event_register(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_UP, platform_context->app, app_on_mouse_button_up);
+    event_register(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, on_key_down);
+    event_register(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, on_key_up);
+    event_register(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_DOWN, platform_context->app, on_mouse_button_down);
+    event_register(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_UP, platform_context->app, on_mouse_button_up);
 }
 
 static Key sdl_key_to_key(SDL_Keycode key) {
@@ -105,32 +105,32 @@ void platform_main_loop(PlatformContext *platform_context) {
 }
 
 void platform_terminate(PlatformContext *platform_context) {
-    event_unregister(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_UP, platform_context->app, app_on_mouse_button_up);
-    event_unregister(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_DOWN, platform_context->app, app_on_mouse_button_down);
-    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, app_on_key_up);
-    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, app_on_key_down);
+  event_unregister(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_UP, platform_context->app, on_mouse_button_up);
+    event_unregister(platform_context->event_system_state, EVENT_CODE_MOUSE_BUTTON_DOWN, platform_context->app, on_mouse_button_down);
+    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_UP, platform_context->app, on_key_up);
+    event_unregister(platform_context->event_system_state, EVENT_CODE_KEY_DOWN, platform_context->app, on_key_down);
     app_destroy(platform_context->app);
     input_system_destroy(platform_context->input_system_state);
     event_system_destroy(platform_context->event_system_state);
     SDL_DestroyWindow(platform_context->window);
 }
 
-bool app_on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+bool on_key_down(EventCode event_code, void *sender, void *listener, EventContext event_context) {
     app_key_down((App *) listener, (Key) event_context.data.u32[0]);
     return true;
 }
 
-bool app_on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+bool on_key_up(EventCode event_code, void *sender, void *listener, EventContext event_context) {
     app_key_up((App *) listener, (Key) event_context.data.u32[0]);
     return true;
 }
 
-bool app_on_mouse_button_down(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+bool on_mouse_button_down(EventCode event_code, void *sender, void *listener, EventContext event_context) {
     app_mouse_button_down((App *) listener, (MouseButton) event_context.data.u32[0], event_context.data.f32[1], event_context.data.f32[2]);
     return true;
 }
 
-bool app_on_mouse_button_up(EventCode event_code, void *sender, void *listener, EventContext event_context) {
+bool on_mouse_button_up(EventCode event_code, void *sender, void *listener, EventContext event_context) {
     app_mouse_button_up((App *) listener, (MouseButton) event_context.data.u32[0], event_context.data.f32[1], event_context.data.f32[2]);
     return true;
 }

@@ -35,14 +35,13 @@ struct Gizmo {
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
   Geometry cube_geometry;
-  Geometry sector_geometry; // 旋转时的扇形角度平面
 
   Transform transform;
   GizmoMode mode;
   GizmoAxis axis;
 
   // runtime data
-  bool is_mouse_any_button_down;
+  bool is_active;
 
   // translation runtime data
   Plane intersection_plane; // in the world space
@@ -51,7 +50,6 @@ struct Gizmo {
   // rotation runtime data
   glm::vec3 rotation_plane_normal; // in the coordinate space defined by the gizmo
   glm::vec3 rotation_start_pos; // in the coordinate space defined by the gizmo
-  glm::vec3 rotation_end_pos; // in the coordinate space defined by the gizmo
   char rotation_clock_dir; // '0': not set, 'C': counterclockwise, 'c': clockwise
   bool is_rotation_clock_dir_locked;
 };

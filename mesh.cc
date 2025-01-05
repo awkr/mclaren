@@ -32,7 +32,7 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, cons
 
         memcpy(staging_buffer_allocation_info.pMappedData, vertices, vertex_buffer_size);
         vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-            vk_cmd_copy_buffer(command_buffer, staging_buffer->handle, mesh->vertex_buffer->handle, vertex_buffer_size, 0, 0);
+          vk_cmd_copy_buffer2(command_buffer, staging_buffer->handle, mesh->vertex_buffer->handle, vertex_buffer_size, 0, 0);
         });
         vk_destroy_buffer(vk_context, staging_buffer);
     }
@@ -50,7 +50,7 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, cons
 
         memcpy(staging_buffer_allocation_info.pMappedData, indices, index_buffer_size);
         vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-            vk_cmd_copy_buffer(command_buffer, staging_buffer->handle, mesh->index_buffer->handle, index_buffer_size, 0, 0);
+          vk_cmd_copy_buffer2(command_buffer, staging_buffer->handle, mesh->index_buffer->handle, index_buffer_size, 0, 0);
         });
         vk_destroy_buffer(vk_context, staging_buffer);
     }

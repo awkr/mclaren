@@ -13,12 +13,10 @@ void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, con
   gizmo->transform.position = position;
   gizmo->transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
   gizmo->rotation_start_pos = glm::vec3(FLT_MAX);
-  gizmo->rotation_end_pos = glm::vec3(FLT_MAX);
   gizmo->rotation_clock_dir = '0';
 }
 
 void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context) {
-  destroy_geometry(mesh_system_state, vk_context, &gizmo->sector_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->cube_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->ring_geometry);
   destroy_geometry(mesh_system_state, vk_context, &gizmo->arrow_geometry);

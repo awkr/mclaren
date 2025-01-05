@@ -17,7 +17,7 @@ void vk_free_command_buffer(VkDevice device, VkCommandPool command_pool, VkComma
 
 bool vk_reset_command_buffer(VkCommandBuffer command_buffer);
 
-void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flags);
+void vk_begin_command_buffer(VkCommandBuffer command_buffer, VkCommandBufferUsageFlags flag);
 
 void vk_begin_one_flight_command_buffer(VkCommandBuffer command_buffer);
 
@@ -53,7 +53,7 @@ void vk_cmd_begin_rendering(VkCommandBuffer command_buffer, const VkOffset2D &of
 void vk_cmd_end_rendering(VkCommandBuffer command_buffer);
 
 void vk_cmd_set_viewport(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, const VkExtent2D &extent);
-void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+void vk_cmd_set_scissor(VkCommandBuffer command_buffer, uint32_t x, uint32_t y, const VkExtent2D &extent);
 void vk_cmd_set_primitive_topology(VkCommandBuffer command_buffer, VkPrimitiveTopology primitive_topology);
 void vk_cmd_set_depth_bias(VkCommandBuffer command_buffer, float constant_factor, float clamp, float slope_factor);
 void vk_cmd_set_depth_test_enable(VkCommandBuffer command_buffer, bool enable);
@@ -63,7 +63,7 @@ void vk_cmd_draw(VkCommandBuffer command_buffer, uint32_t vertex_count, uint32_t
 
 void vk_cmd_draw_indexed(VkCommandBuffer command_buffer, uint32_t index_count);
 
-void vk_cmd_copy_buffer(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
+void vk_cmd_copy_buffer2(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer dst, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
 
 void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);
 void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkBuffer dst_buffer, const VkOffset2D &offset, const VkExtent2D &extent) noexcept;
