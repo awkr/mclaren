@@ -1,13 +1,12 @@
 #pragma once
 
 #include <volk.h>
-#include <vk_mem_alloc.h>
 
 struct VkContext;
 
 struct Image {
     VkImage handle;
-    VmaAllocation allocation;
+    VkDeviceMemory device_memory;
 };
 
 void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image);

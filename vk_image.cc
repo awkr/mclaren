@@ -28,22 +28,41 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VmaAllocationCreateInfo allocation_create_info{};
-    allocation_create_info.usage = VMA_MEMORY_USAGE_GPU_ONLY; // always allocate images on dedicated GPU memory
-    allocation_create_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) == VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
-      allocation_create_info.requiredFlags |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
-    }
+    VkResult result = vkCreateImage(vk_context->device, &image_create_info, nullptr, &image->handle);
+    ASSERT(result == VK_SUCCESS);
 
-    VkResult result = vmaCreateImage(vk_context->allocator, &image_create_info, &allocation_create_info, &image->handle,
-                                     &image->allocation, nullptr);
+    VkMemoryRequirements memory_requirements;
+    vkGetImageMemoryRequirements(vk_context->device, image->handle, &memory_requirements);
+
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(vk_context->physical_device, &memory_properties);
+
+    uint32_t memory_type_index = UINT32_MAX;
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+      if ((memory_requirements.memoryTypeBits & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+        memory_type_index = i;
+        break;
+      }
+    }
+    ASSERT(memory_type_index != UINT32_MAX);
+
+    VkMemoryAllocateInfo memory_allocate_info{};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+
+    result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, &image->device_memory);
+    ASSERT(result == VK_SUCCESS);
+
+    result = vkBindImageMemory(vk_context->device, image->handle, image->device_memory, 0);
     ASSERT(result == VK_SUCCESS);
 
     *out_image = image;
 }
 
 void vk_destroy_image(VkContext *vk_context, Image *image) {
-    vmaDestroyImage(vk_context->allocator, image->handle, image->allocation);
+    vkFreeMemory(vk_context->device, image->device_memory, nullptr);
+    vkDestroyImage(vk_context->device, image->handle, nullptr);
     delete image;
 }
 
