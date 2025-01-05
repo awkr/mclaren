@@ -803,7 +803,14 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
-    Geometry *geometry = rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT].geometry;
+    // create a new geometry for rotation sector display
+    GeometryConfig config{};
+    generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
+    Geometry *geometry = new Geometry();
+    create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
+    dispose_geometry_config(&config);
+    rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
+    log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
     if (geometry) {
       log_debug("frame %d frame index %d, rendering rotation sector geometry %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
       for (const Mesh &mesh : geometry->meshes) {
@@ -1195,38 +1202,33 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
+Geometry *last_geometries[FRAMES_IN_FLIGHT] = {};
 void app_update(App *app, InputSystemState *input_system_state) {
   uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
-  // if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-  //   const uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + 1) : 0;
-  //   RenderFrame *frame = &app->frames[earliest_frame_index];
-  //   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
-  //
-  //   if (is_mouse_start_up[earliest_frame_index].up && app->frame_count >= is_mouse_start_up[earliest_frame_index].frame_count) {
-  //     uint32_t id = 0;
-  //     vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[earliest_frame_index], &id, sizeof(uint32_t));
-  //     log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, earliest_frame_index);
-  //     if (id > 0) { app->selected_mesh_id = id; }
-  //   }
-  //
-  //   if (rotation_sector_geometries[earliest_frame_index].geometry) {
-  //     if (VkCommandBuffer command_buffer = command_buffers[earliest_frame_index]; command_buffer) {
-  //       // vkDeviceWaitIdle(app->vk_context->device);
-  //
-  //       Geometry *geometry = rotation_sector_geometries[earliest_frame_index].geometry;
-  //       log_debug("frame %d frame index %d, destroy rotation sector geometry (early frame index %d) %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, earliest_frame_index, geometry, geometry->meshes.front().index_buffer->handle);
-  //       destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
-  //       delete geometry;
-  //       rotation_sector_geometries[earliest_frame_index] = {};
-  //     }
-  //   }
-  //
-  //   // reset frame data
-  //   mouse_positions[earliest_frame_index] = {};
-  //   is_mouse_start_up[earliest_frame_index] = {};
-  //   command_buffers[earliest_frame_index] = VK_NULL_HANDLE;
-  // }
+  if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
+    RenderFrame *frame = &app->frames[frame_index];
+    vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+
+    if (is_mouse_start_up[frame_index].up && app->frame_count >= is_mouse_start_up[frame_index].frame_count) {
+      uint32_t id = 0;
+      vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
+      log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
+      if (id > 0) { app->selected_mesh_id = id; }
+    }
+
+    if (last_geometries[frame_index]) {
+      Geometry *geometry = last_geometries[frame_index];
+      log_debug("frame %d frame index %d, destroy rotation sector geometry (early frame index %d) %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
+      delete geometry;
+      last_geometries[frame_index] = nullptr;
+    }
+
+    // reset frame data
+    mouse_positions[frame_index] = {};
+    is_mouse_start_up[frame_index] = {};
+  }
 
   update_scene(app);
   RenderFrame *frame = &app->frames[frame_index];
@@ -1341,6 +1343,56 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[frame_index], &id, sizeof(uint32_t));
     // log_debug("id: %u", id);
   }
+  // {
+  //   Geometry *geometry = rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT].geometry;
+  //   if (geometry) {
+  //     for (const Mesh &mesh : geometry->meshes) {
+  //       if (mesh.index_buffer->handle) {
+  //         VkBufferMemoryBarrier bufferBarrier = {};
+  //         bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  //         bufferBarrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT;
+  //         bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  //         bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  //         bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  //         bufferBarrier.buffer = mesh.index_buffer->handle;
+  //         bufferBarrier.offset = 0;
+  //         bufferBarrier.size = VK_WHOLE_SIZE;
+  //
+  //         vkCmdPipelineBarrier(
+  //             command_buffer,
+  //             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, // srcStageMask: 索引缓冲区读取阶段
+  //             VK_PIPELINE_STAGE_TRANSFER_BIT, // dstStageMask: 拷贝写入阶段
+  //             0, // dependencyFlags
+  //             0, NULL, // memory barriers
+  //             1, &bufferBarrier, // buffer memory barriers
+  //             0, NULL // image memory barriers
+  //         );
+  //       }
+  //
+  //       {
+  //         VkBufferMemoryBarrier bufferBarrier = {};
+  //         bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  //         bufferBarrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+  //         bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  //         bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  //         bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  //         bufferBarrier.buffer = mesh.vertex_buffer->handle;
+  //         bufferBarrier.offset = 0;
+  //         bufferBarrier.size = VK_WHOLE_SIZE;
+  //
+  //         vkCmdPipelineBarrier(
+  //             command_buffer,
+  //             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, // srcStageMask: 索引缓冲区读取阶段
+  //             VK_PIPELINE_STAGE_TRANSFER_BIT, // dstStageMask: 拷贝写入阶段
+  //             0, // dependencyFlags
+  //             0, NULL, // memory barriers
+  //             1, &bufferBarrier, // buffer memory barriers
+  //             0, NULL // image memory barriers
+  //         );
+  //       }
+  //     }
+  //   }
+  // }
   {
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
     draw_gizmo(app, command_buffer, frame);
@@ -1353,28 +1405,27 @@ void app_update(App *app, InputSystemState *input_system_state) {
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
   if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-    const uint8_t earliest_frame_index = (frame_index < FRAMES_IN_FLIGHT - 1) ? (frame_index + 1) : 0;
-    RenderFrame *frame = &app->frames[earliest_frame_index];
-    vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
+    // RenderFrame *frame = &app->frames[frame_index];
+    // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
-    if (is_mouse_start_up[earliest_frame_index].up && app->frame_count >= is_mouse_start_up[earliest_frame_index].frame_count) {
-      uint32_t id = 0;
-      vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[earliest_frame_index], &id, sizeof(uint32_t));
-      log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, earliest_frame_index);
-      if (id > 0) { app->selected_mesh_id = id; }
-    }
-
-    if (rotation_sector_geometries[earliest_frame_index].geometry) {
-      Geometry *geometry = rotation_sector_geometries[earliest_frame_index].geometry;
-      log_debug("frame %d frame index %d, destroy rotation sector geometry (early frame index %d) %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, earliest_frame_index, geometry, geometry->meshes.front().index_buffer->handle);
-      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
-      delete geometry;
-      rotation_sector_geometries[earliest_frame_index] = {};
-    }
-
-    // reset frame data
-    mouse_positions[earliest_frame_index] = {};
-    is_mouse_start_up[earliest_frame_index] = {};
+    // if (is_mouse_start_up[frame_index].up && app->frame_count >= is_mouse_start_up[frame_index].frame_count) {
+    //   uint32_t id = 0;
+    //   vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
+    //   log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
+    //   if (id > 0) { app->selected_mesh_id = id; }
+    // }
+    //
+    // if (rotation_sector_geometries[frame_index].geometry) {
+    //   Geometry *geometry = rotation_sector_geometries[frame_index].geometry;
+    //   log_debug("frame %d frame index %d, destroy rotation sector geometry (early frame index %d) %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+    //   destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
+    //   delete geometry;
+    //   rotation_sector_geometries[frame_index] = {};
+    // }
+    //
+    // // reset frame data
+    // mouse_positions[frame_index] = {};
+    // is_mouse_start_up[frame_index] = {};
   }
   mouse_positions[frame_index] = app->mouse_pos;
   // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
@@ -1385,6 +1436,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   //   // rotation_sector_geometries[frame_index] = {};
   //   // log_debug("frame %d frame index %d, destroy rotation sector geometry (early frame index %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, frame_index);
   // }
+  last_geometries[frame_index] = rotation_sector_geometries[frame_index].geometry;
   ++app->frame_count;
 
   // update_scene(app);
@@ -1925,12 +1977,12 @@ void app_mouse_move(App *app, float x, float y) {
       float t = -glm::dot(center_to_ray_origin, app->gizmo.rotation_plane_normal) / denom;
       point_on_plane = ray_in_model_space.origin + t * ray_in_model_space.direction; // 射线方程
 
-      glm::vec3 rotation_end_pos = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
+      app->gizmo.rotation_end_pos = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
 
       // 计算旋转方向
 
       const glm::vec3 norm_start = glm::normalize(app->gizmo.rotation_start_pos);
-      const glm::vec3 norm_end = glm::normalize(rotation_end_pos);
+      const glm::vec3 norm_end = glm::normalize(app->gizmo.rotation_end_pos);
       const float dot = glm::dot(glm::cross(norm_start, norm_end), app->gizmo.rotation_plane_normal);
       float angle = glm::acos(glm::dot(norm_start, norm_end));
 
@@ -1967,17 +2019,6 @@ void app_mouse_move(App *app, float x, float y) {
           }
         }
       }
-
-      // create a new geometry for rotation sector display
-      GeometryConfig config{};
-      generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
-      Geometry *geometry = new Geometry();
-      create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
-      dispose_geometry_config(&config);
-      rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
-      std::this_thread::sleep_for(std::chrono::milliseconds(10)); // 等待 200 毫秒
-      // vkDeviceWaitIdle(app->vk_context->device);
-      log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
     }
   } else {
     gizmo_check_ray(app, &ray);
