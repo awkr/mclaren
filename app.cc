@@ -427,13 +427,13 @@ void app_create(SDL_Window *window, App **out_app) {
     {
       Geometry geometry{};
       // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
-      // load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &geometry);
+      load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &geometry);
       // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
       // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
       geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
       geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
       geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-      // app->lit_geometries.push_back(gltf_model_geometry);
+      app->lit_geometries.push_back(geometry);
     }
 
     {
