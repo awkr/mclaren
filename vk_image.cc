@@ -61,8 +61,8 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
 }
 
 void vk_destroy_image(VkContext *vk_context, Image *image) {
-    vkFreeMemory(vk_context->device, image->device_memory, nullptr);
     vkDestroyImage(vk_context->device, image->handle, nullptr);
+    vkFreeMemory(vk_context->device, image->device_memory, nullptr);
     delete image;
 }
 

@@ -54,6 +54,7 @@ void create_geometry_v2(MeshSystemState *mesh_system_state, VkContext *vk_contex
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
 void create_geometry_from_config_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
 void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry);
+void destroy_geometry_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry);
 
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry);
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry);

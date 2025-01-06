@@ -806,7 +806,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
     if (Geometry *geometry = rotation_sector_geometry.geometry; geometry) {
-      log_debug("frame %d frame index %d, rendering rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+      // log_debug("frame %d frame index %d, rendering rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
       for (const Mesh &mesh : geometry->meshes) {
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
@@ -1180,8 +1180,8 @@ void app_update(App *app, InputSystemState *input_system_state) {
     }
 
     if (Geometry *geometry = rotation_sector_geometries_delete_queue[frame_index]; geometry) {
-      log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
-      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
+      // log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+      destroy_geometry_v2(&app->mesh_system_state, app->vk_context, geometry);
       delete geometry;
       rotation_sector_geometries_delete_queue[frame_index] = nullptr;
     }
@@ -1892,7 +1892,7 @@ void app_mouse_move(App *app, float x, float y) {
         }
         rotation_sector_geometry.geometry = geometry;
         rotation_sector_geometry.frame_index = app->frame_count % FRAMES_IN_FLIGHT;
-        log_debug("frame %d frame index %d, rotation sector geometry created %p index buffer %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+        // log_debug("frame %d frame index %d, rotation sector geometry created %p index buffer %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
       }
 
       if (app->selected_mesh_id != UINT32_MAX) {

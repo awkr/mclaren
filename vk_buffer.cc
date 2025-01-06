@@ -74,8 +74,8 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
 }
 
 void vk_destroy_buffer_v2(VkContext *vk_context, Buffer *buffer) {
-    vkFreeMemory(vk_context->device, buffer->device_memory, nullptr);
     vkDestroyBuffer(vk_context->device, buffer->handle, nullptr);
+    vkFreeMemory(vk_context->device, buffer->device_memory, nullptr);
     delete buffer;
 }
 

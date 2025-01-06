@@ -85,6 +85,14 @@ void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context,
     *geometry = Geometry(); // todo 改为memset
 }
 
+void destroy_geometry_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
+    destroy_mesh_v2(vk_context, &geometry->aabb_mesh);
+    for (Mesh &mesh : geometry->meshes) {
+        destroy_mesh_v2(vk_context, &mesh);
+    }
+    *geometry = Geometry(); // todo 改为memset
+}
+
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry) {
     Vertex vertices[4];
     // 2 -- 3

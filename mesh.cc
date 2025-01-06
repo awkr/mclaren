@@ -122,6 +122,15 @@ void destroy_mesh(VkContext *vk_context, Mesh *mesh) {
   }
 }
 
+void destroy_mesh_v2(VkContext *vk_context, Mesh *mesh) {
+  if (mesh->index_buffer) {
+    vk_destroy_buffer_v2(vk_context, mesh->index_buffer);
+  }
+  if (mesh->vertex_buffer) { // todo 移除该判断
+    vk_destroy_buffer_v2(vk_context, mesh->vertex_buffer);
+  }
+}
+
 void create_mesh_from_aabb(MeshSystemState *mesh_system_state, VkContext *vk_context, const AABB &aabb, Mesh &mesh) {
     Vertex vertices[24];
 
