@@ -135,13 +135,13 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
       }
 
-      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
+      vk_create_buffer_vma(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
-      vk_create_buffer(app->vk_context, storage_buffer_size,
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                       VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-                       &app->entity_picking_storage_buffers[i]);
+      vk_create_buffer_vma(app->vk_context, storage_buffer_size,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                           VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                           &app->entity_picking_storage_buffers[i]);
     }
 
     {
@@ -199,7 +199,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, &frame->global_uniform_buffer);
+        vk_create_buffer_vma(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, &frame->global_uniform_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -374,7 +374,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
-      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
+      vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
       vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
@@ -383,7 +383,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
-      vk_destroy_buffer(vk_context, staging_buffer);
+      vk_destroy_buffer_vma(vk_context, staging_buffer);
     }
 
     {
@@ -403,7 +403,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
-      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
+      vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
       vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
@@ -412,7 +412,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
-      vk_destroy_buffer(vk_context, staging_buffer);
+      vk_destroy_buffer_vma(vk_context, staging_buffer);
     }
 
     vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->sampler_nearest);
@@ -589,8 +589,8 @@ void app_destroy(App *app) {
 
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
-      vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
+      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
+      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
       vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
       vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
@@ -611,7 +611,7 @@ void app_destroy(App *app) {
     vk_destroy_image(app->vk_context, app->color_image);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-        vk_destroy_buffer(app->vk_context, app->frames[i].global_uniform_buffer);
+      vk_destroy_buffer_vma(app->vk_context, app->frames[i].global_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
@@ -1486,8 +1486,8 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
-      vk_destroy_buffer(app->vk_context, app->entity_picking_buffers[i]);
+      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
+      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
       vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
       vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
@@ -1516,13 +1516,13 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
         vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
       }
 
-      vk_create_buffer(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
+      vk_create_buffer_vma(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
-      vk_create_buffer(app->vk_context, storage_buffer_size,
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                       VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-                       &app->entity_picking_storage_buffers[i]);
+      vk_create_buffer_vma(app->vk_context, storage_buffer_size,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                           VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                           &app->entity_picking_storage_buffers[i]);
     }
 
     {

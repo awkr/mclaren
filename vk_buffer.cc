@@ -1,7 +1,7 @@
 #include "vk_buffer.h"
 #include "logging.h"
 
-void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer) {
+void vk_create_buffer_vma(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer) {
     Buffer *buffer = new Buffer();
 
     VkBufferCreateInfo buffer_create_info = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -19,7 +19,7 @@ void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buf
     *out_buffer = buffer;
 }
 
-void vk_create_buffer_v2(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VkMemoryPropertyFlags memory_property_flags, Buffer **out_buffer) {
+void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VkMemoryPropertyFlags memory_property_flags, Buffer **out_buffer) {
     Buffer *buffer = new Buffer();
 
     VkBufferCreateInfo buffer_create_info = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -68,12 +68,12 @@ void vk_create_buffer_v2(VkContext *vk_context, size_t size, VkBufferUsageFlags 
     *out_buffer = buffer;
 }
 
-void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
+void vk_destroy_buffer_vma(VkContext *vk_context, Buffer *buffer) {
     vmaDestroyBuffer(vk_context->allocator, buffer->handle, buffer->allocation);
     delete buffer;
 }
 
-void vk_destroy_buffer_v2(VkContext *vk_context, Buffer *buffer) {
+void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
     vkDestroyBuffer(vk_context->device, buffer->handle, nullptr);
     vkFreeMemory(vk_context->device, buffer->device_memory, nullptr);
     delete buffer;
