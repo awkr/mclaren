@@ -646,7 +646,10 @@ struct {
 
 struct {
   Geometry *geometry;
-} rotation_sector_geometries[FRAMES_IN_FLIGHT] = {};
+  uint8_t frame_index;
+} rotation_sector_geometry{};
+
+Geometry *rotation_sector_geometries_delete_queue[FRAMES_IN_FLIGHT] = {};
 
 void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
@@ -788,7 +791,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   }
 }
 
-void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
+void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint8_t frame_index) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent);
 
@@ -802,8 +805,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
-    if (Geometry *geometry = rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT].geometry; geometry) {
-      log_debug("frame %d frame index %d, rendering rotation sector geometry %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+    if (Geometry *geometry = rotation_sector_geometry.geometry; geometry) {
+      log_debug("frame %d frame index %d, rendering rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
       for (const Mesh &mesh : geometry->meshes) {
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
@@ -1162,7 +1165,6 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
-Geometry *last_geometries[FRAMES_IN_FLIGHT] = {};
 void app_update(App *app, InputSystemState *input_system_state) {
   uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
@@ -1177,12 +1179,11 @@ void app_update(App *app, InputSystemState *input_system_state) {
       if (id > 0) { app->selected_mesh_id = id; }
     }
 
-    if (last_geometries[frame_index]) {
-      Geometry *geometry = last_geometries[frame_index];
-      log_debug("frame %d frame index %d, destroy rotation sector geometry %p index handle %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+    if (Geometry *geometry = rotation_sector_geometries_delete_queue[frame_index]; geometry) {
+      log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
       destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
       delete geometry;
-      last_geometries[frame_index] = nullptr;
+      rotation_sector_geometries_delete_queue[frame_index] = nullptr;
     }
 
     // reset frame data before corresponding frame begins
@@ -1304,7 +1305,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   }
   {
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
-    draw_gizmo(app, command_buffer, frame);
+    draw_gizmo(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
   }
 
@@ -1314,8 +1315,6 @@ void app_update(App *app, InputSystemState *input_system_state) {
   VkResult result = vk_queue_present(app->vk_context, app->render_complete_semaphores[image_index], image_index);
   ASSERT(result == VK_SUCCESS);
   mouse_positions[frame_index] = app->mouse_pos;
-  last_geometries[frame_index] = rotation_sector_geometries[frame_index].geometry;
-  rotation_sector_geometries[frame_index] = {};
   ++app->frame_count;
 
   // update_scene(app);
@@ -1794,6 +1793,11 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     app->gizmo.is_rotation_clock_dir_locked = false;
     app->gizmo.rotation_clock_dir = '0';
     app->gizmo.rotation_start_pos = glm::vec3(FLT_MAX);
+
+    if (rotation_sector_geometry.geometry) {
+      rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;
+    }
+    rotation_sector_geometry.geometry = nullptr;
   }
   app->gizmo.axis = GIZMO_AXIS_NONE; // todo remove this line
 
@@ -1883,8 +1887,12 @@ void app_mouse_move(App *app, float x, float y) {
         Geometry *geometry = new Geometry();
         create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
         dispose_geometry_config(&config);
-        rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry};
-        log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+        if (rotation_sector_geometry.geometry) {
+          rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;
+        }
+        rotation_sector_geometry.geometry = geometry;
+        rotation_sector_geometry.frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+        log_debug("frame %d frame index %d, rotation sector geometry created %p index buffer %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
       }
 
       if (app->selected_mesh_id != UINT32_MAX) {
