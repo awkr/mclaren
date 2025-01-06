@@ -4,11 +4,12 @@
 
 struct Buffer {
     VkBuffer handle;
+    VkDeviceMemory device_memory;
     VmaAllocation allocation;
 };
 
 void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer);
-void vk_create_buffer_v2(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VmaMemoryUsage memory_usage, VmaAllocationCreateFlags flag, Buffer **out_buffer);
+void vk_create_buffer_v2(VkContext *vk_context, size_t size, VkBufferUsageFlags buffer_usage, VkMemoryPropertyFlags memory_property_flags, Buffer **out_buffer);
 
 void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer);
 void vk_destroy_buffer_v2(VkContext *vk_context, Buffer *buffer);

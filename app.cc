@@ -646,7 +646,6 @@ struct {
 
 struct {
   Geometry *geometry;
-  uint64_t frame_count;
 } rotation_sector_geometries[FRAMES_IN_FLIGHT] = {};
 
 void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
@@ -1199,13 +1198,13 @@ void app_update(App *app, InputSystemState *input_system_state) {
   uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
   if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
-    // GeometryConfig config{};
-    // generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
-    // Geometry *geometry = new Geometry();
-    // create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
-    // dispose_geometry_config(&config);
-    // rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
-    // log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+    GeometryConfig config{};
+    generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
+    Geometry *geometry = new Geometry();
+    create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
+    dispose_geometry_config(&config);
+    rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
+    log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
 
     RenderFrame *frame = &app->frames[frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
@@ -1229,13 +1228,13 @@ void app_update(App *app, InputSystemState *input_system_state) {
     mouse_positions[frame_index] = {};
     is_mouse_start_up[frame_index] = {};
   }
-  GeometryConfig config{};
-  generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
-  Geometry *geometry = new Geometry();
-  create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
-  dispose_geometry_config(&config);
-  rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
-  log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+  // GeometryConfig config{};
+  // generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
+  // Geometry *geometry = new Geometry();
+  // create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
+  // dispose_geometry_config(&config);
+  // rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry, .frame_count = app->frame_count};
+  // log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
 
   update_scene(app);
   RenderFrame *frame = &app->frames[frame_index];
@@ -2004,6 +2003,16 @@ void app_mouse_move(App *app, float x, float y) {
           app->gizmo.is_rotation_clock_dir_locked = true;
         }
       }
+
+      // {
+      //   GeometryConfig config{};
+      //   generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
+      //   Geometry *geometry = new Geometry();
+      //   create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
+      //   dispose_geometry_config(&config);
+      //   rotation_sector_geometries[app->frame_count % FRAMES_IN_FLIGHT] = {.geometry = geometry};
+      //   log_debug("frame %d frame index %d, rotation sector geometry created %p index handle %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+      // }
 
       if (app->selected_mesh_id != UINT32_MAX) {
         for (Geometry &geometry : app->lit_geometries) {

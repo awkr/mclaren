@@ -62,8 +62,8 @@ void create_geometry_v2(MeshSystemState *mesh_system_state, VkContext *vk_contex
     geometry->meshes.push_back(mesh);
 
     if (aabb && is_aabb_valid(*aabb)) {
-      geometry->aabb = *aabb;
-      create_mesh_from_aabb(mesh_system_state, vk_context, *aabb, geometry->aabb_mesh);
+      // geometry->aabb = *aabb;
+      // create_mesh_from_aabb(mesh_system_state, vk_context, *aabb, geometry->aabb_mesh);
     }
 
     geometry->transform = transform_identity();

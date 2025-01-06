@@ -63,7 +63,7 @@ void create_mesh_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, c
 
     { // vertex buffer
         const size_t vertex_buffer_size = vertex_count * vertex_stride;
-        vk_create_buffer_v2(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &mesh->vertex_buffer);
+        vk_create_buffer_v2(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mesh->vertex_buffer);
 
         VkBufferDeviceAddressInfo buffer_device_address_info{};
         buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
@@ -72,12 +72,16 @@ void create_mesh_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, c
 
         // upload data to gpu
         Buffer *staging_buffer = nullptr;
-        vk_create_buffer_v2(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
+        vk_create_buffer_v2(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
 
-        VmaAllocationInfo staging_buffer_allocation_info;
-        vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
+        {
+          void *p = nullptr;
+          VkResult result = vkMapMemory(vk_context->device, staging_buffer->device_memory, 0, vertex_buffer_size, 0, &p);
+          ASSERT(result == VK_SUCCESS);
+          memcpy(p, vertices, vertex_buffer_size);
+          vkUnmapMemory(vk_context->device, staging_buffer->device_memory);
+        }
 
-        memcpy(staging_buffer_allocation_info.pMappedData, vertices, vertex_buffer_size);
         vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
           vk_cmd_copy_buffer2(command_buffer, staging_buffer->handle, mesh->vertex_buffer->handle, vertex_buffer_size, 0, 0);
         });
@@ -86,16 +90,20 @@ void create_mesh_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, c
 
     if (index_count > 0) { // index buffer
         size_t index_buffer_size = index_count * index_stride;
-        vk_create_buffer_v2(vk_context, index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &mesh->index_buffer);
+        vk_create_buffer_v2(vk_context, index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mesh->index_buffer);
 
         // upload data to gpu
         Buffer *staging_buffer = nullptr;
-        vk_create_buffer_v2(vk_context, index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
+        vk_create_buffer_v2(vk_context, index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
 
-        VmaAllocationInfo staging_buffer_allocation_info;
-        vmaGetAllocationInfo(vk_context->allocator, staging_buffer->allocation, &staging_buffer_allocation_info);
+        {
+          void *p = nullptr;
+          VkResult result = vkMapMemory(vk_context->device, staging_buffer->device_memory, 0, index_buffer_size, 0, &p);
+          ASSERT(result == VK_SUCCESS);
+          memcpy(p, indices, index_buffer_size);
+          vkUnmapMemory(vk_context->device, staging_buffer->device_memory);
+        }
 
-        memcpy(staging_buffer_allocation_info.pMappedData, indices, index_buffer_size);
         vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
           vk_cmd_copy_buffer2(command_buffer, staging_buffer->handle, mesh->index_buffer->handle, index_buffer_size, 0, 0);
         });
