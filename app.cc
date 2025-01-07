@@ -131,7 +131,7 @@ void app_create(SDL_Window *window, App **out_app) {
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
       vk_create_buffer(app->vk_context, storage_buffer_size,
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, // 只需从 GPU 读取
                        &app->entity_picking_storage_buffers[i]);
     }
 
@@ -511,8 +511,7 @@ void app_destroy(App *app) {
 
     for (auto &geometry : app->lit_geometries) {
       destroy_geometry_vma(&app->mesh_system_state, app->vk_context, &geometry); }
-    for (auto &geometry : app->line_geometries) {
-      destroy_geometry_vma(&app->mesh_system_state, app->vk_context, &geometry); }
+    for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
@@ -1645,7 +1644,7 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
     memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
     Geometry geometry{};
-    create_geometry_vma(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
+    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
     app->line_geometries.push_back(geometry);
   }
 
