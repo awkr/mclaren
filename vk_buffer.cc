@@ -79,7 +79,7 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
     delete buffer;
 }
 
-void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const void *data, size_t size) {
+void vk_copy_data_to_buffer_vma(VkContext *vk_context, const Buffer *buffer, const void *data, size_t size) {
     void *p = nullptr;
     VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &p);
     ASSERT(result == VK_SUCCESS);
@@ -91,15 +91,21 @@ void vk_copy_data_to_buffer(VkContext *vk_context, const Buffer *buffer, const v
 
 void vk_clear_buffer(VkContext *vk_context, const Buffer *buffer, size_t size) {
   void *p = nullptr;
-  VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &p);
+  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);
   ASSERT(result == VK_SUCCESS);
   memset(p, 0, size);
-  vmaUnmapMemory(vk_context->allocator, buffer->allocation);
-  result = vmaFlushAllocation(vk_context->allocator, buffer->allocation, 0, size);
-  ASSERT(result == VK_SUCCESS);
+  vkUnmapMemory(vk_context->device, buffer->device_memory);
 }
 
 void vk_read_data_from_buffer(VkContext *vk_context, const Buffer *buffer, void *dst, size_t size) {
+  void *p = nullptr;
+  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);
+  ASSERT(result == VK_SUCCESS);
+  memcpy(dst, p, size);
+  vkUnmapMemory(vk_context->device, buffer->device_memory);
+}
+
+void vk_read_data_from_buffer_vma(VkContext *vk_context, const Buffer *buffer, void *dst, size_t size) {
   void *p = nullptr;
   const VkResult result = vmaMapMemory(vk_context->allocator, buffer->allocation, &p);
   ASSERT(result == VK_SUCCESS);

@@ -129,11 +129,10 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
-      vk_create_buffer_vma(app->vk_context, storage_buffer_size,
-                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                           VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-                           &app->entity_picking_storage_buffers[i]);
+      vk_create_buffer(app->vk_context, storage_buffer_size,
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       &app->entity_picking_storage_buffers[i]);
     }
 
     // 创建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法
@@ -338,7 +337,7 @@ void app_create(SDL_Window *window, App **out_app) {
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
       vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
+      vk_copy_data_to_buffer_vma(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -367,7 +366,7 @@ void app_create(SDL_Window *window, App **out_app) {
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
       vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
+      vk_copy_data_to_buffer_vma(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -554,7 +553,7 @@ void app_destroy(App *app) {
 
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
+      vk_destroy_buffer(app->vk_context, app->entity_picking_storage_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
     }
     app->entity_picking_storage_buffers.clear();
@@ -636,7 +635,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     std::deque<VkDescriptorImageInfo> image_infos;
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     {
-      vk_copy_data_to_buffer(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
+      vk_copy_data_to_buffer_vma(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
 
       vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_uniform_buffer_descriptor_set_layout, &frame->global_uniform_buffer_descriptor_set);
       descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
@@ -1342,7 +1341,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     //   vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
     //
     //   uint32_t id = 0;
-    //   vk_read_data_from_buffer(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
+    //   vk_read_data_from_buffer_vma(app->vk_context, app->object_picking_buffer, &id, sizeof(uint32_t));
     //   if (id > 0) {
     //     app->selected_mesh_id = id;
     //     log_debug("mesh id: %u", id);
@@ -1401,30 +1400,20 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
     }
-    app->entity_picking_storage_buffers.clear();
     app->entity_picking_framebuffers.clear();
   }
 
   { // 按序重建各 render pass 资源
     // 重建 entity picking 相关资源 todo 移入类似 on_plugin_prepare 方法
     app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
-    app->entity_picking_storage_buffers.resize(FRAMES_IN_FLIGHT);
 
     for (size_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       {
         VkImageView attachments[1] = {app->depth_image_view};
         vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 1, &app->entity_picking_framebuffers[i]);
       }
-
-      size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
-      vk_create_buffer_vma(app->vk_context, storage_buffer_size,
-                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                           VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-                           &app->entity_picking_storage_buffers[i]);
     }
 
     // 重建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法
