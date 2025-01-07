@@ -97,17 +97,16 @@ void app_create(SDL_Window *window, App **out_app) {
     {
       AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->lit_render_pass);
+      vk_create_render_pass(vk_context->device, &color_attachment_config, &depth_attachment_config, &app->lit_render_pass);
     }
     {
-      AttachmentConfig color_attachment_config = {VK_FORMAT_R32_UINT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->entity_picking_render_pass);
+      vk_create_render_pass(vk_context->device, nullptr, &depth_attachment_config, &app->entity_picking_render_pass);
     }
     {
       AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
       AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, color_attachment_config, depth_attachment_config, &app->vertex_lit_render_pass);
+      vk_create_render_pass(vk_context->device, &color_attachment_config, &depth_attachment_config, &app->vertex_lit_render_pass);
     }
 
     create_depth_image(app, VK_FORMAT_D32_SFLOAT);
@@ -120,57 +119,21 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     // 创建 entity picking 相关资源 todo 移入类似 on_plugin_prepare 方法
-    app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
-    app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
-    app->entity_picking_buffers.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_storage_buffers.resize(FRAMES_IN_FLIGHT);
 
     for (size_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_create_image(app->vk_context, app->vk_context->swapchain_extent, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false, &app->entity_picking_color_images[i]);
-      vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->handle, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
-
       {
-        VkImageView attachments[2] = {app->entity_picking_color_image_views[i], app->depth_image_view};
-        vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
+        VkImageView attachments[1] = {app->depth_image_view};
+        vk_create_framebuffer(vk_context->device, vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 1, &app->entity_picking_framebuffers[i]);
       }
 
-      vk_create_buffer_vma(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
       vk_create_buffer_vma(app->vk_context, storage_buffer_size,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
                            &app->entity_picking_storage_buffers[i]);
-    }
-
-    {
-      VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-      vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
-
-      vk_begin_one_flight_command_buffer(command_buffer);
-      for (const Image *image : app->entity_picking_color_images) {
-        vk_cmd_pipeline_image_barrier2(command_buffer,
-                                       image->handle,
-                                       VK_IMAGE_ASPECT_COLOR_BIT,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                       VK_ACCESS_2_NONE,
-                                       VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
-      }
-      vk_end_command_buffer(command_buffer);
-
-      VkFence fence;
-      vk_create_fence(app->vk_context->device, false, &fence);
-
-      vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence);
-
-      vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
-      vk_destroy_fence(app->vk_context->device, fence);
-
-      vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
     }
 
     // 创建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法
@@ -590,16 +553,10 @@ void app_destroy(App *app) {
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
-      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
-      vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
-      vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
     }
     app->entity_picking_storage_buffers.clear();
-    app->entity_picking_buffers.clear();
     app->entity_picking_framebuffers.clear();
-    app->entity_picking_color_image_views.clear();
-    app->entity_picking_color_images.clear();
     vk_destroy_render_pass(app->vk_context->device, app->entity_picking_render_pass);
 
     vk_destroy_render_pass(app->vk_context->device, app->vertex_lit_render_pass);
@@ -1175,7 +1132,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     if (is_mouse_start_up[frame_index].up && app->frame_count >= is_mouse_start_up[frame_index].frame_count) {
       uint32_t id = 0;
       vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
-      log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
+      // log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
       if (id > 0) { app->selected_mesh_id = id; }
     }
 
@@ -1255,53 +1212,9 @@ void app_update(App *app, InputSystemState *input_system_state) {
   {
     vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
 
-    VkClearValue clear_values[1] = {};
-    clear_values[0].color = {.uint32 = {0, 0, 0, 0}};
-    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, clear_values, 1);
+    vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, nullptr, 0);
     draw_entity_picking(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
-
-    // 读出 color 之前转换为 transfer_src
-    vk_cmd_pipeline_image_barrier2(command_buffer,
-                                  app->entity_picking_color_images[frame_index]->handle,
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                  VK_ACCESS_2_TRANSFER_READ_BIT);
-
-    // 写入 buffer 之前确保之前的读写操作完成
-    vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                    app->entity_picking_buffers[frame_index]->handle,
-                                    0,
-                                    VK_WHOLE_SIZE,
-                                    VK_PIPELINE_STAGE_2_COPY_BIT,
-                                    VK_PIPELINE_STAGE_2_COPY_BIT,
-                                    VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                    VK_ACCESS_2_TRANSFER_WRITE_BIT);
-
-    VkOffset2D offset = {};
-    offset.x = app->mouse_pos.x;
-    offset.y = app->mouse_pos.y;
-    VkExtent2D extent = {1, 1};
-    vk_cmd_copy_image_to_buffer(command_buffer, app->entity_picking_color_images[frame_index]->handle, app->entity_picking_buffers[frame_index]->handle, offset, extent);
-
-    // 读取 color 完毕后转换为 color_attachment
-    vk_cmd_pipeline_image_barrier2(command_buffer,
-                                   app->entity_picking_color_images[frame_index]->handle,
-                                   VK_IMAGE_ASPECT_COLOR_BIT,
-                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                   VK_PIPELINE_STAGE_2_COPY_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_ACCESS_2_TRANSFER_READ_BIT,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
-
-    // uint32_t id = UINT32_MAX;
-    // vk_read_data_from_buffer(app->vk_context, app->entity_picking_buffers[frame_index], &id, sizeof(uint32_t));
-    // log_debug("id: %u", id);
   }
   {
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
@@ -1487,71 +1400,29 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
     // 清理 entity picking 相关资源 todo 移入类似 on_plugin_clean_up 方法
     for (uint16_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer_vma(app->vk_context, app->entity_picking_storage_buffers[i]);
-      vk_destroy_buffer_vma(app->vk_context, app->entity_picking_buffers[i]);
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
-      vk_destroy_image_view(app->vk_context->device, app->entity_picking_color_image_views[i]);
-      vk_destroy_image(app->vk_context, app->entity_picking_color_images[i]);
     }
     app->entity_picking_storage_buffers.clear();
-    app->entity_picking_buffers.clear();
     app->entity_picking_framebuffers.clear();
-    app->entity_picking_color_image_views.clear();
-    app->entity_picking_color_images.clear();
   }
 
   { // 按序重建各 render pass 资源
     // 重建 entity picking 相关资源 todo 移入类似 on_plugin_prepare 方法
-    app->entity_picking_color_images.resize(FRAMES_IN_FLIGHT);
-    app->entity_picking_color_image_views.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_framebuffers.resize(FRAMES_IN_FLIGHT);
-    app->entity_picking_buffers.resize(FRAMES_IN_FLIGHT);
     app->entity_picking_storage_buffers.resize(FRAMES_IN_FLIGHT);
 
     for (size_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_create_image(app->vk_context, app->vk_context->swapchain_extent, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false, &app->entity_picking_color_images[i]);
-      vk_create_image_view(app->vk_context->device, app->entity_picking_color_images[i]->handle, VK_FORMAT_R32_UINT, VK_IMAGE_ASPECT_COLOR_BIT, &app->entity_picking_color_image_views[i]);
-
       {
-        VkImageView attachments[2] = {app->entity_picking_color_image_views[i], app->depth_image_view};
-        vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 2, &app->entity_picking_framebuffers[i]);
+        VkImageView attachments[1] = {app->depth_image_view};
+        vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->entity_picking_render_pass, attachments, 1, &app->entity_picking_framebuffers[i]);
       }
 
-      vk_create_buffer_vma(app->vk_context, 4 /* size of one pixel */, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &app->entity_picking_buffers[i]);
       size_t storage_buffer_size = sizeof(uint32_t); // size of one pixel
       vk_create_buffer_vma(app->vk_context, storage_buffer_size,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
                            &app->entity_picking_storage_buffers[i]);
-    }
-
-    {
-      VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-      vk_alloc_command_buffers(app->vk_context->device, app->vk_context->command_pool, 1, &command_buffer);
-
-      vk_begin_one_flight_command_buffer(command_buffer);
-      for (const Image *image : app->entity_picking_color_images) {
-        vk_cmd_pipeline_image_barrier2(command_buffer,
-                                       image->handle,
-                                       VK_IMAGE_ASPECT_COLOR_BIT,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                       VK_ACCESS_2_NONE,
-                                       VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
-      }
-      vk_end_command_buffer(command_buffer);
-
-      VkFence fence;
-      vk_create_fence(app->vk_context->device, false, &fence);
-
-      vk_queue_submit(app->vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence);
-
-      vk_wait_fence(app->vk_context->device, fence, UINT64_MAX);
-      vk_destroy_fence(app->vk_context->device, fence);
-
-      vk_free_command_buffer(app->vk_context->device, app->vk_context->command_pool, command_buffer);
     }
 
     // 重建 gizmo render pass 相关资源 todo 移入类似 on_plugin_prepare 方法

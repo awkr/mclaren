@@ -12,9 +12,7 @@ layout (set = 1, binding = 0) buffer EntityPickingSSBO {
 };
 
 layout (location = 0) flat in uint id;
-layout (location = 0) out uint out_id;
 
 void main() {
-    out_id = id;
     data[0] = id;
 }

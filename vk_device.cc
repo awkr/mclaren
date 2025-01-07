@@ -79,6 +79,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_extensions.push_back("VK_KHR_copy_commands2");
     required_extensions.push_back("VK_KHR_fragment_shader_barycentric");
     required_extensions.push_back("VK_EXT_extended_dynamic_state");
+    required_extensions.push_back("VK_EXT_extended_dynamic_state2");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,
@@ -134,10 +135,14 @@ bool vk_create_device(VkContext *vk_context) {
     required_device_features.depthBiasClamp = VK_TRUE;
     required_device_features.fragmentStoresAndAtomics = VK_TRUE;
 
+    VkPhysicalDeviceExtendedDynamicState2FeaturesEXT extended_dynamic_state2_features{};
+    extended_dynamic_state2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_2_FEATURES_EXT;
+    extended_dynamic_state2_features.extendedDynamicState2 = VK_TRUE;
+
     VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state_features{};
     extended_dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
     extended_dynamic_state_features.extendedDynamicState = VK_TRUE;
-    extended_dynamic_state_features.pNext = nullptr;
+    extended_dynamic_state_features.pNext = &extended_dynamic_state2_features;
 
     VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR fragment_shader_barycentric_features{};
     fragment_shader_barycentric_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;

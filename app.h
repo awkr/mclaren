@@ -111,10 +111,7 @@ struct App {
     VkPipelineLayout entity_picking_pipeline_layout;
     VkPipeline entity_picking_pipeline;
 
-    std::vector<Image *> entity_picking_color_images;
-    std::vector<VkImageView> entity_picking_color_image_views;
     std::vector<VkFramebuffer> entity_picking_framebuffers;
-    std::vector<Buffer *> entity_picking_buffers;
     std::vector<Buffer *> entity_picking_storage_buffers;
 
     std::vector<VkFramebuffer> gizmo_framebuffers;
