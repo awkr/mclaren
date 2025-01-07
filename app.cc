@@ -510,8 +510,10 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    for (auto &geometry : app->lit_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
-    for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
+    for (auto &geometry : app->lit_geometries) {
+      destroy_geometry_vma(&app->mesh_system_state, app->vk_context, &geometry); }
+    for (auto &geometry : app->line_geometries) {
+      destroy_geometry_vma(&app->mesh_system_state, app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
@@ -1138,7 +1140,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 
     if (Geometry *geometry = rotation_sector_geometries_delete_queue[frame_index]; geometry) {
       // log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
-      destroy_geometry_v2(&app->mesh_system_state, app->vk_context, geometry);
+      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
       delete geometry;
       rotation_sector_geometries_delete_queue[frame_index] = nullptr;
     }
@@ -1654,7 +1656,7 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
     memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
     Geometry geometry{};
-    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
+    create_geometry_vma(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
     app->line_geometries.push_back(geometry);
   }
 

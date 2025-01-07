@@ -11,7 +11,7 @@ void generate_aabb_from_vertices(const Vertex *vertices, uint32_t vertex_count, 
     }
 }
 
-void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh) {
+void create_mesh_vma(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh) {
     // todo 一次性上传顶点和索引数据
 
     { // vertex buffer
@@ -58,7 +58,7 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, cons
   mesh->id = ++mesh_system_state->mesh_id_generator;
 }
 
-void create_mesh_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh) {
+void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh) {
     // todo 一次性上传顶点和索引数据
 
     { // vertex buffer
@@ -113,7 +113,7 @@ void create_mesh_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, c
   mesh->id = ++mesh_system_state->mesh_id_generator;
 }
 
-void destroy_mesh(VkContext *vk_context, Mesh *mesh) {
+void destroy_mesh_vma(VkContext *vk_context, Mesh *mesh) {
     if (mesh->index_buffer) {
       vk_destroy_buffer_vma(vk_context, mesh->index_buffer);
     }
@@ -122,7 +122,7 @@ void destroy_mesh(VkContext *vk_context, Mesh *mesh) {
   }
 }
 
-void destroy_mesh_v2(VkContext *vk_context, Mesh *mesh) {
+void destroy_mesh(VkContext *vk_context, Mesh *mesh) {
   if (mesh->index_buffer) {
     vk_destroy_buffer(vk_context, mesh->index_buffer);
   }
@@ -164,7 +164,7 @@ void create_mesh_from_aabb(MeshSystemState *mesh_system_state, VkContext *vk_con
     vertices[22] = {{aabb.max.x, aabb.max.y, aabb.min.z}, {}, {}};
     vertices[23] = {{aabb.max.x, aabb.max.y, aabb.max.z}, {}, {}};
 
-    create_mesh(mesh_system_state, vk_context, vertices, 24, sizeof(Vertex), nullptr, 0, 0, &mesh);
+    create_mesh_vma(mesh_system_state, vk_context, vertices, 24, sizeof(Vertex), nullptr, 0, 0, &mesh);
 
     Primitive primitive{};
     primitive.vertex_offset = 0;
