@@ -161,7 +161,7 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer_vma(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, &frame->global_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->global_uniform_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -336,8 +336,8 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
-      vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
-      vk_copy_data_to_buffer_vma(vk_context, staging_buffer, pixels, size);
+      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
+      vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -345,7 +345,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
-      vk_destroy_buffer_vma(vk_context, staging_buffer);
+      vk_destroy_buffer(vk_context, staging_buffer);
     }
 
     {
@@ -365,8 +365,8 @@ void app_create(SDL_Window *window, App **out_app) {
 
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
-      vk_create_buffer_vma(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT, &staging_buffer);
-      vk_copy_data_to_buffer_vma(vk_context, staging_buffer, texture_data.data(), size);
+      vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
+      vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -374,7 +374,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
       });
 
-      vk_destroy_buffer_vma(vk_context, staging_buffer);
+      vk_destroy_buffer(vk_context, staging_buffer);
     }
 
     vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->sampler_nearest);
@@ -509,8 +509,7 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    for (auto &geometry : app->lit_geometries) {
-      destroy_geometry_vma(&app->mesh_system_state, app->vk_context, &geometry); }
+    for (auto &geometry : app->lit_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
     for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
@@ -568,7 +567,7 @@ void app_destroy(App *app) {
     vk_destroy_image(app->vk_context, app->color_image);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer_vma(app->vk_context, app->frames[i].global_uniform_buffer);
+      vk_destroy_buffer(app->vk_context, app->frames[i].global_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
@@ -634,7 +633,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     std::deque<VkDescriptorImageInfo> image_infos;
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     {
-      vk_copy_data_to_buffer_vma(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
+      vk_copy_data_to_buffer(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
 
       vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_uniform_buffer_descriptor_set_layout, &frame->global_uniform_buffer_descriptor_set);
       descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
