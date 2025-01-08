@@ -1745,7 +1745,7 @@ void app_mouse_move(App *app, float x, float y) {
         GeometryConfig config{};
         generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
         Geometry *geometry = new Geometry();
-        create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
+        create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
         dispose_geometry_config(&config);
         if (rotation_sector_geometry.geometry) {
           rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;

@@ -4,9 +4,6 @@
 [submodule "third-party/SDL"]
 	path = third-party/SDL
 	url = git@github.com:libsdl-org/SDL.git
-[submodule "third-party/VulkanMemoryAllocator"]
-	path = third-party/VulkanMemoryAllocator
-	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
 [submodule "third-party/imgui"]
 	path = third-party/imgui
 	url = git@github.com:ocornut/imgui.git

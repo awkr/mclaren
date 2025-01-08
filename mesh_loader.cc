@@ -86,7 +86,7 @@ void load_gltf(MeshSystemState *mesh_system_state, VkContext *vk_context, const 
 
         // todo parse node transform
 
-        create_mesh_vma(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
+        create_mesh(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), mesh);
 
         generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
     } // end looping meshes

@@ -49,9 +49,7 @@ struct MeshSystemState {
     uint32_t mesh_id_generator = 0;
 };
 
-void create_mesh_vma(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
 void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
-void destroy_mesh_vma(VkContext *vk_context, Mesh *mesh);
 void destroy_mesh(VkContext *vk_context, Mesh *mesh);
 
 void create_mesh_from_aabb(MeshSystemState *mesh_system_state, VkContext *vk_context, const AABB &aabb, Mesh &mesh);
