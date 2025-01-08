@@ -8,7 +8,6 @@
 #include "vk_pipeline.h"
 #include <cstdint>
 #include <queue>
-#include <vk_mem_alloc.h>
 #include <volk.h>
 
 struct VkContext;

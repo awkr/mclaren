@@ -505,6 +505,8 @@ static void push_semaphore_to_pool(App *app, VkSemaphore semaphore) {
 }
 
 void app_destroy(App *app) {
+  // todo 等待所有进行中的帧结束
+
     vk_wait_idle(app->vk_context);
 
     destroy_camera(&app->camera);
@@ -1720,12 +1722,12 @@ void app_mouse_move(App *app, float x, float y) {
       float t = -glm::dot(center_to_ray_origin, app->gizmo.rotation_plane_normal) / denom;
       point_on_plane = ray_in_model_space.origin + t * ray_in_model_space.direction; // 射线方程
 
-      app->gizmo.rotation_end_pos = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
+      glm::vec3 rotation_end_pos = center + glm::normalize(point_on_plane - center) * app->gizmo.config.ring_major_radius;
 
       // 计算旋转方向
 
       const glm::vec3 norm_start = glm::normalize(app->gizmo.rotation_start_pos);
-      const glm::vec3 norm_end = glm::normalize(app->gizmo.rotation_end_pos);
+      const glm::vec3 norm_end = glm::normalize(rotation_end_pos);
       const float dot = glm::dot(glm::cross(norm_start, norm_end), app->gizmo.rotation_plane_normal);
       float angle = glm::acos(glm::dot(norm_start, norm_end));
 
@@ -1743,9 +1745,9 @@ void app_mouse_move(App *app, float x, float y) {
 
       {
         GeometryConfig config{};
-        generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, app->gizmo.rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
+        generate_sector_geometry_config(app->gizmo.rotation_plane_normal, app->gizmo.rotation_start_pos, rotation_end_pos, app->gizmo.rotation_clock_dir, 64, &config);
         Geometry *geometry = new Geometry();
-        create_geometry_from_config_v2(&app->mesh_system_state, app->vk_context, &config, geometry);
+        create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
         dispose_geometry_config(&config);
         if (rotation_sector_geometry.geometry) {
           rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;

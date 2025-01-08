@@ -1,6 +1,5 @@
 #include "vk.h"
 #include "logging.h"
-#include "vk_allocator.h"
 #include "vk_command_buffer.h"
 #include "vk_command_pool.h"
 #include "vk_context.h"
@@ -28,7 +27,6 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
     succeed = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
     ASSERT(succeed);
     vk_create_device(vk_context);
-    vk_create_allocator(vk_context);
     vk_create_swapchain(vk_context, width, height);
     vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &vk_context->command_pool);
 }
@@ -36,7 +34,6 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
 void vk_terminate(VkContext *vk_context) {
     vk_destroy_command_pool(vk_context->device, vk_context->command_pool);
     vk_destroy_swapchain(vk_context);
-    vk_destroy_allocator(vk_context);
     vk_destroy_device(vk_context);
     vkDestroySurfaceKHR(vk_context->instance, vk_context->surface, nullptr);
     vk_destroy_instance(vk_context);

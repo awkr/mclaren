@@ -17,11 +17,6 @@ pushd third-party/volk
   git pull
 popd
 
-pushd third-party/VulkanMemoryAllocator
-  git checkout master
-  git pull
-popd
-
 pushd third-party/microprofile
   git checkout master
   git pull

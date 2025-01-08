@@ -25,9 +25,9 @@ void dispose_geometry_config(GeometryConfig *config) noexcept {
     }
 }
 
-void create_geometry_vma(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry) {
+void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry) {
     Mesh mesh{};
-    create_mesh_vma(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
+    create_mesh(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
 
     Primitive primitive{};
     primitive.vertex_offset = 0;
@@ -47,42 +47,8 @@ void create_geometry_vma(MeshSystemState *mesh_system_state, VkContext *vk_conte
     geometry->transform = transform_identity();
 }
 
-void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry) {
-    Mesh mesh{};
-    create_mesh(mesh_system_state, vk_context, vertices, vertex_count, vertex_stride, indices, index_count, index_stride, &mesh);
-
-    Primitive primitive{};
-    primitive.vertex_offset = 0;
-    primitive.vertex_count = vertex_count;
-    primitive.index_offset = 0;
-    primitive.index_count = index_count;
-
-    mesh.primitives.push_back(primitive);
-
-    geometry->meshes.push_back(mesh);
-
-    if (aabb && is_aabb_valid(*aabb)) {
-      // geometry->aabb = *aabb;
-      // create_mesh_from_aabb(mesh_system_state, vk_context, *aabb, geometry->aabb_mesh);
-    }
-
-    geometry->transform = transform_identity();
-}
-
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
-  create_geometry_vma(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
-}
-
-void create_geometry_from_config_v2(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
   create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
-}
-
-void destroy_geometry_vma(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
-  destroy_mesh_vma(vk_context, &geometry->aabb_mesh);
-    for (Mesh &mesh : geometry->meshes) {
-      destroy_mesh_vma(vk_context, &mesh);
-    }
-    *geometry = Geometry(); // todo 改为memset
 }
 
 void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
@@ -113,7 +79,7 @@ void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_con
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry_vma(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry) {
@@ -162,7 +128,7 @@ void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_cont
     AABB aabb{};
     generate_aabb_from_vertices(vertices, sizeof(vertices) / sizeof(Vertex), &aabb);
 
-    create_geometry_vma(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), indices, index_count, sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry) {
@@ -226,7 +192,7 @@ void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk
     AABB aabb{};
     generate_aabb_from_vertices(vertices.data(), vertices.size(), &aabb);
 
-    create_geometry_vma(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, geometry);
+    create_geometry(mesh_system_state, vk_context, vertices.data(), vertices.size(), sizeof(Vertex), indices.data(), indices.size(), sizeof(uint32_t), &aabb, geometry);
 }
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}

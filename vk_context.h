@@ -2,7 +2,6 @@
 
 #include "vk_defines.h"
 #include <vector>
-#include <vk_mem_alloc.h>
 
 struct VkContext {
     uint32_t api_version;
@@ -14,7 +13,6 @@ struct VkContext {
     VkDevice device;
     uint32_t graphics_queue_family_index;
     VkQueue graphics_queue;
-    VmaAllocator allocator;
     VkSwapchainKHR swapchain;
     VkExtent2D swapchain_extent;
     VkFormat swapchain_image_format;

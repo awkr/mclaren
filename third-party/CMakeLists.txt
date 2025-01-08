@@ -1,5 +1,4 @@
 add_subdirectory(volk)
-add_subdirectory(VulkanMemoryAllocator)
 
 set(SDL_STATIC ON CACHE BOOL "")
 set(SDL_SHARED OFF CACHE BOOL "")
