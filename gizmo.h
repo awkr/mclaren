@@ -50,7 +50,6 @@ struct Gizmo {
   // rotation runtime data
   glm::vec3 rotation_plane_normal; // in the coordinate space defined by the gizmo
   glm::vec3 rotation_start_pos; // in the coordinate space defined by the gizmo
-  glm::vec3 rotation_end_pos; // in the coordinate space defined by the gizmo
   char rotation_clock_dir; // '0': not set, 'C': counterclockwise, 'c': clockwise
   bool is_rotation_clock_dir_locked;
 };
