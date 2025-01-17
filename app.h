@@ -35,17 +35,30 @@ struct GlobalState {
     // glm::vec4 sunlight_color; // sunlight color and intensity ( power )
 };
 
-// 推荐不超过 128 bytes
-struct InstanceState {
-    glm::mat4 model_matrix;
-    glm::vec4 color;
-    VkDeviceAddress vertex_buffer_device_address;
+struct UnlitInstanceState {
+  glm::mat4 model_matrix;
+  glm::vec4 color;
+  VkDeviceAddress vertex_buffer_device_address;
+};
+
+struct LitInstanceState {
+  glm::mat4 model_matrix;
+  glm::mat4 normal_matrix;
+  glm::vec4 color;
+  VkDeviceAddress vertex_buffer_device_address;
+};
+
+struct VertexLitInstanceState {
+  glm::mat4 model_matrix;
+  glm::mat4 normal_matrix;
+  glm::vec4 color;
+  VkDeviceAddress vertex_buffer_device_address;
 };
 
 struct EntityPickingInstanceState {
-    glm::mat4 model_matrix;
-    uint32_t id;
-    VkDeviceAddress vertex_buffer_device_address;
+  glm::mat4 model_matrix;
+  uint32_t id;
+  VkDeviceAddress vertex_buffer_device_address;
 };
 
 struct App {

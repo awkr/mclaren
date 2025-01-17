@@ -6,7 +6,7 @@
 #include "vertex.glsl"
 #include "global_state.glsl"
 
-layout (push_constant) uniform InstanceState {
+layout (push_constant) uniform EntityPickingInstanceState {
     mat4 model_matrix;
     uint id;
     VertexBuffer vertex_buffer;

@@ -205,7 +205,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
+        push_constant_range.size = sizeof(LitInstanceState);
 
         VkDescriptorSetLayout descriptor_set_layouts[2];
         descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
@@ -234,7 +234,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
+      push_constant_range.size = sizeof(UnlitInstanceState);
 
       VkDescriptorSetLayout descriptor_set_layouts[1];
       descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
@@ -258,7 +258,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
+      push_constant_range.size = sizeof(VertexLitInstanceState);
 
       std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
@@ -281,7 +281,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
+      push_constant_range.size = sizeof(UnlitInstanceState);
 
       std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
@@ -664,10 +664,10 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
       for (const Mesh &mesh : geometry.meshes) {
-        InstanceState instance_state{};
+        LitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -690,7 +690,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   //       InstanceState instance_state{};
   //       instance_state.model_matrix = model_matrix;
   //       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-  //       vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+  //       vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
   //       for (const Primitive &primitive : mesh.primitives) {
   //         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
   //         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -713,11 +713,11 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
         const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
         for (const Mesh &mesh : geometry.meshes) {
-          InstanceState instance_state{};
+          UnlitInstanceState instance_state{};
           instance_state.model_matrix = model_matrix;
           instance_state.color = glm::vec4(1, 1, 1, 1);
           instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
           for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
           }
@@ -736,11 +736,11 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
         }
         const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
-        InstanceState instance_state{};
+        UnlitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.color = glm::vec4(1, 1, 1, 1);
         instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
           vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
@@ -769,11 +769,11 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.color = glm::vec4(0.4f, 0.4f, 0.0f, 0.4f);
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -789,7 +789,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -799,8 +799,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -812,7 +811,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -822,8 +821,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -835,7 +833,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -845,8 +843,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -862,7 +859,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -872,8 +869,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -883,7 +880,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       glm::mat4 model_matrix(1.0f);
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -893,8 +890,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -905,7 +902,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -915,8 +912,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -930,7 +927,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
         model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -940,8 +937,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -950,7 +947,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       { // y axis
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.config.axis_length, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -960,8 +957,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -971,7 +968,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.config.axis_length));
         model_matrix = glm::rotate(model_matrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -981,8 +978,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -996,12 +993,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       { // x axis
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length + app->gizmo.config.arrow_length + app->gizmo.config.cube_offset + app->gizmo.config.cube_size * 0.5f, 0.0f, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1010,12 +1007,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       //         { // y axis
       //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 1.0f, 0.0f));
       //
-      //             InstanceState instance_state{};
+      //             VertexLitInstanceState instance_state{};
       //             instance_state.model_matrix = model;
       //             instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
       //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       //
-      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       //             for (const Primitive &primitive : mesh.primitives) {
       //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
       //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1025,12 +1022,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 1.0f));
       //             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
       //
-      //             InstanceState instance_state{};
+      //             VertexLitInstanceState instance_state{};
       //             instance_state.model_matrix = model;
       //             instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
       //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       //
-      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       //             for (const Primitive &primitive : mesh.primitives) {
       //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
       //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1072,7 +1069,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
       instance_state.model_matrix = model_matrix;
       instance_state.id = mesh.id;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(EntityPickingInstanceState), &instance_state);
+      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1432,16 +1429,16 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 void app_key_down(App *app, Key key) {
     if (key == KEY_W) {
         Camera *camera = &app->camera;
-        camera_forward(camera, 0.2f);
+        camera_move_forward(camera, 0.2f);
     } else if (key == KEY_S) {
         Camera *camera = &app->camera;
-        camera_backward(camera, 0.2f);
+        camera_move_backward(camera, 0.2f);
     } else if (key == KEY_A) {
         Camera *camera = &app->camera;
-        camera_left(camera, 0.2f);
+        camera_move_left(camera, 0.2f);
     } else if (key == KEY_D) {
         Camera *camera = &app->camera;
-        camera_right(camera, 0.2f);
+        camera_move_right(camera, 0.2f);
     } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);
@@ -1466,16 +1463,16 @@ void app_key_down(App *app, Key key) {
 void app_key_up(App *app, Key key) {
     if (key == KEY_W) {
         Camera *camera = &app->camera;
-        camera_forward(camera, 0.2f);
+        camera_move_forward(camera, 0.2f);
     } else if (key == KEY_S) {
         Camera *camera = &app->camera;
-        camera_backward(camera, 0.2f);
+        camera_move_backward(camera, 0.2f);
     } else if (key == KEY_A) {
         Camera *camera = &app->camera;
-        camera_left(camera, 0.2f);
+        camera_move_left(camera, 0.2f);
     } else if (key == KEY_D) {
         Camera *camera = &app->camera;
-        camera_right(camera, 0.2f);
+        camera_move_right(camera, 0.2f);
     } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);

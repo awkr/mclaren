@@ -8,8 +8,9 @@
 layout (location = 0) out vec2 out_tex_coord;
 layout (location = 1) out vec3 out_normal;
 
-layout (push_constant) uniform InstanceState {
+layout (push_constant) uniform LitInstanceState {
     mat4 model_matrix;
+    mat4 normal_matrix;
     vec4 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
 } instance_state;

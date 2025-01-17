@@ -18,13 +18,13 @@ void destroy_camera(Camera *camera);
 void camera_set_position(Camera *camera, const glm::vec3 &position);
 const glm::vec3 &camera_get_position(const Camera *camera) noexcept;
 
-void camera_forward(Camera *camera, float delta);
+void camera_move_forward(Camera *camera, float delta);
 
-void camera_backward(Camera *camera, float delta);
+void camera_move_backward(Camera *camera, float delta);
 
-void camera_left(Camera *camera, float delta);
+void camera_move_left(Camera *camera, float delta);
 
-void camera_right(Camera *camera, float delta);
+void camera_move_right(Camera *camera, float delta);
 
 void camera_up(Camera *camera, float delta);
 
@@ -36,4 +36,5 @@ void camera_yaw(Camera *camera, float delta_angles);
 
 void camera_update(Camera *camera);
 
+glm::vec3 camera_forward_dir(const Camera &camera) noexcept;
 glm::vec3 camera_backward_dir(const Camera &camera) noexcept;

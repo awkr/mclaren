@@ -30,20 +30,17 @@ void camera_set_position(Camera *camera, const glm::vec3 &position) {
 
 const glm::vec3 &camera_get_position(const Camera *camera) noexcept { return camera->position; }
 
-void camera_forward(Camera *camera, float delta) {
-    const glm::vec3 &forward = glm::normalize(glm::vec3(-camera->view_matrix[0][2], // 第 0 行第 2 列
-                                                        -camera->view_matrix[1][2],
-                                                        -camera->view_matrix[2][2]));
-    camera->position += forward * delta;
-    camera->is_dirty = true;
+void camera_move_forward(Camera *camera, float delta) {
+  camera->position += camera_forward_dir(*camera) * delta;
+  camera->is_dirty = true;
 }
 
-void camera_backward(Camera *camera, float delta) {
+void camera_move_backward(Camera *camera, float delta) {
     camera->position += camera_backward_dir(*camera) * delta;
     camera->is_dirty = true;
 }
 
-void camera_left(Camera *camera, float delta) {
+void camera_move_left(Camera *camera, float delta) {
     const glm::vec3 &left = glm::normalize(glm::vec3(-camera->view_matrix[0][0],
                                                      -camera->view_matrix[1][0],
                                                      -camera->view_matrix[2][0]));
@@ -51,7 +48,7 @@ void camera_left(Camera *camera, float delta) {
     camera->is_dirty = true;
 }
 
-void camera_right(Camera *camera, float delta) {
+void camera_move_right(Camera *camera, float delta) {
     const glm::vec3 &right = glm::normalize(glm::vec3(camera->view_matrix[0][0],
                                                       camera->view_matrix[1][0],
                                                       camera->view_matrix[2][0]));
@@ -101,8 +98,21 @@ void camera_update(Camera *camera) {
     camera->is_dirty = false;
 }
 
+glm::vec3 camera_forward_dir(const Camera &camera) noexcept {
+  return -camera_backward_dir(camera);
+}
+
 glm::vec3 camera_backward_dir(const Camera &camera) noexcept {
-  return glm::normalize(glm::vec3(camera.view_matrix[0][2],
+  /**
+   * glm::mat4 为列主序，在内存中的实际布局为：
+   * float data[16] = {
+   *   m00, m10, m20, m30, // 第0列
+   *   m01, m11, m21, m31, // 第1列
+   *   m02, m12, m22, m32, // 第2列
+   *   m03, m13, m23, m33  // 第3列
+   * };
+   */
+  return glm::normalize(glm::vec3(camera.view_matrix[0][2], // 第 0 列第 2 行
                                   camera.view_matrix[1][2],
                                   camera.view_matrix[2][2]));
 }
