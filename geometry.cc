@@ -197,6 +197,13 @@ void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk
 
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry) {}
 
+void create_line_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &a, const glm::vec3 &b, Geometry *geometry) {
+  Vertex vertices[2]{};
+  memcpy(vertices[0].position, glm::value_ptr(a), sizeof(float) * 3);
+  memcpy(vertices[1].position, glm::value_ptr(b), sizeof(float) * 3);
+  create_geometry(mesh_system_state, vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, geometry);
+}
+
 void generate_cone_geometry_config_lit(float radius, float height, uint16_t sector, GeometryConfig *config) {
   const uint32_t vertex_count = 1 + (sector + 1) + sector * 3; // center point + points of base circle + points of side
   Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
@@ -632,12 +639,16 @@ void generate_cylinder_geometry_config(float height, float radius, uint16_t sect
     }
   }
 
+  AABB aabb{};
+  generate_aabb_from_vertices(vertices, vertex_count, &aabb);
+
   config->vertex_count = vertex_count;
   config->vertex_stride = sizeof(Vertex);
   config->vertices = vertices;
   config->index_count = index_count;
   config->index_stride = sizeof(uint32_t);
   config->indices = indices;
+  config->aabb = aabb;
 }
 
 void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept {
@@ -698,12 +709,16 @@ void generate_torus_geometry_config(float major_radius, float minor_radius, uint
     }
   }
 
+  AABB aabb{};
+  generate_aabb_from_vertices(vertices, vertex_count, &aabb);
+
   config->vertex_count = vertex_count;
   config->vertex_stride = sizeof(Vertex);
   config->vertices = vertices;
   config->index_count = index_count;
   config->index_stride = sizeof(uint32_t);
   config->indices = indices;
+  config->aabb = aabb;
 }
 
 void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &start_pos, const glm::vec3 &end_pos, char clock_dir, uint16_t sector_count, GeometryConfig *config) {

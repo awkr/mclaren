@@ -1638,16 +1638,12 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
   if (mouse_button != MOUSE_BUTTON_LEFT) {
     return;
   }
-  {
-    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
-
-    Vertex vertices[2];
-    memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
-    memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
-    Geometry geometry{};
-    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
-    app->line_geometries.push_back(geometry);
-  }
+  // { // draw a debug line
+  //   const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+  //   Geometry geometry{};
+  //   create_line_geometry(&app->mesh_system_state, app->vk_context, ray.origin, ray.origin + ray.direction * 100.0f, &geometry);
+  //   app->line_geometries.push_back(geometry);
+  // }
 
   // reset gizmo runtime data
   app->gizmo.is_active = false;

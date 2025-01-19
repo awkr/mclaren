@@ -57,6 +57,7 @@ void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_con
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry);
 void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry);
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry);
+void create_line_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &a, const glm::vec3 &b, Geometry *geometry);
 
 void generate_cone_geometry_config_lit(float radius, float height, uint16_t sector, GeometryConfig *config);
 void generate_cone_geometry_config_vertex_lit(float radius, float height, uint16_t sector, GeometryConfig *config);
