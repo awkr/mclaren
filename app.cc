@@ -486,6 +486,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
     app->frame_count = 0;
     app->selected_mesh_id = UINT32_MAX;
+    if (!app->lit_geometries.empty()) {
+      app->selected_mesh_id = app->lit_geometries[0].meshes[0].id;
+    }
 }
 
 static VkSemaphore pop_semaphore_from_pool(App *app) {
