@@ -35,6 +35,7 @@ struct Gizmo {
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
   Geometry cube_geometry;
+  Geometry *sector_geometry;
 
   Transform transform;
   GizmoMode mode;

@@ -17,10 +17,10 @@ void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, con
 }
 
 void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context) {
-  destroy_geometry(mesh_system_state, vk_context, &gizmo->cube_geometry);
-  destroy_geometry(mesh_system_state, vk_context, &gizmo->ring_geometry);
-  destroy_geometry(mesh_system_state, vk_context, &gizmo->arrow_geometry);
-  destroy_geometry(mesh_system_state, vk_context, &gizmo->axis_geometry);
+  destroy_geometry(vk_context, &gizmo->cube_geometry);
+  destroy_geometry(vk_context, &gizmo->ring_geometry);
+  destroy_geometry(vk_context, &gizmo->arrow_geometry);
+  destroy_geometry(vk_context, &gizmo->axis_geometry);
 }
 
 void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position) {

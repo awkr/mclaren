@@ -91,6 +91,7 @@ void app_create(SDL_Window *window, App **out_app) {
     app->vk_context = new VkContext();
 
     vk_init(app->vk_context, window, render_width, render_height);
+    geometry_system_create(&app->geometry_system_state);
 
     VkContext *vk_context = app->vk_context;
 
@@ -514,8 +515,8 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    for (auto &geometry : app->lit_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
-    for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
+    for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
+    for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
@@ -593,6 +594,7 @@ void app_destroy(App *app) {
     }
     app->framebuffers.clear();
     vk_destroy_render_pass(app->vk_context->device, app->lit_render_pass);
+    geometry_system_destroy(&app->geometry_system_state);
     vk_terminate(app->vk_context);
     delete app->vk_context;
     delete app;
@@ -604,32 +606,6 @@ struct {
   bool up;
   uint64_t frame_count;
 } is_mouse_start_up[FRAMES_IN_FLIGHT] = {};
-
-std::unordered_map<Geometry *, uint32_t> geometry_ref_count_registry;
-
-void increase_geometry_ref(App *app, Geometry *geometry) {
-  log_debug("frame %d frame index %d, increase geometry %p ref count", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
-  if (auto it = geometry_ref_count_registry.find(geometry); it == geometry_ref_count_registry.end()) {
-    geometry_ref_count_registry[geometry] = 1;
-  } else {
-    it->second++;
-  }
-}
-
-void decrease_geometry_ref(App *app, Geometry *geometry) {
-  log_debug("frame %d frame index %d, decrease geometry %p ref count", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
-  if (auto it = geometry_ref_count_registry.find(geometry); it != geometry_ref_count_registry.end()) {
-    it->second--;
-    if (it->second == 0) {
-      geometry_ref_count_registry.erase(it);
-      log_debug("frame %d frame index %d, destroy geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
-      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
-      delete geometry;
-    }
-  }
-}
-
-Geometry *sector_geometry;
 
 struct {
   Geometry *sector_geometry;
@@ -1168,7 +1144,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     on_frame_render_complete(app, app->frame_count, frame_index);
 
     if (frame_resources[frame_index].sector_geometry) {
-      decrease_geometry_ref(app, frame_resources[frame_index].sector_geometry);
+      geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, frame_resources[frame_index].sector_geometry);
       frame_resources[frame_index].sector_geometry = nullptr;
     }
 
@@ -1177,9 +1153,9 @@ void app_update(App *app, InputSystemState *input_system_state) {
     is_mouse_start_up[frame_index] = {};
   }
 
-  if (sector_geometry) {
-    frame_resources[frame_index].sector_geometry = sector_geometry;
-    increase_geometry_ref(app, sector_geometry);
+  if (app->gizmo.sector_geometry) {
+    frame_resources[frame_index].sector_geometry = app->gizmo.sector_geometry;
+    geometry_system_increase_geometry_ref(&app->geometry_system_state, app->gizmo.sector_geometry);
   }
 
   update_scene(app);
@@ -1685,9 +1661,9 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     app->gizmo.rotation_clock_dir = '0';
     app->gizmo.rotation_start_pos = glm::vec3(FLT_MAX);
 
-    if (sector_geometry) {
-      decrease_geometry_ref(app, sector_geometry);
-      sector_geometry = nullptr;
+    if (app->gizmo.sector_geometry) {
+      geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, app->gizmo.sector_geometry);
+      app->gizmo.sector_geometry = nullptr;
     }
   }
   app->gizmo.axis = GIZMO_AXIS_NONE; // todo remove this line
@@ -1779,12 +1755,12 @@ void app_mouse_move(App *app, float x, float y) {
         create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
         dispose_geometry_config(&config);
 
-        if (sector_geometry) {
-          decrease_geometry_ref(app, sector_geometry);
-          sector_geometry = nullptr;
+        if (app->gizmo.sector_geometry) {
+          geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, app->gizmo.sector_geometry);
+          app->gizmo.sector_geometry = nullptr;
         }
-        sector_geometry = geometry;
-        increase_geometry_ref(app, geometry);
+        app->gizmo.sector_geometry = geometry;
+        geometry_system_increase_geometry_ref(&app->geometry_system_state, geometry);
         log_debug("frame %d frame index %d, create geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
       }
 

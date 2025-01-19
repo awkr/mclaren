@@ -51,7 +51,7 @@ void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *
   create_geometry(mesh_system_state, vk_context, config->vertices, config->vertex_count, config->vertex_stride, config->indices, config->index_count, config->index_stride, &config->aabb, geometry);
 }
 
-void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry) {
+void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
   destroy_mesh(vk_context, &geometry->aabb_mesh);
     for (Mesh &mesh : geometry->meshes) {
       destroy_mesh(vk_context, &mesh);

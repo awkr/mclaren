@@ -2,6 +2,7 @@
 
 #include "camera.h"
 #include "geometry.h"
+#include "geometry_system.h"
 #include "gizmo.h"
 #include "input_system.h"
 #include "vk_descriptor_allocator.h"
@@ -103,6 +104,7 @@ struct App {
     VkSampler sampler_nearest;
 
     MeshSystemState mesh_system_state;
+    GeometrySystemState geometry_system_state;
 
     std::vector<Geometry> lit_geometries;
     std::vector<Geometry> wireframe_geometries;
