@@ -607,7 +607,7 @@ struct {
 
 struct {
   Geometry *geometry;
-  uint8_t frame_index;
+  uint8_t frame_index; // the frame index this geometry created
 } rotation_sector_geometry{};
 
 Geometry *rotation_sector_geometries_delete_queue[FRAMES_IN_FLIGHT] = {};
@@ -767,7 +767,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
     if (Geometry *geometry = rotation_sector_geometry.geometry; geometry) {
-      // log_debug("frame %d frame index %d, rendering rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+      log_debug("frame %d frame index %d, render rotation sector geometry %p", app->frame_count, frame_index, geometry);
       for (const Mesh &mesh : geometry->meshes) {
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
@@ -1123,6 +1123,18 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
+void on_frame_render_complete(App *app, const uint64_t frame_count, const uint8_t frame_index) {
+  // 若之前该 frame index 的帧已经检测到鼠标点击事件，则读取数据
+  if (is_mouse_start_up[frame_index].up && frame_count >= is_mouse_start_up[frame_index].frame_count) {
+    uint32_t id = 0;
+    vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
+    // log_debug("frame %d frame index %d, data: %u", frame_count, frame_index, id);
+    if (id > 0) {
+      app->selected_mesh_id = id;
+    }
+  }
+}
+
 void app_update(App *app, InputSystemState *input_system_state) {
   uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
 
@@ -1130,15 +1142,10 @@ void app_update(App *app, InputSystemState *input_system_state) {
     RenderFrame *frame = &app->frames[frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
-    if (is_mouse_start_up[frame_index].up && app->frame_count >= is_mouse_start_up[frame_index].frame_count) {
-      uint32_t id = 0;
-      vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
-      // log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
-      if (id > 0) { app->selected_mesh_id = id; }
-    }
+    on_frame_render_complete(app, app->frame_count, frame_index);
 
     if (Geometry *geometry = rotation_sector_geometries_delete_queue[frame_index]; geometry) {
-      // log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+      log_debug("frame %d frame index %d, destroy rotation sector geometry %p", app->frame_count, frame_index, geometry);
       destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
       delete geometry;
       rotation_sector_geometries_delete_queue[frame_index] = nullptr;
@@ -1750,7 +1757,7 @@ void app_mouse_move(App *app, float x, float y) {
         }
         rotation_sector_geometry.geometry = geometry;
         rotation_sector_geometry.frame_index = app->frame_count % FRAMES_IN_FLIGHT;
-        // log_debug("frame %d frame index %d, rotation sector geometry created %p index buffer %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+        log_debug("frame %d frame index %d, create rotation sector geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT);
       }
 
       if (app->selected_mesh_id != UINT32_MAX) {
