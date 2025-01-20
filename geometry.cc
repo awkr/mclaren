@@ -1,10 +1,10 @@
 #include "geometry.h"
-#include "glm/gtx/string_cast.hpp"
-#include "vk_command_buffer.h"
-
 #include "logging.h"
+#include "mesh_system.h"
+#include "vk_command_buffer.h"
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <microprofile.h>
 
 glm::mat4 model_matrix_from_transform(const Transform &transform) noexcept { // 先缩放，再旋转，最后平移
@@ -52,11 +52,13 @@ void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *
 }
 
 void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
-  destroy_mesh(vk_context, &geometry->aabb_mesh);
-    for (Mesh &mesh : geometry->meshes) {
-      destroy_mesh(vk_context, &mesh);
-    }
-    *geometry = Geometry(); // todo 改为memset
+  if (is_aabb_valid(geometry->aabb)) {
+    destroy_mesh(vk_context, &geometry->aabb_mesh);
+  }
+  for (Mesh &mesh : geometry->meshes) {
+    destroy_mesh(vk_context, &mesh);
+  }
+  *geometry = Geometry(); // todo 改为memset
 }
 
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry) {

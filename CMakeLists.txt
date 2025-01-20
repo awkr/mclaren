@@ -16,6 +16,7 @@ set(CORE_SRCS
     raycast.cc
     event_system.cc
     input_system.cc
+    mesh_system.cc
     geometry_system.cc
     gizmo.cc
     frame_graph.cc

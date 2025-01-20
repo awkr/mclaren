@@ -3,6 +3,7 @@
 #include "camera.h"
 #include "geometry.h"
 #include "geometry_system.h"
+#include "mesh_system.h"
 #include "gizmo.h"
 #include "input_system.h"
 #include "vk_descriptor_allocator.h"

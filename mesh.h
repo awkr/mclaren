@@ -3,6 +3,8 @@
 #include "vk_buffer.h"
 #include <glm/glm.hpp>
 
+struct MeshSystemState; // todo remove me
+
 // 顶点结构，手动构造 mesh 或加载 gltf/glb 模型时，顶点数据需遵循此结构
 struct alignas(16) Vertex {
     alignas(16) float position[3];
@@ -44,12 +46,5 @@ struct Mesh {
     uint32_t id;
     uint32_t generation;
 };
-
-struct MeshSystemState {
-    uint32_t mesh_id_generator = 0;
-};
-
-void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, Mesh *mesh);
-void destroy_mesh(VkContext *vk_context, Mesh *mesh);
 
 void create_mesh_from_aabb(MeshSystemState *mesh_system_state, VkContext *vk_context, const AABB &aabb, Mesh &mesh);
