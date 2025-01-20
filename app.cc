@@ -517,7 +517,7 @@ void app_destroy(App *app) {
 
     for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
     for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
-    destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
+    destroy_gizmo(&app->gizmo, &app->geometry_system_state, app->vk_context);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);

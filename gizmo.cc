@@ -16,7 +16,10 @@ void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, con
   gizmo->rotation_clock_dir = '0';
 }
 
-void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context) {
+void destroy_gizmo(Gizmo *gizmo, GeometrySystemState *geometry_system_state, VkContext *vk_context) {
+  if (gizmo->sector_geometry) {
+    geometry_system_decrease_geometry_ref(geometry_system_state, vk_context, gizmo->sector_geometry);
+  }
   destroy_geometry(vk_context, &gizmo->cube_geometry);
   destroy_geometry(vk_context, &gizmo->ring_geometry);
   destroy_geometry(vk_context, &gizmo->arrow_geometry);
