@@ -5,22 +5,64 @@
 
 #include "global_state.glsl"
 
+struct Material {
+    sampler2D diffuse;
+    sampler2D specular;
+    float shininess;
+};
+
+struct PointLight {
+    vec3 position;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float constant;
+    float linear;
+    float quadratic;
+};
+
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float constant;
+    float linear;
+    float quadratic;
+    float cut_off;
+    float outer_cut_off;
+};
+
 layout (location = 0) in  vec2 tex_coord;
 layout (location = 1) in  vec3 normal;
 layout (location = 0) out vec4 frag_color;
 
 layout (set = 1, binding = 0) uniform sampler2D tex;
+layout (set = 2, binding = 0) uniform DirLight {
+    vec3 direction;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+} dir_light;
 
 void main() {
     // frag_color = texture(tex, tex_coord);
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
     const vec3 base_color = texture(tex, tex_coord).rgb;
-    float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
-    vec4 color = vec4(base_color * (diffuse + 0.1f), 1.0);
-    frag_color = color;
+    vec3 ambient = dir_light.ambient * base_color;
+    vec3 norm = normalize(normal);
+    vec3 light_dir = normalize(-dir_light.direction);
+    float diff = max(dot(norm, light_dir), 0.0);
+    vec3 diffuse = dir_light.diffuse * (diff * base_color);
+    // float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
+    // vec4 color = vec4(base_color * (diffuse + 0.1f), 1.0);
+    vec3 result = ambient + diffuse;
+    frag_color = vec4(result, 1.0);
     return;
 
+/*
     // frag_color = vec4(gl_BaryCoordEXT, 1.0);
 
 //    const vec3 bary_coord = gl_BaryCoordNoPerspEXT;
@@ -63,4 +105,6 @@ void main() {
 //    } else {
 //        frag_color = color;
 //    }
+
+*/
 }

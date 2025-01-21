@@ -162,7 +162,8 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->global_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->global_state_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(DirLight), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->dir_light_uniform_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -181,7 +182,12 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_uniform_buffer_descriptor_set_layout);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_state_uniform_buffer_descriptor_set_layout);
+    }
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->dir_light_uniform_buffer_descriptor_set_layout);
     }
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -208,10 +214,12 @@ void app_create(SDL_Window *window, App **out_app) {
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(LitInstanceState);
 
-        VkDescriptorSetLayout descriptor_set_layouts[2];
-        descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
-        descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
-        vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
+        descriptor_set_layouts.push_back(app->global_state_uniform_buffer_descriptor_set_layout);
+        descriptor_set_layouts.push_back(app->single_combined_image_sampler_descriptor_set_layout);
+        descriptor_set_layouts.push_back(app->dir_light_uniform_buffer_descriptor_set_layout);
+        vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->lit_pipeline_layout);
+
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
         DepthConfig depth_config{};
         depth_config.enable_test = true;
@@ -238,7 +246,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.size = sizeof(UnlitInstanceState);
 
       VkDescriptorSetLayout descriptor_set_layouts[1];
-      descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
+      descriptor_set_layouts[0] = app->global_state_uniform_buffer_descriptor_set_layout;
       vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
@@ -261,7 +269,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(VertexLitInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
+      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_uniform_buffer_descriptor_set_layout};
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
@@ -284,7 +292,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(UnlitInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
+      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_uniform_buffer_descriptor_set_layout};
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
       DepthConfig depth_config{};
@@ -308,7 +316,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.size = sizeof(EntityPickingInstanceState);
 
       std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
-      descriptor_set_layouts.push_back(app->global_uniform_buffer_descriptor_set_layout);
+      descriptor_set_layouts.push_back(app->global_state_uniform_buffer_descriptor_set_layout);
       descriptor_set_layouts.push_back(app->single_storage_buffer_descriptor_set_layout);
       vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->entity_picking_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
@@ -545,7 +553,8 @@ void app_destroy(App *app) {
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
 
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_uniform_buffer_descriptor_set_layout);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->dir_light_uniform_buffer_descriptor_set_layout);
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_state_uniform_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
@@ -573,7 +582,8 @@ void app_destroy(App *app) {
     vk_destroy_image(app->vk_context, app->color_image);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer(app->vk_context, app->frames[i].global_uniform_buffer);
+      vk_destroy_buffer(app->vk_context, app->frames[i].dir_light_uniform_buffer);
+      vk_destroy_buffer(app->vk_context, app->frames[i].global_state_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
@@ -637,12 +647,12 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     std::deque<VkDescriptorImageInfo> image_infos;
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     {
-      vk_copy_data_to_buffer(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
+      vk_copy_data_to_buffer(app->vk_context, frame->global_state_uniform_buffer, &app->global_state, sizeof(GlobalState));
 
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_uniform_buffer_descriptor_set_layout, &frame->global_uniform_buffer_descriptor_set);
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_uniform_buffer_descriptor_set_layout, &frame->global_state_uniform_buffer_descriptor_set);
+      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
 
-      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_uniform_buffer->handle, sizeof(GlobalState));
+      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_uniform_buffer->handle, sizeof(GlobalState));
       buffer_infos.push_back(descriptor_buffer_info);
 
       VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
@@ -657,6 +667,18 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
       image_infos.push_back(descriptor_image_info);
 
       VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
+      write_descriptor_sets.push_back(write_descriptor_set);
+    }
+    {
+      vk_copy_data_to_buffer(app->vk_context, frame->dir_light_uniform_buffer, &app->dir_light, sizeof(DirLight));
+
+      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->dir_light_uniform_buffer_descriptor_set_layout, &frame->dir_light_uniform_buffer_descriptor_set);
+      descriptor_sets.push_back(frame->dir_light_uniform_buffer_descriptor_set);
+
+      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->dir_light_uniform_buffer->handle, sizeof(DirLight));
+      buffer_infos.push_back(descriptor_buffer_info);
+
+      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
       write_descriptor_sets.push_back(write_descriptor_set);
     }
     vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
@@ -682,7 +704,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
   //
   //   std::vector<VkDescriptorSet> descriptor_sets;
-  //   descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  //   descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
   //   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
   //
   //   for (const Geometry &geometry : app->wireframe_geometries) {
@@ -708,7 +730,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
 
     {
       std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
       vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
       for (const Geometry &geometry : app->line_geometries) {
@@ -729,7 +751,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
 
     {
       std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
       vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
       for (const Geometry &geometry : app->lit_geometries) {
@@ -759,14 +781,14 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
   vk_cmd_set_depth_test_enable(command_buffer, false);
 
   std::vector<VkDescriptorSet> descriptor_sets;
-  descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
 
   const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
     if (Geometry *geometry = frame_resources[frame_index].sector_geometry; geometry) {
-      log_debug("frame %d frame index %d, render geometry %p", app->frame_count, frame_index, geometry);
+      // log_debug("frame %d frame index %d, render geometry %p", app->frame_count, frame_index, geometry);
       for (const Mesh &mesh : geometry->meshes) {
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
@@ -1046,7 +1068,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
   vk_cmd_set_scissor(command_buffer, app->mouse_pos.x, app->mouse_pos.y, {1, 1});
 
   std::vector<VkDescriptorSet> descriptor_sets{};
-  descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
+  descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
   {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets{};
 
@@ -1094,6 +1116,7 @@ void scene_raycast(App *app, const Ray *ray, RaycastHitResult *result) {
 void update_scene(App *app) {
     camera_update(&app->camera);
 
+    //
     app->global_state.view_matrix = app->camera.view_matrix;
 
     const float fov_y = 45.0f;
@@ -1103,7 +1126,11 @@ void update_scene(App *app) {
 
     app->global_state.projection_matrix = clip * projection_matrix;
 
-    app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
+  //
+  app->dir_light.direction = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
+  app->dir_light.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+  app->dir_light.diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
+  app->dir_light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
 
   if (app->selected_mesh_id != UINT32_MAX) {
     for (const Geometry &geometry : app->lit_geometries) {
@@ -1161,7 +1188,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   update_scene(app);
   RenderFrame *frame = &app->frames[frame_index];
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
-  frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
+  frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
   vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
   vk_reset_command_pool(app->vk_context->device, frame->command_pool);
   VkSemaphore present_complete_semaphore = pop_semaphore_from_pool(app);
@@ -1249,7 +1276,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
     // vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
     //
-    // frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
+    // frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
     // vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
     // vk_reset_command_pool(app->vk_context->device, frame->command_pool);
     //
@@ -1761,7 +1788,7 @@ void app_mouse_move(App *app, float x, float y) {
         }
         app->gizmo.sector_geometry = geometry;
         geometry_system_increase_geometry_ref(&app->geometry_system_state, geometry);
-        log_debug("frame %d frame index %d, create geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
+        // log_debug("frame %d frame index %d, create geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
       }
 
       if (app->selected_mesh_id != UINT32_MAX) {

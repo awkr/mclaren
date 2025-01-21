@@ -44,6 +44,12 @@ static bool select_physical_device(VkContext *vk_context) {
              VK_VERSION_MAJOR(device_properties.apiVersion),
              VK_VERSION_MINOR(device_properties.apiVersion),
              VK_VERSION_PATCH(device_properties.apiVersion));
+    log_debug("physical device properties:\n"
+              "  uniform buffer alignment: %d\n"
+              "  storage buffer alignment: %d",
+              device_properties.limits.minUniformBufferOffsetAlignment,
+              device_properties.limits.minStorageBufferOffsetAlignment);
+
     // log_info("max descriptor set samplers: %d\n"
     //          "max descriptor set sampled images: %d\n"
     //          "max descriptor set storage buffers: %d\n"

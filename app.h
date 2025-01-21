@@ -3,9 +3,10 @@
 #include "camera.h"
 #include "geometry.h"
 #include "geometry_system.h"
-#include "mesh_system.h"
 #include "gizmo.h"
 #include "input_system.h"
+#include "light.h"
+#include "mesh_system.h"
 #include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
 #include <cstdint>
@@ -26,15 +27,16 @@ struct RenderFrame {
 
     DescriptorAllocator descriptor_allocator;
 
-    Buffer *global_uniform_buffer;
-    VkDescriptorSet global_uniform_buffer_descriptor_set;
+    Buffer *global_state_uniform_buffer;
+    VkDescriptorSet global_state_uniform_buffer_descriptor_set;
+
+    Buffer *dir_light_uniform_buffer;
+    VkDescriptorSet dir_light_uniform_buffer_descriptor_set;
 };
 
 struct GlobalState {
     glm::mat4 view_matrix;
     glm::mat4 projection_matrix;
-    glm::vec3 sunlight_dir; // in world space
-    // glm::vec4 sunlight_color; // sunlight color and intensity ( power )
 };
 
 struct UnlitInstanceState {
@@ -87,7 +89,8 @@ struct App {
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
     VkDescriptorSetLayout single_storage_buffer_descriptor_set_layout;
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
-    VkDescriptorSetLayout global_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
+    VkDescriptorSetLayout global_state_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
+    VkDescriptorSetLayout dir_light_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
@@ -114,6 +117,7 @@ struct App {
     Camera camera;
     glm::mat4 projection_matrix;
     GlobalState global_state;
+    DirLight dir_light;
 
     ImGuiContext *gui_context;
 
