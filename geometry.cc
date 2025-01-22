@@ -653,41 +653,49 @@ void generate_cylinder_geometry_config(float height, float radius, uint16_t sect
   config->aabb = aabb;
 }
 
-void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept {
-  ASSERT(sector >= 3);
+void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t major_sector, uint16_t minor_sector, uint16_t theta, GeometryConfig *config) noexcept {
+  ASSERT(major_sector >= 3 && minor_sector >= 3);
+  ASSERT(theta > 0 && theta <= 360);
   // R = major_radius
   // r = minor_radius
   // x = (R + r * cos(u)) * sin(v) = R * sin(v) + r * cos(u) * sin(v)
   // y = r * sin(u)
   // z = (R + r * cos(u)) * cos(v) = R * cos(v) + r * cos(u) * cos(v)
-  // where u: side angle [0, 360]
-  //       v: sector angle [0, 360]
+  // where u: minor_sector angle [0, 360]
+  //       v: major_sector angle [0, 360]
+  // see https://www.songho.ca/opengl/gl_torus.html
 
-  uint32_t vertex_count = (side + 1) * (sector + 1);
+  uint32_t vertex_count = (minor_sector + 1) * (major_sector + 1);
+  if (theta != 360) {
+    vertex_count += 2 * ((minor_sector + 1) + 1);
+  }
   Vertex *vertices = (Vertex *) malloc(sizeof(Vertex) * vertex_count);
 
-  uint32_t index_count = sector * side * 6;
+  uint32_t index_count = major_sector * minor_sector * (3 + 3) /* 每个面包含 2 个三角形 */;
+  if (theta != 360) {
+    index_count += 2 * (minor_sector * 3);
+  }
   uint32_t *indices = (uint32_t *) malloc(sizeof(uint32_t) * index_count);
 
-  float sector_angle_step = 2 * glm::pi<float>() / (float) sector;
-  float side_angle_step = 2 * glm::pi<float>() / (float) side;
-  for (size_t i = 0; i <= sector; ++i) {
-    float sector_angle = i * sector_angle_step;
-    for (size_t j = 0; j <= side; ++j) {
-      float side_angle = j * side_angle_step;
+  const float major_sector_angle_step = glm::radians((float) theta) / (float) major_sector;
+  const float minor_sector_angle_step = 2 * glm::pi<float>() / (float) minor_sector;
+  for (size_t i = 0; i <= major_sector; ++i) {
+    float major_sector_angle = i * major_sector_angle_step;
+    for (size_t j = 0; j <= minor_sector; ++j) {
+      float minor_sector_angle = j * minor_sector_angle_step;
 
-      float y = minor_radius * sinf(side_angle);
-      float x = minor_radius * cosf(side_angle) * sinf(sector_angle);
-      float z = minor_radius * cosf(side_angle) * cosf(sector_angle);
+      float y = minor_radius * sinf(minor_sector_angle);
+      float x = minor_radius * cosf(minor_sector_angle) * sinf(major_sector_angle);
+      float z = minor_radius * cosf(minor_sector_angle) * cosf(major_sector_angle);
       glm::vec3 n = glm::normalize(glm::vec3(x, y, z));
 
-      x += major_radius * sinf(sector_angle);
-      z += major_radius * cosf(sector_angle);
+      x += major_radius * sinf(major_sector_angle);
+      z += major_radius * cosf(major_sector_angle);
 
-      float u = (float) i / (float) sector;
-      float v = (float) j / (float) side;
+      float u = (float) i / (float) major_sector;
+      float v = (float) j / (float) minor_sector;
 
-      vertices[i * (side + 1) + j] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+      vertices[i * (minor_sector + 1) + j] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
     }
   }
 
@@ -699,15 +707,103 @@ void generate_torus_geometry_config(float major_radius, float minor_radius, uint
    *
    *  indices: 0, 1, 2, 2, 1, 3
    */
-  for (size_t i = 0; i < sector; ++i) {
-    for (size_t j = 0; j < side; ++j) {
-      indices[(i * side + j) * 6 + 0] = i * (side + 1) + j;
-      indices[(i * side + j) * 6 + 1] = (i + 1) * (side + 1) + j;
-      indices[(i * side + j) * 6 + 2] = i * (side + 1) + j + 1;
+  for (size_t i = 0; i < major_sector; ++i) {
+    for (size_t j = 0; j < minor_sector; ++j) {
+      indices[(i * minor_sector + j) * 6 + 0] = i * (minor_sector + 1) + j;
+      indices[(i * minor_sector + j) * 6 + 1] = (i + 1) * (minor_sector + 1) + j;
+      indices[(i * minor_sector + j) * 6 + 2] = i * (minor_sector + 1) + j + 1;
 
-      indices[(i * side + j) * 6 + 3] = i * (side + 1) + j + 1;
-      indices[(i * side + j) * 6 + 4] = (i + 1) * (side + 1) + j;
-      indices[(i * side + j) * 6 + 5] = (i + 1) * (side + 1) + j + 1;
+      indices[(i * minor_sector + j) * 6 + 3] = i * (minor_sector + 1) + j + 1;
+      indices[(i * minor_sector + j) * 6 + 4] = (i + 1) * (minor_sector + 1) + j;
+      indices[(i * minor_sector + j) * 6 + 5] = (i + 1) * (minor_sector + 1) + j + 1;
+    }
+  }
+
+  if (theta != 360) { // 在两个截断面各增加一个 solid circle
+    // 确定两个圆环的圆心，再确定两个圆环
+    {
+      uint32_t vertex_count_offset = (minor_sector + 1) * (major_sector + 1);
+      uint32_t index_count_offset = major_sector * minor_sector * 6;
+
+      // 圆心
+      float major_sector_angle = 0;
+
+      float y = 0.0f;
+      float x = 0.0f;
+      float z = major_radius;
+
+      glm::vec3 n = glm::normalize(glm::cross(glm::vec3{x, y, z}, glm::vec3{0.0f, 1.0f, 0.0f}));
+
+      float u = 0.5f;
+      float v = 0.5f;
+
+      vertices[vertex_count_offset] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+
+      // 圆环
+      for (size_t j = 0; j <= minor_sector; ++j) {
+        float minor_sector_angle = j * minor_sector_angle_step;
+
+        y = minor_radius * sinf(minor_sector_angle);
+        x = minor_radius * cosf(minor_sector_angle) * sinf(major_sector_angle);
+        z = minor_radius * cosf(minor_sector_angle) * cosf(major_sector_angle);
+
+        x += major_radius * sinf(major_sector_angle);
+        z += major_radius * cosf(major_sector_angle);
+
+        u = cos(minor_sector_angle) * 0.5f + 0.5f;
+        v = sin(minor_sector_angle) * 0.5f + 0.5f;
+
+        vertices[vertex_count_offset + 1 + j] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+      }
+
+      // 索引
+      for (size_t j = 0; j < minor_sector; ++j) {
+        indices[index_count_offset + j * 3] = vertex_count_offset;
+        indices[index_count_offset + j * 3 + 1] = vertex_count_offset + 1 + j;
+        indices[index_count_offset + j * 3 + 2] = vertex_count_offset + 1 + j + 1;
+      }
+    }
+    {
+      uint32_t vertex_count_offset = (minor_sector + 1) * (major_sector + 1) + (1 + minor_sector + 1);
+      uint32_t index_count_offset = major_sector * minor_sector * 6 + minor_sector * 3;
+
+      // 圆心
+      float major_sector_angle = glm::radians((float) theta);
+
+      float y = 0.0f;
+      float x = major_radius * sinf(major_sector_angle);
+      float z = major_radius * cosf(major_sector_angle);
+
+      glm::vec3 n = glm::normalize(glm::cross(glm::vec3{0.0f, 1.0f, 0.0f}, glm::vec3{x, y, z}));
+
+      float u = 0.5f;
+      float v = 0.5f;
+
+      vertices[vertex_count_offset] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+
+      // 圆环
+      for (size_t j = 0; j <= minor_sector; ++j) {
+        float minor_sector_angle = j * minor_sector_angle_step;
+
+        y = minor_radius * sinf(minor_sector_angle);
+        x = minor_radius * cosf(minor_sector_angle) * sinf(major_sector_angle);
+        z = minor_radius * cosf(minor_sector_angle) * cosf(major_sector_angle);
+
+        x += major_radius * sinf(major_sector_angle);
+        z += major_radius * cosf(major_sector_angle);
+
+        u = 1.0f - (cos(minor_sector_angle) * 0.5f + 0.5f);
+        v = sin(minor_sector_angle) * 0.5f + 0.5f;
+
+        vertices[vertex_count_offset + 1 + j] = {{x, y, z}, {u, v}, {n.x, n.y, n.z}};
+      }
+
+      // 索引
+      for (size_t j = 0; j < minor_sector; ++j) {
+        indices[index_count_offset + j * 3] = vertex_count_offset;
+        indices[index_count_offset + j * 3 + 1] = vertex_count_offset + 1 + j + 1;
+        indices[index_count_offset + j * 3 + 2] = vertex_count_offset + 1 + j;
+      }
     }
   }
 

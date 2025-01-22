@@ -461,11 +461,11 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      // generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
+      generate_torus_geometry_config(1.5f, 0.25f, 64, 16, 180, &config);
       Geometry geometry{};
-      // create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
       geometry.transform.position = glm::vec3(-4.0f, 1.0f, 2.0f);
-      // app->lit_geometries.push_back(geometry);
+      app->lit_geometries.push_back(geometry);
       dispose_geometry_config(&config);
     }
 
@@ -485,7 +485,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
+      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, 360, &config);
       create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
       dispose_geometry_config(&config);
     }
