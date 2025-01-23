@@ -165,18 +165,29 @@ bool vk_create_device(VkContext *vk_context) {
     vk_12_features.timelineSemaphore = VK_TRUE;
     vk_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vk_12_features.bufferDeviceAddress = VK_TRUE;
+
     // enable descriptor indexing feature(s)
     vk_12_features.descriptorIndexing = VK_TRUE;
-    vk_12_features.runtimeDescriptorArray = VK_TRUE;
+    vk_12_features.shaderInputAttachmentArrayDynamicIndexing = VK_TRUE;
+    vk_12_features.shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE;
+    vk_12_features.shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE;
+    vk_12_features.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE;
     vk_12_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     vk_12_features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
     vk_12_features.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.descriptorBindingPartiallyBound = VK_TRUE;
-    vk_12_features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    vk_12_features.shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE;
+    vk_12_features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
     vk_12_features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
     vk_12_features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
+    vk_12_features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    vk_12_features.descriptorBindingPartiallyBound = VK_TRUE;
     vk_12_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    vk_12_features.runtimeDescriptorArray = VK_TRUE;
 
     vk_12_features.pNext = &synchronization2_features;
 
