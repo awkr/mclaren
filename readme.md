@@ -1,5 +1,6 @@
 - screen pos to world pos 时，读取屏幕坐标，再读取depth buffer。
 - BVH
+- bindless descriptor
 
 随想：
 - 渲染时只管拿数据，渲染完毕归还数据

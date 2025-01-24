@@ -45,6 +45,8 @@ void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, 
     }
 
     geometry->transform = transform_identity();
+
+    log_debug("created geometry %p", geometry);
 }
 
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry) {
@@ -52,6 +54,7 @@ void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *
 }
 
 void destroy_geometry(VkContext *vk_context, Geometry *geometry) {
+  log_debug("destroy geometry %p", geometry);
   if (is_aabb_valid(geometry->aabb)) {
     destroy_mesh(vk_context, &geometry->aabb_mesh);
   }
