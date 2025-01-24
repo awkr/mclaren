@@ -12,6 +12,8 @@
 #include <SDL3/SDL_vulkan.h>
 
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
+    setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1", 1); // todo 移到 Xcode 的 Scheme 里设置
+
     VkResult result = volkInitialize();
     ASSERT(result == VK_SUCCESS);
 

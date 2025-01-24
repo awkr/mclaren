@@ -44,7 +44,7 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context,
     if (index_count > 0) {
       vk_cmd_copy_buffer2(command_buffer, indices_staging_buffer->handle, mesh->index_buffer->handle, index_buffer_size, 0, 0);
     }
-  });
+  }, vk_context->graphics_queue);
   vk_destroy_buffer(vk_context, vertices_staging_buffer);
   if (index_count > 0) {
     vk_destroy_buffer(vk_context, indices_staging_buffer);

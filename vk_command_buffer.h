@@ -28,7 +28,7 @@ VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer command_
 VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaphoreSubmitInfo *wait_semaphore,
                              VkSemaphoreSubmitInfo *signal_semaphore);
 
-void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func);
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func, VkQueue queue);
 
 void vk_cmd_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout, VkClearColorValue *clear_color);
 

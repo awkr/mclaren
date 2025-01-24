@@ -77,7 +77,7 @@ VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaph
     return submit_info;
 }
 
-void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func) {
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func, VkQueue queue) {
     VkCommandBuffer command_buffer;
     vk_alloc_command_buffers(vk_context->device, vk_context->command_pool, 1, &command_buffer);
     vk_begin_one_flight_command_buffer(command_buffer);
@@ -87,7 +87,7 @@ void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(Vk
     VkFence fence;
     vk_create_fence(vk_context->device, false, &fence);
 
-    vk_queue_submit(vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence); // todo: 区分 graphics queue 和 transfer queue
+    vk_queue_submit(queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence); // todo: 区分 graphics queue 和 transfer queue
 
     vk_wait_fence(vk_context->device, fence, UINT64_MAX);
     vk_destroy_fence(vk_context->device, fence);
