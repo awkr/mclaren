@@ -80,10 +80,12 @@ struct App {
 
     RenderFrame frames[FRAMES_IN_FLIGHT];
 
-    Image *color_image;
+    VkImage color_image;
+    VkDeviceMemory color_image_device_memory;
     VkImageView color_image_view;
 
-    Image *depth_image;
+    VkImage depth_image;
+    VkDeviceMemory depth_image_device_memory;
     VkImageView depth_image_view;
 
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
@@ -91,6 +93,14 @@ struct App {
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
     VkDescriptorSetLayout global_state_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
     VkDescriptorSetLayout dir_light_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSet descriptor_set;
+
+    std::vector<VkImage> images;
+    std::vector<VkDeviceMemory> image_device_memories;
+    std::vector<VkImageView> image_views;
+    std::vector<VkSampler> samplers;
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
@@ -101,9 +111,11 @@ struct App {
     VkPipelineLayout wireframe_pipeline_layout;
     VkPipeline wireframe_pipeline;
 
-    Image *checkerboard_image;
+    VkImage checkerboard_image;
+    VkDeviceMemory checkerboard_image_device_memory;
     VkImageView checkerboard_image_view;
-    Image *uv_debug_image;
+    VkImage uv_debug_image;
+    VkDeviceMemory uv_debug_image_device_memory;
     VkImageView uv_debug_image_view;
     VkSampler sampler_nearest;
 

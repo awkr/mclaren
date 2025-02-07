@@ -6,9 +6,7 @@
 #include "vk_fence.h"
 #include "vk_queue.h"
 
-void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, Image **out_image) {
-    Image *image = new Image();
-
+void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat format, VkImageUsageFlags usage, bool enable_mipmap, VkImage *image) {
     VkImageCreateInfo image_create_info{};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_create_info.imageType = VK_IMAGE_TYPE_2D;
@@ -28,21 +26,30 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VkResult result = vkCreateImage(vk_context->device, &image_create_info, nullptr, &image->handle);
+    VkResult result = vkCreateImage(vk_context->device, &image_create_info, nullptr, image);
     ASSERT(result == VK_SUCCESS);
+}
 
+void vk_destroy_image(VkContext *vk_context, VkImage image, VkDeviceMemory device_memory) {
+    vkDestroyImage(vk_context->device, image, nullptr);
+    if (device_memory) {
+        vkFreeMemory(vk_context->device, device_memory, nullptr);
+    }
+}
+
+void vk_allocate_image_memory(VkContext *vk_context, VkImage image, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *device_memory) {
     VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(vk_context->device, image->handle, &memory_requirements);
+    vkGetImageMemoryRequirements(vk_context->device, image, &memory_requirements);
 
     VkPhysicalDeviceMemoryProperties memory_properties;
     vkGetPhysicalDeviceMemoryProperties(vk_context->physical_device, &memory_properties);
 
     uint32_t memory_type_index = UINT32_MAX;
     for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
-      if ((memory_requirements.memoryTypeBits & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-        memory_type_index = i;
-        break;
-      }
+        if ((memory_requirements.memoryTypeBits & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & memory_property_flags)) {
+          memory_type_index = i;
+          break;
+        }
     }
     ASSERT(memory_type_index != UINT32_MAX);
 
@@ -51,19 +58,11 @@ void vk_create_image(VkContext *vk_context, const VkExtent2D &extent, VkFormat f
     memory_allocate_info.allocationSize = memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_type_index;
 
-    result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, &image->device_memory);
+    VkResult result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, device_memory);
     ASSERT(result == VK_SUCCESS);
 
-    result = vkBindImageMemory(vk_context->device, image->handle, image->device_memory, 0);
+    result = vkBindImageMemory(vk_context->device, image, *device_memory, 0);
     ASSERT(result == VK_SUCCESS);
-
-    *out_image = image;
-}
-
-void vk_destroy_image(VkContext *vk_context, Image *image) {
-    vkDestroyImage(vk_context->device, image->handle, nullptr);
-    vkFreeMemory(vk_context->device, image->device_memory, nullptr);
-    delete image;
 }
 
 void vk_transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout) {

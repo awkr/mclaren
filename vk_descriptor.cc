@@ -1,10 +1,11 @@
 #include "vk_descriptor.h"
 #include "logging.h"
 
-void vk_create_descriptor_set_layout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings,
-                                     VkDescriptorSetLayout *descriptor_set_layout) {
+void vk_create_descriptor_set_layout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings, const void *next, VkDescriptorSetLayout *descriptor_set_layout) {
     VkDescriptorSetLayoutCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    create_info.pNext = next;
+    create_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     create_info.pBindings = bindings.data();
     create_info.bindingCount = bindings.size();
     VkResult result = vkCreateDescriptorSetLayout(device, &create_info, nullptr, descriptor_set_layout);
@@ -47,9 +48,10 @@ VkResult vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor
     return vkAllocateDescriptorSets(device, &allocate_info, descriptor_set);
 }
 
-VkResult vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets) {
+VkResult vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, const void *next, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets) {
     VkDescriptorSetAllocateInfo allocate_info{};
     allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocate_info.pNext = next;
     allocate_info.descriptorPool = descriptor_pool;
     allocate_info.descriptorSetCount = descriptor_set_count;
     allocate_info.pSetLayouts = layouts;
@@ -61,8 +63,8 @@ void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, V
     ASSERT(result == VK_SUCCESS);
 }
 
-void vk_update_descriptor_sets(VkDevice device, uint32_t descriptor_write_count, const VkWriteDescriptorSet *writes) {
-    vkUpdateDescriptorSets(device, descriptor_write_count, writes, 0, nullptr);
+void vk_update_descriptor_sets(VkDevice device, uint32_t count, const VkWriteDescriptorSet *writes) {
+    vkUpdateDescriptorSets(device, count, writes, 0, nullptr);
 }
 
 VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint64_t size) {
