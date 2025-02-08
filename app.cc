@@ -236,16 +236,7 @@ void app_create(SDL_Window *window, App **out_app) {
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
         vk_create_descriptor_set_layout(vk_context->device, bindings, nullptr, &app->dir_light_uniform_buffer_descriptor_set_layout);
     }
-    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
-      // 第一个 texture 为默认纹理
-      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_device_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
-      {
-        // descriptor pool
-        std::vector<VkDescriptorPoolSize> pool_sizes;
-        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT});
-        vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
-
+    {
         // descriptor set layout
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT});
@@ -257,7 +248,17 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorBindingFlags binding_flags[2] = {0, VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
         binding_flags_info.pBindingFlags = binding_flags;
 
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &binding_flags_info, &app->descriptor_set_layouts[frame_index]);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &binding_flags_info, &app->descriptor_set_layout);
+    }
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      // 第一个 texture 为默认纹理
+      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_device_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
+      {
+        // descriptor pool
+        std::vector<VkDescriptorPoolSize> pool_sizes;
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT});
+        vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
 
         // descriptor set
         std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
@@ -267,7 +268,7 @@ void app_create(SDL_Window *window, App **out_app) {
         variable_descriptor_count_info.descriptorSetCount = variable_descriptor_counts.size();
         variable_descriptor_count_info.pDescriptorCounts = variable_descriptor_counts.data();
 
-        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layouts[frame_index], &variable_descriptor_count_info, 1, &app->descriptor_sets[frame_index]);
+        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layout, &variable_descriptor_count_info, 1, &app->descriptor_sets[frame_index]);
 
         // update descriptor set
         std::vector<VkWriteDescriptorSet> write_descriptor_sets(2);
@@ -643,8 +644,8 @@ void app_destroy(App *app) {
         if (app->samplers[frame_index][i]) { vk_destroy_sampler(app->vk_context->device, app->samplers[frame_index][i]); }
       }
       vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pools[frame_index]);
-      vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layouts[frame_index]);
     }
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);

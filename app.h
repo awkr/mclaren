@@ -94,8 +94,8 @@ struct App {
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
     VkDescriptorSetLayout global_state_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
     VkDescriptorSetLayout dir_light_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
+    VkDescriptorSetLayout descriptor_set_layout;
 
-    VkDescriptorSetLayout descriptor_set_layouts[FRAMES_IN_FLIGHT];
     VkDescriptorPool descriptor_pools[FRAMES_IN_FLIGHT];
     VkDescriptorSet descriptor_sets[FRAMES_IN_FLIGHT];
 
