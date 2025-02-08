@@ -19,6 +19,7 @@ struct ImGuiContext;
 struct Image;
 
 #define FRAMES_IN_FLIGHT 2
+#define MAX_TEXTURE_COUNT 100
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -93,14 +94,16 @@ struct App {
     VkDescriptorSetLayout single_combined_image_sampler_descriptor_set_layout;
     VkDescriptorSetLayout global_state_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
     VkDescriptorSetLayout dir_light_uniform_buffer_descriptor_set_layout; // single uniform buffer used for global state, such as view matrix, projection matrix, etc.
-    VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorPool descriptor_pool;
-    VkDescriptorSet descriptor_set;
 
-    std::vector<VkImage> images;
-    std::vector<VkDeviceMemory> image_device_memories;
-    std::vector<VkImageView> image_views;
-    std::vector<VkSampler> samplers;
+    VkDescriptorSetLayout descriptor_set_layouts[FRAMES_IN_FLIGHT];
+    VkDescriptorPool descriptor_pools[FRAMES_IN_FLIGHT];
+    VkDescriptorSet descriptor_sets[FRAMES_IN_FLIGHT];
+
+    // 存放所有的纹理资源
+    VkImage images[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
+    VkDeviceMemory image_device_memories[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
+    VkImageView image_views[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
+    VkSampler samplers[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
 
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;

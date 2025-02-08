@@ -30,8 +30,6 @@
 #include <imgui.h>
 #include <microprofile.h>
 
-#define LANE_MAX_TEXTURE_COUNT 100
-
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
     // clang-format off
@@ -238,29 +236,20 @@ void app_create(SDL_Window *window, App **out_app) {
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
         vk_create_descriptor_set_layout(vk_context->device, bindings, nullptr, &app->dir_light_uniform_buffer_descriptor_set_layout);
     }
-    {
-        app->images.resize(LANE_MAX_TEXTURE_COUNT, VK_NULL_HANDLE);
-        app->image_device_memories.resize(LANE_MAX_TEXTURE_COUNT, VK_NULL_HANDLE);
-        app->image_views.resize(LANE_MAX_TEXTURE_COUNT, VK_NULL_HANDLE);
-        app->samplers.resize(LANE_MAX_TEXTURE_COUNT, VK_NULL_HANDLE);
-
-        // 第一个 texture 为默认纹理
-        create_default_texture(vk_context, &app->images[0], &app->image_device_memories[0], &app->image_views[0], &app->samplers[0]);
-    }
-    {
-        const uint32_t texture_count = app->images.size();
-        ASSERT(texture_count > 0);
-
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      // 第一个 texture 为默认纹理
+      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_device_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
+      {
         // descriptor pool
         std::vector<VkDescriptorPoolSize> pool_sizes;
         pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture_count});
-        vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pool);
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT});
+        vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
 
         // descriptor set layout
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT});
-        bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture_count, VK_SHADER_STAGE_FRAGMENT_BIT});
+        bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT});
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{};
         binding_flags_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -268,17 +257,17 @@ void app_create(SDL_Window *window, App **out_app) {
         VkDescriptorBindingFlags binding_flags[2] = {0, VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
         binding_flags_info.pBindingFlags = binding_flags;
 
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &binding_flags_info, &app->descriptor_set_layout);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &binding_flags_info, &app->descriptor_set_layouts[frame_index]);
 
         // descriptor set
-        std::vector<uint32_t> variable_descriptor_counts = {texture_count};
+        std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
 
         VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_info{};
         variable_descriptor_count_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
         variable_descriptor_count_info.descriptorSetCount = variable_descriptor_counts.size();
         variable_descriptor_count_info.pDescriptorCounts = variable_descriptor_counts.data();
 
-        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pool, &app->descriptor_set_layout, &variable_descriptor_count_info, 1, &app->descriptor_set);
+        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layouts[frame_index], &variable_descriptor_count_info, 1, &app->descriptor_sets[frame_index]);
 
         // update descriptor set
         std::vector<VkWriteDescriptorSet> write_descriptor_sets(2);
@@ -289,12 +278,12 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_buffer_info.range = sizeof(GlobalState);
 
         std::vector<VkDescriptorImageInfo> descriptor_image_infos(1); // 1 for default texture
-        descriptor_image_infos[0].sampler = app->samplers[0];
-        descriptor_image_infos[0].imageView = app->image_views[0];
+        descriptor_image_infos[0].sampler = app->samplers[frame_index][0];
+        descriptor_image_infos[0].imageView = app->image_views[frame_index][0];
         descriptor_image_infos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[0].dstSet = app->descriptor_set;
+        write_descriptor_sets[0].dstSet = app->descriptor_sets[frame_index];
         write_descriptor_sets[0].dstBinding = 0;
         write_descriptor_sets[0].dstArrayElement = 0;
         write_descriptor_sets[0].descriptorCount = 1;
@@ -302,7 +291,7 @@ void app_create(SDL_Window *window, App **out_app) {
         write_descriptor_sets[0].pBufferInfo = &descriptor_buffer_info;
 
         write_descriptor_sets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[1].dstSet = app->descriptor_set;
+        write_descriptor_sets[1].dstSet = app->descriptor_sets[frame_index];
         write_descriptor_sets[1].dstBinding = 1;
         write_descriptor_sets[1].dstArrayElement = 0;
         write_descriptor_sets[1].descriptorCount = descriptor_image_infos.size();
@@ -310,6 +299,7 @@ void app_create(SDL_Window *window, App **out_app) {
         write_descriptor_sets[1].pImageInfo = descriptor_image_infos.data();
 
         vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+      }
     }
 
     {
@@ -646,10 +636,14 @@ void app_destroy(App *app) {
     for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
     destroy_gizmo(&app->gizmo, &app->geometry_system_state, app->vk_context);
 
-    for (size_t i = 0; i < LANE_MAX_TEXTURE_COUNT; ++i) {
-      if (app->images[i]) { vk_destroy_image(app->vk_context, app->images[i], app->image_device_memories[i]); }
-      if (app->image_views[i]) { vk_destroy_image_view(app->vk_context->device, app->image_views[i]); }
-      if (app->samplers[i]) { vk_destroy_sampler(app->vk_context->device, app->samplers[i]); }
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      for (size_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+        if (app->images[frame_index][i]) { vk_destroy_image(app->vk_context, app->images[frame_index][i], app->image_device_memories[frame_index][i]); }
+        if (app->image_views[frame_index][i]) { vk_destroy_image_view(app->vk_context->device, app->image_views[frame_index][i]); }
+        if (app->samplers[frame_index][i]) { vk_destroy_sampler(app->vk_context->device, app->samplers[frame_index][i]); }
+      }
+      vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pools[frame_index]);
+      vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layouts[frame_index]);
     }
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
@@ -677,8 +671,6 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
 
-    vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pool);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->dir_light_uniform_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_state_uniform_buffer_descriptor_set_layout);
