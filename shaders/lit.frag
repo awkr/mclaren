@@ -4,9 +4,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_fragment_shader_barycentric : require
 
-#include "global_state.glsl"
-
-struct Material {
+ struct Material {
     sampler2D diffuse;
     sampler2D specular;
     float shininess;
@@ -41,12 +39,18 @@ layout (location = 2) flat in uint texture_index;
 
 layout (location = 0) out vec4 frag_color;
 
-layout (set = 0, binding = 1) uniform sampler2D textures[];
+layout (set = 0, binding = 1) uniform DirLight {
+    vec3 direction;
+    vec3 ambient;
+} dir_light;
+
+layout (set = 0, binding = 2) uniform sampler2D textures[];
 
 void main() {
 
     vec4 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord);
-    frag_color = vec4(base_color.rgb, 1.0);
+    frag_color = vec4(base_color.rgb * dir_light.ambient, 1.0);
+    //frag_color = vec4(base_color.rgb * vec3(0.8, 0.0, 0.0), 1.0);
 
 /*
     // frag_color = texture(tex, tex_coord);

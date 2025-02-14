@@ -32,7 +32,6 @@ struct RenderFrame {
     VkDescriptorSet global_state_uniform_buffer_descriptor_set;
 
     Buffer *dir_light_uniform_buffer;
-    VkDescriptorSet dir_light_uniform_buffer_descriptor_set;
 };
 
 struct GlobalState {

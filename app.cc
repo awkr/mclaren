@@ -238,13 +238,16 @@ void app_create(SDL_Window *window, App **out_app) {
     }
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
-        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT});
-        bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT});
+        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}); // MVP
+        bindings.push_back({1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // DirLight
+        bindings.push_back({2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo descriptor_set_layout_binding_flags_create_info{};
         descriptor_set_layout_binding_flags_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
         descriptor_set_layout_binding_flags_create_info.bindingCount = bindings.size();
-        VkDescriptorBindingFlags binding_flags[2] = {0, VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
+        VkDescriptorBindingFlags binding_flags[3] = {0,
+                                                     0,
+                                                     VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
         descriptor_set_layout_binding_flags_create_info.pBindingFlags = binding_flags;
 
         vk_create_descriptor_set_layout(vk_context->device, bindings, &descriptor_set_layout_binding_flags_create_info, &app->descriptor_set_layout);
@@ -255,32 +258,38 @@ void app_create(SDL_Window *window, App **out_app) {
       {
         // descriptor pool
         std::vector<VkDescriptorPoolSize> pool_sizes;
-        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2});
         pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT});
         vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
 
         // descriptor set
         std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
 
-        VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_info{};
-        variable_descriptor_count_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-        variable_descriptor_count_info.descriptorSetCount = variable_descriptor_counts.size();
-        variable_descriptor_count_info.pDescriptorCounts = variable_descriptor_counts.data();
+        VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_allocate_info{};
+        variable_descriptor_count_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+        variable_descriptor_count_allocate_info.descriptorSetCount = variable_descriptor_counts.size();
+        variable_descriptor_count_allocate_info.pDescriptorCounts = variable_descriptor_counts.data();
 
-        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layout, &variable_descriptor_count_info, 1, &app->descriptor_sets[frame_index]);
+        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layout, &variable_descriptor_count_allocate_info, 1, &app->descriptor_sets[frame_index]);
 
         // update descriptor set
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets(2);
+        std::vector<VkDescriptorBufferInfo> descriptor_buffer_infos(2);
 
-        VkDescriptorBufferInfo descriptor_buffer_info{};
-        descriptor_buffer_info.buffer = app->frames[frame_index].global_state_uniform_buffer->handle;
-        descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(GlobalState);
+        descriptor_buffer_infos[0].buffer = app->frames[frame_index].global_state_uniform_buffer->handle;
+        descriptor_buffer_infos[0].offset = 0;
+        descriptor_buffer_infos[0].range = sizeof(GlobalState);
+
+        descriptor_buffer_infos[1].buffer = app->frames[frame_index].dir_light_uniform_buffer->handle;
+        descriptor_buffer_infos[1].offset = 0;
+        descriptor_buffer_infos[1].range = sizeof(DirLight);
 
         std::vector<VkDescriptorImageInfo> descriptor_image_infos(1); // 1 for default texture
+
         descriptor_image_infos[0].sampler = app->samplers[frame_index][0];
         descriptor_image_infos[0].imageView = app->image_views[frame_index][0];
         descriptor_image_infos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets(3);
 
         write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_descriptor_sets[0].dstSet = app->descriptor_sets[frame_index];
@@ -288,15 +297,23 @@ void app_create(SDL_Window *window, App **out_app) {
         write_descriptor_sets[0].dstArrayElement = 0;
         write_descriptor_sets[0].descriptorCount = 1;
         write_descriptor_sets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write_descriptor_sets[0].pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_sets[0].pBufferInfo = &descriptor_buffer_infos[0];
 
         write_descriptor_sets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_descriptor_sets[1].dstSet = app->descriptor_sets[frame_index];
         write_descriptor_sets[1].dstBinding = 1;
         write_descriptor_sets[1].dstArrayElement = 0;
-        write_descriptor_sets[1].descriptorCount = descriptor_image_infos.size();
-        write_descriptor_sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_descriptor_sets[1].pImageInfo = descriptor_image_infos.data();
+        write_descriptor_sets[1].descriptorCount = 1;
+        write_descriptor_sets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write_descriptor_sets[1].pBufferInfo = &descriptor_buffer_infos[1];
+
+        write_descriptor_sets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_sets[2].dstSet = app->descriptor_sets[frame_index];
+        write_descriptor_sets[2].dstBinding = 2;
+        write_descriptor_sets[2].dstArrayElement = 0;
+        write_descriptor_sets[2].descriptorCount = descriptor_image_infos.size();
+        write_descriptor_sets[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write_descriptor_sets[2].pImageInfo = descriptor_image_infos.data();
 
         vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
       }
@@ -1249,9 +1266,12 @@ void update_scene(App *app, uint8_t frame_index) {
 
   //
   app->dir_light.direction = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
-  app->dir_light.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
-  app->dir_light.diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
-  app->dir_light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
+  // app->dir_light.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+  app->dir_light.ambient = glm::vec3(0.8f, 0.0f, 0.0f);
+  // app->dir_light.diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
+  // app->dir_light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
+
+  vk_copy_data_to_buffer(app->vk_context, &app->dir_light, sizeof(DirLight), frame->dir_light_uniform_buffer);
 
   if (app->selected_mesh_id != UINT32_MAX) {
     for (const Geometry &geometry : app->lit_geometries) {
