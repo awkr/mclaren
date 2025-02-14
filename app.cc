@@ -110,7 +110,7 @@ void create_default_texture(VkContext *vk_context, VkImage *out_image, VkDeviceM
     Buffer *staging_buffer = nullptr;
     size_t size = width * width * 4;
     vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
-    vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
+    vk_copy_data_to_buffer(vk_context, texture_data.data(), size, staging_buffer);
 
     vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
           vk_cmd_pipeline_image_barrier2(command_buffer, *out_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -237,18 +237,17 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_descriptor_set_layout(vk_context->device, bindings, nullptr, &app->dir_light_uniform_buffer_descriptor_set_layout);
     }
     {
-        // descriptor set layout
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT});
         bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT});
 
-        VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{};
-        binding_flags_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-        binding_flags_info.bindingCount = 2;
-        VkDescriptorBindingFlags binding_flags[2] = {0, VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
-        binding_flags_info.pBindingFlags = binding_flags;
+        VkDescriptorSetLayoutBindingFlagsCreateInfo descriptor_set_layout_binding_flags_create_info{};
+        descriptor_set_layout_binding_flags_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+        descriptor_set_layout_binding_flags_create_info.bindingCount = bindings.size();
+        VkDescriptorBindingFlags binding_flags[2] = {0, VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
+        descriptor_set_layout_binding_flags_create_info.pBindingFlags = binding_flags;
 
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &binding_flags_info, &app->descriptor_set_layout);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, &descriptor_set_layout_binding_flags_create_info, &app->descriptor_set_layout);
     }
     for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
       // 第一个 texture 为默认纹理
@@ -274,7 +273,7 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkWriteDescriptorSet> write_descriptor_sets(2);
 
         VkDescriptorBufferInfo descriptor_buffer_info{};
-        descriptor_buffer_info.buffer = app->frames[0].global_state_uniform_buffer->handle;
+        descriptor_buffer_info.buffer = app->frames[frame_index].global_state_uniform_buffer->handle;
         descriptor_buffer_info.offset = 0;
         descriptor_buffer_info.range = sizeof(GlobalState);
 
@@ -314,19 +313,17 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-        VkShaderModule vert_shader, frag_shader;
-        vk_create_shader_module(vk_context->device, "shaders/lit.vert.spv", &vert_shader);
-        vk_create_shader_module(vk_context->device, "shaders/lit.frag.spv", &frag_shader);
-
+        // create pipeline layout
         VkPushConstantRange push_constant_range{};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.size = sizeof(LitInstanceState);
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
-        descriptor_set_layouts.push_back(app->global_state_uniform_buffer_descriptor_set_layout);
-        descriptor_set_layouts.push_back(app->single_combined_image_sampler_descriptor_set_layout);
-        descriptor_set_layouts.push_back(app->dir_light_uniform_buffer_descriptor_set_layout);
-        vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->lit_pipeline_layout);
+        vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->lit_pipeline_layout);
+
+        // create pipeline
+        VkShaderModule vert_shader, frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/lit.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/lit.frag.spv", &frag_shader);
 
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
         DepthConfig depth_config{};
@@ -455,7 +452,7 @@ void app_create(SDL_Window *window, App **out_app) {
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
       vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
+      vk_copy_data_to_buffer(vk_context, pixels, size, staging_buffer);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -485,7 +482,7 @@ void app_create(SDL_Window *window, App **out_app) {
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
       vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
+      vk_copy_data_to_buffer(vk_context, texture_data.data(), size, staging_buffer);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
         vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -755,54 +752,53 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame
     vk_cmd_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0), std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
+void draw_world(App *app, VkCommandBuffer command_buffer, uint8_t frame_index, RenderFrame *frame) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent);
 
   { // lit pipeline
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
 
-    std::vector<VkDescriptorSet> descriptor_sets;
-    std::deque<VkDescriptorBufferInfo> buffer_infos;
-    std::deque<VkDescriptorImageInfo> image_infos;
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    {
-      vk_copy_data_to_buffer(app->vk_context, frame->global_state_uniform_buffer, &app->global_state, sizeof(GlobalState));
-
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_uniform_buffer_descriptor_set_layout, &frame->global_state_uniform_buffer_descriptor_set);
-      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-
-      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_uniform_buffer->handle, sizeof(GlobalState));
-      buffer_infos.push_back(descriptor_buffer_info);
-
-      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-      write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    {
-      VkDescriptorSet descriptor_set;
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
-      descriptor_sets.push_back(descriptor_set);
-
-      VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      image_infos.push_back(descriptor_image_info);
-
-      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
-      write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    {
-      vk_copy_data_to_buffer(app->vk_context, frame->dir_light_uniform_buffer, &app->dir_light, sizeof(DirLight));
-
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->dir_light_uniform_buffer_descriptor_set_layout, &frame->dir_light_uniform_buffer_descriptor_set);
-      descriptor_sets.push_back(frame->dir_light_uniform_buffer_descriptor_set);
-
-      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->dir_light_uniform_buffer->handle, sizeof(DirLight));
-      buffer_infos.push_back(descriptor_buffer_info);
-
-      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-      write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    // std::vector<VkDescriptorSet> descriptor_sets;
+    // std::deque<VkDescriptorBufferInfo> buffer_infos;
+    // std::deque<VkDescriptorImageInfo> image_infos;
+    // std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+    // {
+    //   vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_state_uniform_buffer_descriptor_set_layout, &frame->global_state_uniform_buffer_descriptor_set);
+    //   descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
+    //
+    //   VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_state_uniform_buffer->handle, sizeof(GlobalState));
+    //   buffer_infos.push_back(descriptor_buffer_info);
+    //
+    //   VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+    //   write_descriptor_sets.push_back(write_descriptor_set);
+    // }
+    // {
+    //   VkDescriptorSet descriptor_set;
+    //   vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
+    //   descriptor_sets.push_back(descriptor_set);
+    //
+    //   VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    //   image_infos.push_back(descriptor_image_info);
+    //
+    //   VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
+    //   write_descriptor_sets.push_back(write_descriptor_set);
+    // }
+    // {
+    //   vk_copy_data_to_buffer(app->vk_context, &app->dir_light, sizeof(DirLight), frame->dir_light_uniform_buffer);
+    //
+    //   vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->dir_light_uniform_buffer_descriptor_set_layout, &frame->dir_light_uniform_buffer_descriptor_set);
+    //   descriptor_sets.push_back(frame->dir_light_uniform_buffer_descriptor_set);
+    //
+    //   VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->dir_light_uniform_buffer->handle, sizeof(DirLight));
+    //   buffer_infos.push_back(descriptor_buffer_info);
+    //
+    //   VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
+    //   write_descriptor_sets.push_back(write_descriptor_set);
+    // }
+    // vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+    // vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
     for (const Geometry &geometry : app->lit_geometries) {
       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
@@ -811,6 +807,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
         LitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        instance_state.texture_index = 0;
         vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -843,54 +840,54 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
   //   }
   // }
 
-  { // draw line, aabb
-    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
-    vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-    vk_cmd_set_depth_test_enable(command_buffer, true);
-
-    {
-      std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
-      for (const Geometry &geometry : app->line_geometries) {
-        const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-
-        for (const Mesh &mesh : geometry.meshes) {
-          UnlitInstanceState instance_state{};
-          instance_state.model_matrix = model_matrix;
-          instance_state.color = glm::vec4(1, 1, 1, 1);
-          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
-          for (const Primitive &primitive : mesh.primitives) {
-            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-          }
-        }
-      }
-    }
-
-    {
-      std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
-      for (const Geometry &geometry : app->lit_geometries) {
-        if (!is_aabb_valid(geometry.aabb)) {
-          continue;
-        }
-        const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-
-        UnlitInstanceState instance_state{};
-        instance_state.model_matrix = model_matrix;
-        instance_state.color = glm::vec4(1, 1, 1, 1);
-        instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
-        for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
-          vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-        }
-      }
-    }
-  }
+  // { // draw line, aabb
+  //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
+  //   vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+  //   vk_cmd_set_depth_test_enable(command_buffer, true);
+  //
+  //   {
+  //     std::vector<VkDescriptorSet> descriptor_sets;
+  //     descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
+  //     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  //
+  //     for (const Geometry &geometry : app->line_geometries) {
+  //       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+  //
+  //       for (const Mesh &mesh : geometry.meshes) {
+  //         UnlitInstanceState instance_state{};
+  //         instance_state.model_matrix = model_matrix;
+  //         instance_state.color = glm::vec4(1, 1, 1, 1);
+  //         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+  //         vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+  //         for (const Primitive &primitive : mesh.primitives) {
+  //           vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //   {
+  //     std::vector<VkDescriptorSet> descriptor_sets;
+  //     descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
+  //     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  //
+  //     for (const Geometry &geometry : app->lit_geometries) {
+  //       if (!is_aabb_valid(geometry.aabb)) {
+  //         continue;
+  //       }
+  //       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+  //
+  //       UnlitInstanceState instance_state{};
+  //       instance_state.model_matrix = model_matrix;
+  //       instance_state.color = glm::vec4(1, 1, 1, 1);
+  //       instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
+  //       vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+  //       for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
+  //         vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint8_t frame_index) {
@@ -1233,7 +1230,9 @@ void scene_raycast(App *app, const Ray *ray, RaycastHitResult *result) {
     // sort the hit results by distance
 }
 
-void update_scene(App *app) {
+void update_scene(App *app, uint8_t frame_index) {
+    RenderFrame *frame = &app->frames[frame_index];
+
     camera_update(&app->camera);
 
     //
@@ -1245,6 +1244,8 @@ void update_scene(App *app) {
     app->projection_matrix = projection_matrix;
 
     app->global_state.projection_matrix = clip * projection_matrix;
+
+  vk_copy_data_to_buffer(app->vk_context, &app->global_state, sizeof(GlobalState), frame->global_state_uniform_buffer);
 
   //
   app->dir_light.direction = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
@@ -1305,7 +1306,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     geometry_system_increase_geometry_ref(&app->geometry_system_state, app->gizmo.sector_geometry);
   }
 
-  update_scene(app);
+  update_scene(app, frame_index);
   RenderFrame *frame = &app->frames[frame_index];
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
   frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
@@ -1346,7 +1347,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     clear_values[0].color = {.float32 = {0.2f, 0.1f, 0.1f, 0.2f}};
     clear_values[1].depthStencil = {1.0f, 0};
     vk_begin_render_pass(command_buffer, app->lit_render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
-    draw_world(app, command_buffer, frame);
+    draw_world(app, command_buffer, frame_index, frame);
     vk_end_render_pass(command_buffer);
   }
   vk_cmd_pipeline_image_barrier2(command_buffer,
@@ -1370,12 +1371,12 @@ void app_update(App *app, InputSystemState *input_system_state) {
     vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
 
     vk_begin_render_pass(command_buffer, app->entity_picking_render_pass, app->entity_picking_framebuffers[frame_index], app->vk_context->swapchain_extent, nullptr, 0);
-    draw_entity_picking(app, command_buffer, frame, frame_index);
+    // draw_entity_picking(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
   }
   {
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
-    draw_gizmo(app, command_buffer, frame, frame_index);
+    // draw_gizmo(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
   }
 

@@ -2,13 +2,13 @@
 #include "logging.h"
 
 void vk_create_descriptor_set_layout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings, const void *next, VkDescriptorSetLayout *descriptor_set_layout) {
-    VkDescriptorSetLayoutCreateInfo create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    create_info.pNext = next;
-    create_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-    create_info.pBindings = bindings.data();
-    create_info.bindingCount = bindings.size();
-    VkResult result = vkCreateDescriptorSetLayout(device, &create_info, nullptr, descriptor_set_layout);
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{};
+    descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptor_set_layout_create_info.pNext = next;
+    descriptor_set_layout_create_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+    descriptor_set_layout_create_info.pBindings = bindings.data();
+    descriptor_set_layout_create_info.bindingCount = bindings.size();
+    VkResult result = vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr, descriptor_set_layout);
     ASSERT(result == VK_SUCCESS);
 }
 

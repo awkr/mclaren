@@ -12,8 +12,6 @@
 #include <SDL3/SDL_vulkan.h>
 
 void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t height) {
-    setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1", 1); // todo 移到 Xcode 的 Scheme 里设置
-
     VkResult result = volkInitialize();
     ASSERT(result == VK_SUCCESS);
 
@@ -24,7 +22,7 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
     const uint32_t minor = VK_VERSION_MINOR(version);
     const uint32_t patch = VK_VERSION_PATCH(version);
 
-    bool succeed = vk_create_instance(vk_context, "mclaren", VK_MAKE_API_VERSION(0, major, minor, patch), true);
+    bool succeed = vk_create_instance(vk_context, "mclaren", VK_MAKE_API_VERSION(0, major, minor, patch));
     ASSERT(succeed);
     succeed = SDL_Vulkan_CreateSurface(window, vk_context->instance, nullptr, &vk_context->surface);
     ASSERT(succeed);

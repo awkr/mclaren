@@ -1,6 +1,7 @@
 #version 460 core
 
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_fragment_shader_barycentric : require
 
 #include "global_state.glsl"
@@ -36,17 +37,18 @@ struct SpotLight {
 
 layout (location = 0) in  vec2 tex_coord;
 layout (location = 1) in  vec3 normal;
+layout (location = 2) flat in uint texture_index;
+
 layout (location = 0) out vec4 frag_color;
 
-layout (set = 1, binding = 0) uniform sampler2D tex;
-layout (set = 2, binding = 0) uniform DirLight {
-    vec3 direction;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-} dir_light;
+layout (set = 0, binding = 1) uniform sampler2D textures[];
 
 void main() {
+
+    vec4 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord);
+    frag_color = vec4(base_color.rgb, 1.0);
+
+/*
     // frag_color = texture(tex, tex_coord);
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
@@ -61,6 +63,7 @@ void main() {
     vec3 result = ambient + diffuse;
     frag_color = vec4(result, 1.0);
     return;
+*/
 
 /*
     // frag_color = vec4(gl_BaryCoordEXT, 1.0);

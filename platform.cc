@@ -21,6 +21,8 @@ void create_window(PlatformContext *platform_context, uint16_t width, uint16_t h
 }
 
 void platform_init(PlatformContext *platform_context) {
+    setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1", 1); // todo 移到如 Xcode 的 Scheme 里设置
+
     bool succeed = SDL_Init(SDL_INIT_VIDEO);
     ASSERT_MESSAGE(succeed, "SDL_Init failed: %s", SDL_GetError());
     create_window(platform_context, 768, 576);

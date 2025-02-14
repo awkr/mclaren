@@ -86,6 +86,7 @@ bool vk_create_device(VkContext *vk_context) {
     required_extensions.push_back("VK_KHR_fragment_shader_barycentric");
     required_extensions.push_back("VK_EXT_extended_dynamic_state");
     required_extensions.push_back("VK_EXT_extended_dynamic_state2");
+    required_extensions.push_back("VK_EXT_descriptor_indexing");
 
     uint32_t extension_count = 0;
     VkResult result = vkEnumerateDeviceExtensionProperties(vk_context->physical_device, nullptr, &extension_count,
@@ -129,17 +130,17 @@ bool vk_create_device(VkContext *vk_context) {
         queue_create_info->pQueuePriorities = queue_priorities[i].data();
     }
 
-    VkPhysicalDeviceFeatures features;
-    vkGetPhysicalDeviceFeatures(vk_context->physical_device, &features);
-    // ASSERT_MESSAGE(features.wideLines == VK_TRUE, "wideLines feature is not supported");
+    // query physical device properties
+    VkPhysicalDeviceDescriptorIndexingPropertiesEXT descriptor_indexing_properties{};
+    descriptor_indexing_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT;
 
-    VkPhysicalDeviceFeatures required_device_features{};
-    required_device_features.samplerAnisotropy = features.samplerAnisotropy;
-    required_device_features.fillModeNonSolid = features.fillModeNonSolid;
-    required_device_features.wideLines = features.wideLines;
-    required_device_features.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
-    required_device_features.depthBiasClamp = VK_TRUE;
-    required_device_features.fragmentStoresAndAtomics = VK_TRUE;
+    VkPhysicalDeviceProperties2KHR device_properties_2{};
+    device_properties_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+    device_properties_2.pNext = &descriptor_indexing_properties;
+    vkGetPhysicalDeviceProperties2KHR(vk_context->physical_device, &device_properties_2);
+
+    VkPhysicalDeviceFeatures physical_device_features{};
+    vkGetPhysicalDeviceFeatures(vk_context->physical_device, &physical_device_features);
 
     VkPhysicalDeviceExtendedDynamicState2FeaturesEXT extended_dynamic_state2_features{};
     extended_dynamic_state2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_2_FEATURES_EXT;
@@ -160,44 +161,48 @@ bool vk_create_device(VkContext *vk_context) {
     synchronization2_features.synchronization2 = VK_TRUE;
     synchronization2_features.pNext = &fragment_shader_barycentric_features;
 
-    VkPhysicalDeviceVulkan12Features vk_12_features{};
-    vk_12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    vk_12_features.timelineSemaphore = VK_TRUE;
-    vk_12_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
-    vk_12_features.bufferDeviceAddress = VK_TRUE;
+    VkPhysicalDeviceBufferDeviceAddressFeatures device_address_features{};
+    device_address_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+    device_address_features.bufferDeviceAddress = VK_TRUE;
+    device_address_features.pNext = &synchronization2_features;
 
-    // enable descriptor indexing feature(s)
-    vk_12_features.descriptorIndexing = VK_TRUE;
-    vk_12_features.shaderInputAttachmentArrayDynamicIndexing = VK_TRUE;
-    vk_12_features.shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE;
-    vk_12_features.shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE;
-    vk_12_features.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE;
-    vk_12_features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
-    vk_12_features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
-    vk_12_features.descriptorBindingPartiallyBound = VK_TRUE;
-    vk_12_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
-    vk_12_features.runtimeDescriptorArray = VK_TRUE;
+    VkPhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore_features{};
+    timeline_semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    timeline_semaphore_features.timelineSemaphore = VK_TRUE;
+    timeline_semaphore_features.pNext = &device_address_features;
 
-    vk_12_features.pNext = &synchronization2_features;
+    VkPhysicalDevice8BitStorageFeatures storage_8_bit_features{};
+    storage_8_bit_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES;
+    storage_8_bit_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
+    storage_8_bit_features.pNext = &timeline_semaphore_features;
+
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptor_set_indexing_features{};
+    descriptor_set_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    descriptor_set_indexing_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    descriptor_set_indexing_features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
+    descriptor_set_indexing_features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    descriptor_set_indexing_features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    descriptor_set_indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
+    descriptor_set_indexing_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    descriptor_set_indexing_features.runtimeDescriptorArray = VK_TRUE;
+    descriptor_set_indexing_features.pNext = &storage_8_bit_features;
+
+    VkPhysicalDeviceFeatures2 device_features_2{};
+    device_features_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    device_features_2.features.samplerAnisotropy = physical_device_features.samplerAnisotropy;
+    device_features_2.features.fillModeNonSolid = physical_device_features.fillModeNonSolid;
+    device_features_2.features.wideLines = physical_device_features.wideLines;
+    device_features_2.features.depthBiasClamp = physical_device_features.depthBiasClamp;
+    device_features_2.features.fragmentStoresAndAtomics = physical_device_features.fragmentStoresAndAtomics;
+    device_features_2.pNext = &descriptor_set_indexing_features;
 
     VkDeviceCreateInfo device_create_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_create_info.queueCreateInfoCount = queue_create_infos.size();
     device_create_info.pQueueCreateInfos = queue_create_infos.data();
     device_create_info.enabledExtensionCount = required_extensions.size();
     device_create_info.ppEnabledExtensionNames = required_extensions.data();
-    device_create_info.pEnabledFeatures = &required_device_features;
-    device_create_info.pNext = &vk_12_features;
+    device_create_info.pEnabledFeatures = nullptr;
+    device_create_info.pNext = &device_features_2;
     result = vkCreateDevice(vk_context->physical_device, &device_create_info, nullptr, &vk_context->device);
     if (result != VK_SUCCESS) { return false; }
 
