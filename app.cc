@@ -367,9 +367,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(UnlitInstanceState);
 
-      VkDescriptorSetLayout descriptor_set_layouts[1];
-      descriptor_set_layouts[0] = app->global_state_uniform_buffer_descriptor_set_layout;
-      vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->wireframe_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
@@ -391,8 +389,7 @@ void app_create(SDL_Window *window, App **out_app) {
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(VertexLitInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_uniform_buffer_descriptor_set_layout};
-      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->vertex_lit_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
@@ -406,16 +403,16 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-      VkShaderModule vert_shader, frag_shader;
-      vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
-      vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
-
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(UnlitInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_state_uniform_buffer_descriptor_set_layout};
-      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->line_pipeline_layout);
+
+      VkShaderModule vert_shader, frag_shader;
+      vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
+      vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
+
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
@@ -834,77 +831,69 @@ void draw_world(App *app, VkCommandBuffer command_buffer, uint8_t frame_index, R
     }
   }
 
-  // { // draw wireframe
-  //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-  //
-  //   std::vector<VkDescriptorSet> descriptor_sets;
-  //   descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-  //   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-  //
-  //   for (const Geometry &geometry : app->wireframe_geometries) {
-  //     glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-  //
-  //     for (const Mesh &mesh : geometry.meshes) {
-  //       InstanceState instance_state{};
-  //       instance_state.model_matrix = model_matrix;
-  //       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-  //       vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
-  //       for (const Primitive &primitive : mesh.primitives) {
-  //         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-  //         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-  //       }
-  //     }
-  //   }
-  // }
+  { // draw wireframe
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
 
-  // { // draw line, aabb
-  //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
-  //   vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-  //   vk_cmd_set_depth_test_enable(command_buffer, true);
-  //
-  //   {
-  //     std::vector<VkDescriptorSet> descriptor_sets;
-  //     descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-  //     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-  //
-  //     for (const Geometry &geometry : app->line_geometries) {
-  //       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-  //
-  //       for (const Mesh &mesh : geometry.meshes) {
-  //         UnlitInstanceState instance_state{};
-  //         instance_state.model_matrix = model_matrix;
-  //         instance_state.color = glm::vec4(1, 1, 1, 1);
-  //         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-  //         vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
-  //         for (const Primitive &primitive : mesh.primitives) {
-  //           vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-  //         }
-  //       }
-  //     }
-  //   }
-  //
-  //   {
-  //     std::vector<VkDescriptorSet> descriptor_sets;
-  //     descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-  //     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-  //
-  //     for (const Geometry &geometry : app->lit_geometries) {
-  //       if (!is_aabb_valid(geometry.aabb)) {
-  //         continue;
-  //       }
-  //       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-  //
-  //       UnlitInstanceState instance_state{};
-  //       instance_state.model_matrix = model_matrix;
-  //       instance_state.color = glm::vec4(1, 1, 1, 1);
-  //       instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
-  //       vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
-  //       for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
-  //         vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
-  //       }
-  //     }
-  //   }
-  // }
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
+
+    for (const Geometry &geometry : app->wireframe_geometries) {
+      glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+
+      for (const Mesh &mesh : geometry.meshes) {
+        UnlitInstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+    }
+  }
+
+  { // draw line, aabb
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
+    vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+    vk_cmd_set_depth_test_enable(command_buffer, true);
+
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
+
+    {
+      for (const Geometry &geometry : app->line_geometries) {
+        const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+
+        for (const Mesh &mesh : geometry.meshes) {
+          UnlitInstanceState instance_state{};
+          instance_state.model_matrix = model_matrix;
+          instance_state.color = glm::vec4(1, 1, 1, 1);
+          instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+          for (const Primitive &primitive : mesh.primitives) {
+            vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+          }
+        }
+      }
+    }
+
+    {
+      for (const Geometry &geometry : app->lit_geometries) {
+        if (!is_aabb_valid(geometry.aabb)) {
+          continue;
+        }
+        const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+
+        UnlitInstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.color = glm::vec4(1, 1, 1, 1);
+        instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+        for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
+          vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
+        }
+      }
+    }
+  }
 }
 
 void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, uint8_t frame_index) {
@@ -914,9 +903,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline);
   vk_cmd_set_depth_test_enable(command_buffer, false);
 
-  std::vector<VkDescriptorSet> descriptor_sets;
-  descriptor_sets.push_back(frame->global_state_uniform_buffer_descriptor_set);
-  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
   const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
@@ -1396,7 +1383,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   }
   {
     vk_begin_render_pass(command_buffer, app->vertex_lit_render_pass, app->gizmo_framebuffers[image_index], app->vk_context->swapchain_extent, nullptr, 0);
-    // draw_gizmo(app, command_buffer, frame, frame_index);
+    draw_gizmo(app, command_buffer, frame, frame_index);
     vk_end_render_pass(command_buffer);
   }
 
