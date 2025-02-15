@@ -21,22 +21,10 @@ void create_mesh(MeshSystemState *mesh_system_state, VkContext *vk_context,
   Buffer *vertices_staging_buffer = nullptr;
   Buffer *indices_staging_buffer = nullptr;
   vk_create_buffer(vk_context, vertex_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vertices_staging_buffer);
-  {
-    void *data = nullptr;
-    VkResult result = vkMapMemory(vk_context->device, vertices_staging_buffer->device_memory, 0, vertex_buffer_size, 0, &data);
-    ASSERT(result == VK_SUCCESS);
-    memcpy(data, vertices, vertex_buffer_size);
-    vkUnmapMemory(vk_context->device, vertices_staging_buffer->device_memory);
-  }
+  vk_copy_data_to_buffer(vk_context, vertices, vertex_buffer_size, vertices_staging_buffer);
   if (index_count > 0) {
     vk_create_buffer(vk_context, index_buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &indices_staging_buffer);
-    {
-      void *data = nullptr;
-      VkResult result = vkMapMemory(vk_context->device, indices_staging_buffer->device_memory, 0, index_buffer_size, 0, &data);
-      ASSERT(result == VK_SUCCESS);
-      memcpy(data, indices, index_buffer_size);
-      vkUnmapMemory(vk_context->device, indices_staging_buffer->device_memory);
-    }
+    vk_copy_data_to_buffer(vk_context, indices, index_buffer_size, indices_staging_buffer);
   }
 
   vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {

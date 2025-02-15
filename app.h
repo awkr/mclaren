@@ -80,11 +80,11 @@ struct App {
     RenderFrame frames[FRAMES_IN_FLIGHT];
 
     VkImage color_image;
-    VkDeviceMemory color_image_device_memory;
+    VkDeviceMemory color_image_memory;
     VkImageView color_image_view;
 
     VkImage depth_image;
-    VkDeviceMemory depth_image_device_memory;
+    VkDeviceMemory depth_image_memory;
     VkImageView depth_image_view;
 
     VkDescriptorSetLayout single_storage_image_descriptor_set_layout;
@@ -95,7 +95,7 @@ struct App {
 
     // 存放所有的纹理资源
     VkImage images[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
-    VkDeviceMemory image_device_memories[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
+    VkDeviceMemory image_memories[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
     VkImageView image_views[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
     VkSampler samplers[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
 
@@ -109,10 +109,10 @@ struct App {
     VkPipeline wireframe_pipeline;
 
     VkImage checkerboard_image;
-    VkDeviceMemory checkerboard_image_device_memory;
+    VkDeviceMemory checkerboard_image_memory;
     VkImageView checkerboard_image_view;
     VkImage uv_debug_image;
-    VkDeviceMemory uv_debug_image_device_memory;
+    VkDeviceMemory uv_debug_image_memory;
     VkImageView uv_debug_image_view;
     VkSampler sampler_nearest;
 

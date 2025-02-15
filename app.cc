@@ -73,17 +73,17 @@ void create_color_image(App *app, const VkFormat format) {
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, usage, false, &app->color_image);
-    vk_allocate_image_memory(app->vk_context, app->color_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->color_image_device_memory);
+    vk_alloc_image_memory(app->vk_context, app->color_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->color_image_memory);
     vk_create_image_view(app->vk_context->device, app->color_image, format, VK_IMAGE_ASPECT_COLOR_BIT, &app->color_image_view);
 }
 
 void create_depth_image(App *app, const VkFormat format) {
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false, &app->depth_image);
-    vk_allocate_image_memory(app->vk_context, app->depth_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->depth_image_device_memory);
+    vk_alloc_image_memory(app->vk_context, app->depth_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->depth_image_memory);
     vk_create_image_view(app->vk_context->device, app->depth_image, format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->depth_image_view);
 }
 
-void create_default_texture(VkContext *vk_context, VkImage *out_image, VkDeviceMemory *out_device_memory, VkImageView *out_image_view, VkSampler *out_sampler) {
+void create_default_texture(VkContext *vk_context, VkImage *out_image, VkDeviceMemory *out_memory, VkImageView *out_image_view, VkSampler *out_sampler) {
     constexpr size_t width = 8;
     // clang-format off
     std::array<uint8_t, 32> palette = {
@@ -104,7 +104,7 @@ void create_default_texture(VkContext *vk_context, VkImage *out_image, VkDeviceM
     }
 
     vk_create_image(vk_context, {width, width}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, out_image);
-    vk_allocate_image_memory(vk_context, *out_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, out_device_memory);
+    vk_alloc_image_memory(vk_context, *out_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, out_memory);
     vk_create_image_view(vk_context->device, *out_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, out_image_view);
 
     Buffer *staging_buffer = nullptr;
@@ -236,7 +236,7 @@ void app_create(SDL_Window *window, App **out_app) {
     }
     for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
       // 第一个 texture 为默认纹理
-      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_device_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
+      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
       {
         // descriptor pool
         std::vector<VkDescriptorPoolSize> pool_sizes;
@@ -268,37 +268,10 @@ void app_create(SDL_Window *window, App **out_app) {
 
         std::vector<VkWriteDescriptorSet> write_descriptor_sets(4);
 
-        write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[0].dstSet = app->descriptor_sets[frame_index];
-        write_descriptor_sets[0].dstBinding = 0;
-        write_descriptor_sets[0].dstArrayElement = 0;
-        write_descriptor_sets[0].descriptorCount = 1;
-        write_descriptor_sets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write_descriptor_sets[0].pBufferInfo = &descriptor_buffer_infos[0];
-
-        write_descriptor_sets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[1].dstSet = app->descriptor_sets[frame_index];
-        write_descriptor_sets[1].dstBinding = 1;
-        write_descriptor_sets[1].dstArrayElement = 0;
-        write_descriptor_sets[1].descriptorCount = 1;
-        write_descriptor_sets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write_descriptor_sets[1].pBufferInfo = &descriptor_buffer_infos[1];
-
-        write_descriptor_sets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[2].dstSet = app->descriptor_sets[frame_index];
-        write_descriptor_sets[2].dstBinding = 2;
-        write_descriptor_sets[2].dstArrayElement = 0;
-        write_descriptor_sets[2].descriptorCount = 1;
-        write_descriptor_sets[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        write_descriptor_sets[2].pBufferInfo = &descriptor_buffer_infos[2];
-
-        write_descriptor_sets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_sets[3].dstSet = app->descriptor_sets[frame_index];
-        write_descriptor_sets[3].dstBinding = 3;
-        write_descriptor_sets[3].dstArrayElement = 0;
-        write_descriptor_sets[3].descriptorCount = descriptor_image_infos.size();
-        write_descriptor_sets[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_descriptor_sets[3].pImageInfo = descriptor_image_infos.data();
+        write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, nullptr, &descriptor_buffer_infos[0]);
+        write_descriptor_sets[1] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, nullptr, &descriptor_buffer_infos[1]);
+        write_descriptor_sets[2] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[2]);
+        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[0], nullptr);
 
         vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
       }
@@ -441,7 +414,7 @@ void app_create(SDL_Window *window, App **out_app) {
         }
       }
       vk_create_image(vk_context, {16, 16}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->checkerboard_image);
-      vk_allocate_image_memory(vk_context, app->checkerboard_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->checkerboard_image_device_memory);
+      vk_alloc_image_memory(vk_context, app->checkerboard_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->checkerboard_image_memory);
       vk_create_image_view(vk_context->device, app->checkerboard_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->checkerboard_image_view);
 
       Buffer *staging_buffer = nullptr;
@@ -471,7 +444,7 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       vk_create_image(vk_context, {width, width}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->uv_debug_image);
-      vk_allocate_image_memory(vk_context, app->uv_debug_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->uv_debug_image_device_memory);
+      vk_alloc_image_memory(vk_context, app->uv_debug_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->uv_debug_image_memory);
       vk_create_image_view(vk_context->device, app->uv_debug_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->uv_debug_image_view);
 
       Buffer *staging_buffer = nullptr;
@@ -631,7 +604,7 @@ void app_destroy(App *app) {
 
     for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
       for (size_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-        if (app->images[frame_index][i]) { vk_destroy_image(app->vk_context, app->images[frame_index][i], app->image_device_memories[frame_index][i]); }
+        if (app->images[frame_index][i]) { vk_destroy_image(app->vk_context, app->images[frame_index][i], app->image_memories[frame_index][i]); }
         if (app->image_views[frame_index][i]) { vk_destroy_image_view(app->vk_context->device, app->image_views[frame_index][i]); }
         if (app->samplers[frame_index][i]) { vk_destroy_sampler(app->vk_context->device, app->samplers[frame_index][i]); }
       }
@@ -641,9 +614,9 @@ void app_destroy(App *app) {
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
-    vk_destroy_image(app->vk_context, app->uv_debug_image, app->uv_debug_image_device_memory);
+    vk_destroy_image(app->vk_context, app->uv_debug_image, app->uv_debug_image_memory);
     vk_destroy_image_view(app->vk_context->device, app->checkerboard_image_view);
-    vk_destroy_image(app->vk_context, app->checkerboard_image, app->checkerboard_image_device_memory);
+    vk_destroy_image(app->vk_context, app->checkerboard_image, app->checkerboard_image_memory);
 
     // ImGui::DestroyContext(app->gui_context);
     vk_destroy_pipeline(app->vk_context->device, app->line_pipeline);
@@ -684,10 +657,10 @@ void app_destroy(App *app) {
     vk_destroy_render_pass(app->vk_context->device, app->vertex_lit_render_pass);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_device_memory);
+    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_memory);
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-    vk_destroy_image(app->vk_context, app->color_image, app->color_image_device_memory);
+    vk_destroy_image(app->vk_context, app->color_image, app->color_image_memory);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
       vk_destroy_buffer(app->vk_context, app->frames[i].dir_light_uniform_buffer);
@@ -736,7 +709,7 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame
     vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
 
     VkDescriptorImageInfo image_info = vk_descriptor_image_info(VK_NULL_HANDLE, app->color_image_view, VK_IMAGE_LAYOUT_GENERAL);
-    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &image_info, nullptr);
+    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &image_info, nullptr);
     vk_update_descriptor_sets(app->vk_context->device, 1, &write_descriptor_set);
 
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
@@ -1452,10 +1425,10 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
   }
 
   vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-  vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_device_memory);
+  vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_memory);
 
   vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-  vk_destroy_image(app->vk_context, app->color_image, app->color_image_device_memory);
+  vk_destroy_image(app->vk_context, app->color_image, app->color_image_memory);
 
   for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
     vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);

@@ -56,6 +56,8 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
     delete buffer;
 }
 
+void vk_alloc_buffer_memory(VkContext *vk_context, VkBuffer buffer, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *memory) {}
+
 void vk_copy_data_to_buffer(VkContext *vk_context, const void *data, size_t size, const Buffer *buffer) {
   void *p = nullptr;
   VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);

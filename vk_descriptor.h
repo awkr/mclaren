@@ -26,4 +26,4 @@ void vk_update_descriptor_sets(VkDevice device, uint32_t count, const VkWriteDes
 VkDescriptorBufferInfo vk_descriptor_buffer_info(VkBuffer buffer, uint64_t size);
 VkDescriptorImageInfo vk_descriptor_image_info(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout);
 
-VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info);
+VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, uint32_t descriptor_count, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info);

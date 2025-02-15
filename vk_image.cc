@@ -37,7 +37,7 @@ void vk_destroy_image(VkContext *vk_context, VkImage image, VkDeviceMemory devic
     }
 }
 
-void vk_allocate_image_memory(VkContext *vk_context, VkImage image, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *device_memory) {
+void vk_alloc_image_memory(VkContext *vk_context, VkImage image, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *memory) {
     VkMemoryRequirements memory_requirements;
     vkGetImageMemoryRequirements(vk_context->device, image, &memory_requirements);
 
@@ -58,10 +58,10 @@ void vk_allocate_image_memory(VkContext *vk_context, VkImage image, VkMemoryProp
     memory_allocate_info.allocationSize = memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_type_index;
 
-    VkResult result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, device_memory);
+    VkResult result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, memory);
     ASSERT(result == VK_SUCCESS);
 
-    result = vkBindImageMemory(vk_context->device, image, *device_memory, 0);
+    result = vkBindImageMemory(vk_context->device, image, *memory, 0);
     ASSERT(result == VK_SUCCESS);
 }
 

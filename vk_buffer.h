@@ -11,6 +11,7 @@ void vk_create_buffer(VkContext *vk_context, size_t size, VkBufferUsageFlags buf
 
 void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer);
 
+void vk_alloc_buffer_memory(VkContext *vk_context, VkBuffer buffer, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *memory);
 void vk_copy_data_to_buffer(VkContext *vk_context, const void *data, size_t size, const Buffer *buffer);
 void vk_clear_buffer(VkContext *vk_context, const Buffer *buffer, size_t size);
 

@@ -83,12 +83,12 @@ VkDescriptorImageInfo vk_descriptor_image_info(VkSampler sampler, VkImageView im
     return descriptor_image_info;
 }
 
-VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info) {
+VkWriteDescriptorSet vk_write_descriptor_set(VkDescriptorSet descriptor_set, uint32_t binding, VkDescriptorType descriptor_type, uint32_t descriptor_count, const VkDescriptorImageInfo *image_info, const VkDescriptorBufferInfo *buffer_info) {
     VkWriteDescriptorSet write_descriptor_set = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
     write_descriptor_set.dstSet = descriptor_set;
     write_descriptor_set.dstBinding = binding;
     write_descriptor_set.descriptorType = descriptor_type;
-    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.descriptorCount = descriptor_count;
     write_descriptor_set.pImageInfo = image_info;
     write_descriptor_set.pBufferInfo = buffer_info;
     return write_descriptor_set;
