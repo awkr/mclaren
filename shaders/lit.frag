@@ -42,21 +42,17 @@ layout (location = 0) out vec4 frag_color;
 layout (set = 0, binding = 1) uniform DirLight {
     vec3 direction;
     vec3 ambient;
+    vec3 diffuse;
 } dir_light;
 
-layout (set = 0, binding = 2) uniform sampler2D textures[];
+layout (set = 0, binding = 3) uniform sampler2D textures[];
 
 void main() {
 
-    vec4 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord);
-    frag_color = vec4(base_color.rgb * dir_light.ambient, 1.0);
-    //frag_color = vec4(base_color.rgb * vec3(0.8, 0.0, 0.0), 1.0);
-
-/*
     // frag_color = texture(tex, tex_coord);
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
-    const vec3 base_color = texture(tex, tex_coord).rgb;
+    const vec3 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord).rgb;
     vec3 ambient = dir_light.ambient * base_color;
     vec3 norm = normalize(normal);
     vec3 light_dir = normalize(-dir_light.direction);
@@ -67,7 +63,6 @@ void main() {
     vec3 result = ambient + diffuse;
     frag_color = vec4(result, 1.0);
     return;
-*/
 
 /*
     // frag_color = vec4(gl_BaryCoordEXT, 1.0);
