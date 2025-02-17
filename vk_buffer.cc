@@ -56,28 +56,61 @@ void vk_destroy_buffer(VkContext *vk_context, Buffer *buffer) {
     delete buffer;
 }
 
-void vk_alloc_buffer_memory(VkContext *vk_context, VkBuffer buffer, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *memory) {}
+void vk_alloc_buffer_memory(VkContext *vk_context, VkBuffer buffer, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags memory_property_flags, VkDeviceMemory *memory) {
+    VkMemoryRequirements memory_requirements;
+    vkGetBufferMemoryRequirements(vk_context->device, buffer, &memory_requirements);
 
-void vk_copy_data_to_buffer(VkContext *vk_context, const void *data, size_t size, const Buffer *buffer) {
-  void *p = nullptr;
-  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(vk_context->physical_device, &memory_properties);
+
+    uint32_t memory_type_index = UINT32_MAX;
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+      if ((memory_requirements.memoryTypeBits & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & memory_property_flags)) {
+        memory_type_index = i;
+        break;
+      }
+    }
+    ASSERT(memory_type_index != UINT32_MAX);
+
+    VkMemoryAllocateInfo memory_allocate_info{};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+
+    VkMemoryAllocateFlagsInfo allocate_flags_info{};
+    allocate_flags_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+    if (usage_flags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+      allocate_flags_info.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+      memory_allocate_info.pNext = &allocate_flags_info;
+    }
+
+    VkResult result = vkAllocateMemory(vk_context->device, &memory_allocate_info, nullptr, memory);
+    ASSERT(result == VK_SUCCESS);
+
+    result = vkBindBufferMemory(vk_context->device, buffer, *memory, 0);
+    ASSERT(result == VK_SUCCESS);
+}
+
+void vk_copy_data_to_buffer(VkContext *vk_context, const void *src, size_t size, const Buffer *buffer) {
+  void *mapped_addr = nullptr;
+  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &mapped_addr);
   ASSERT(result == VK_SUCCESS);
-  memcpy(p, data, size);
+  memcpy(mapped_addr, src, size);
   vkUnmapMemory(vk_context->device, buffer->device_memory);
 }
 
 void vk_clear_buffer(VkContext *vk_context, const Buffer *buffer, size_t size) {
-  void *p = nullptr;
-  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);
+  void *mapped_addr = nullptr;
+  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &mapped_addr);
   ASSERT(result == VK_SUCCESS);
-  memset(p, 0, size);
+  memset(mapped_addr, 0, size);
   vkUnmapMemory(vk_context->device, buffer->device_memory);
 }
 
 void vk_read_data_from_buffer(VkContext *vk_context, const Buffer *buffer, void *dst, size_t size) {
-  void *p = nullptr;
-  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &p);
+  void *mapped_addr = nullptr;
+  VkResult result = vkMapMemory(vk_context->device, buffer->device_memory, 0, size, 0, &mapped_addr);
   ASSERT(result == VK_SUCCESS);
-  memcpy(dst, p, size);
+  memcpy(dst, mapped_addr, size);
   vkUnmapMemory(vk_context->device, buffer->device_memory);
 }
