@@ -132,7 +132,7 @@ void create_unified_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout
     bindings.push_back({1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // lights data, see `LightsData`
     bindings.push_back({2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // entity picking ( bindless )
     bindings.push_back({3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 纹理采样器数组
-    // bindings.push_back({4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_LIGHT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 阴影贴图数组
+    bindings.push_back({4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_LIGHT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 阴影贴图数组
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo descriptor_set_layout_binding_flags_create_info{};
     descriptor_set_layout_binding_flags_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -140,6 +140,7 @@ void create_unified_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout
     VkDescriptorBindingFlags binding_flags[] = {0,
                                                 0,
                                                 0,
+                                                VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
                                                 VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
     descriptor_set_layout_binding_flags_create_info.pBindingFlags = binding_flags;
 
@@ -283,11 +284,11 @@ void app_create(SDL_Window *window, App **out_app) {
         std::vector<VkDescriptorPoolSize> pool_sizes;
         pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1}); // camera
         pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}); // lights, entity picking
-        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT});
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT + MAX_LIGHT_COUNT}); // textures, shadow maps
         vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
 
         // descriptor set
-        std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
+        std::vector<uint32_t> variable_descriptor_counts = {MAX_LIGHT_COUNT};
 
         VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_allocate_info{};
         variable_descriptor_count_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
@@ -308,12 +309,13 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][0], app->image_views[frame_index][0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         descriptor_image_infos[1] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
 
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets(4);
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets(5);
 
         write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, nullptr, &descriptor_buffer_infos[0]);
         write_descriptor_sets[1] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[1]);
         write_descriptor_sets[2] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[2]);
-        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_image_infos.size(), descriptor_image_infos.data(), nullptr);
+        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[0], nullptr);
+        write_descriptor_sets[4] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[1], nullptr);
 
         vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
       }
@@ -802,7 +804,8 @@ void draw_world(App *app, VkCommandBuffer command_buffer, uint8_t frame_index, R
         LitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        instance_state.texture_index = 1;
+        instance_state.texture_index = 0;
+        instance_state.shadow_map_index = 0;
         vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);

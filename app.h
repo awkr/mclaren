@@ -50,6 +50,7 @@ struct LitInstanceState {
   glm::vec4 color;
   VkDeviceAddress vertex_buffer_device_address;
   uint32_t texture_index;
+  uint32_t shadow_map_index;
 };
 
 struct VertexLitInstanceState {
