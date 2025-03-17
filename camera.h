@@ -38,3 +38,6 @@ void camera_update(Camera *camera);
 
 glm::vec3 camera_forward_dir(const Camera &camera) noexcept;
 glm::vec3 camera_backward_dir(const Camera &camera) noexcept;
+
+void calc_rotation_of_two_directions(const glm::vec3 &from, const glm::vec3 &to, glm::quat &rotation);
+void calc_view_matrix(const glm::vec3 &position, const glm::quat &rotation, glm::mat4 &view_matrix);

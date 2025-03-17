@@ -36,28 +36,37 @@ struct SpotLight {
 layout (location = 0) in  vec2 tex_coord;
 layout (location = 1) in  vec3 normal;
 layout (location = 2) flat in uint texture_index;
+layout (location = 3) flat in uint shadow_map_index;
 
 layout (location = 0) out vec4 frag_color;
 
-layout (set = 0, binding = 1) uniform DirLight {
+layout (set = 0, binding = 1) readonly buffer LightsBuffer {
+    mat4 view_projection_matrix;
+    vec3 position;
     vec3 direction;
     vec3 ambient;
     vec3 diffuse;
-} dir_light;
+} lights_data;
 
 layout (set = 0, binding = 3) uniform sampler2D textures[];
 
 void main() {
-
+    // frag_color = vec4(1.0, 0.0, 0.0, 1.0);
+    // return;
     // frag_color = texture(tex, tex_coord);
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
     const vec3 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord).rgb;
-    vec3 ambient = dir_light.ambient * base_color;
+
+    const float depth = texture(textures[nonuniformEXT(texture_index)], tex_coord).r;
+    frag_color = vec4(depth, depth, depth, 1.0);
+    return;
+
+    vec3 ambient = lights_data.ambient * base_color;
     vec3 norm = normalize(normal);
-    vec3 light_dir = normalize(-dir_light.direction);
+    vec3 light_dir = normalize(-lights_data.direction);
     float diff = max(dot(norm, light_dir), 0.0);
-    vec3 diffuse = dir_light.diffuse * (diff * base_color);
+    vec3 diffuse = lights_data.diffuse * (diff * base_color);
     // float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
     // vec4 color = vec4(base_color * (diffuse + 0.1f), 1.0);
     vec3 result = ambient + diffuse;

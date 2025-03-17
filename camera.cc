@@ -6,15 +6,8 @@ void create_camera(Camera *camera, const glm::vec3 &pos, const glm::vec3 &dir) {
     camera->position = pos;
 
     // calculate the rotation of the camera
-    const glm::vec3 d = glm::normalize(dir);
     const glm::vec3 &forward = glm::vec3(0.0f, 0.0f, -1.0f); // -Z
-
-    if (float rotation_angle = glm::acos(glm::dot(forward, d)); is_zero(rotation_angle)) {
-        camera->rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    } else {
-        const glm::vec3 &rotation_axis = glm::cross(forward, d);
-        camera->rotation = glm::angleAxis(rotation_angle, glm::normalize(rotation_axis));
-    }
+    calc_rotation_of_two_directions(forward, dir, camera->rotation);
 
     camera->is_dirty = true;
 }
@@ -89,11 +82,7 @@ void camera_update(Camera *camera) {
     if (!camera->is_dirty) { return; }
 
     // calculate the view matrix
-    const auto &rotation = glm::mat4_cast(camera->rotation);
-    const auto &translation = glm::translate(glm::mat4(1.0), camera->position);
-
-    auto view_matrix = glm::inverse(translation * rotation);
-    camera->view_matrix = view_matrix;
+    calc_view_matrix(camera->position, camera->rotation, camera->view_matrix);
 
     camera->is_dirty = false;
 }
@@ -115,4 +104,23 @@ glm::vec3 camera_backward_dir(const Camera &camera) noexcept {
   return glm::normalize(glm::vec3(camera.view_matrix[0][2], // 第 0 列第 2 行
                                   camera.view_matrix[1][2],
                                   camera.view_matrix[2][2]));
+}
+
+void calc_rotation_of_two_directions(const glm::vec3 &from, const glm::vec3 &to, glm::quat &rotation) {
+  const glm::vec3 &forward = glm::normalize(from);
+  const glm::vec3 &d = glm::normalize(to);
+
+  if (float rotation_angle = glm::acos(glm::dot(forward, d)); is_zero(rotation_angle)) { // 计算旋转角度
+    rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+  } else {
+    const glm::vec3 &rotation_axis = glm::cross(forward, d); // 计算旋转轴
+    rotation = glm::angleAxis(rotation_angle, glm::normalize(rotation_axis));
+  }
+}
+
+void calc_view_matrix(const glm::vec3 &position, const glm::quat &rotation, glm::mat4 &view_matrix) {
+  const glm::mat4 &rotation_matrix = glm::mat4_cast(rotation);
+  const glm::mat4 &translation_matrix = glm::translate(glm::mat4(1.0f), position);
+
+  view_matrix = glm::inverse(translation_matrix * rotation_matrix);
 }

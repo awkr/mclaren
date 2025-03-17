@@ -48,14 +48,15 @@ VkResult vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor
     return vkAllocateDescriptorSets(device, &allocate_info, descriptor_set);
 }
 
-VkResult vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, const void *next, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets) {
-    VkDescriptorSetAllocateInfo allocate_info{};
-    allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocate_info.pNext = next;
-    allocate_info.descriptorPool = descriptor_pool;
-    allocate_info.descriptorSetCount = descriptor_set_count;
-    allocate_info.pSetLayouts = layouts;
-    return vkAllocateDescriptorSets(device, &allocate_info, descriptor_sets);
+void vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, const void *next, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets) {
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{};
+    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info.pNext = next;
+    descriptor_set_allocate_info.descriptorPool = descriptor_pool;
+    descriptor_set_allocate_info.descriptorSetCount = descriptor_set_count;
+    descriptor_set_allocate_info.pSetLayouts = layouts;
+    VkResult result = vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, descriptor_sets);
+    ASSERT(result == VK_SUCCESS);
 }
 
 void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set) {

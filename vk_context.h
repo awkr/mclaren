@@ -17,6 +17,7 @@ struct VkContext {
     uint16_t swapchain_image_count;
     std::vector<VkImage> swapchain_images;
     std::vector<VkImageView> swapchain_image_views;
+    VkFormat depth_image_format;
 
     VkCommandPool command_pool;
 };

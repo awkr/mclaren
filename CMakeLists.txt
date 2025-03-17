@@ -21,6 +21,7 @@ set(CORE_SRCS
     gizmo.cc
     frame_graph.cc
     # scene.cc
+    shadow_pass.cc
 )
 set(VK_SRCS
     vk.cc

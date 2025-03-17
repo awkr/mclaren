@@ -29,6 +29,8 @@ void vk_init(VkContext *vk_context, SDL_Window *window, uint32_t width, uint32_t
     vk_create_device(vk_context);
     vk_create_swapchain(vk_context, width, height);
     vk_create_command_pool(vk_context->device, vk_context->graphics_queue_family_index, &vk_context->command_pool);
+
+    vk_context->depth_image_format = VK_FORMAT_D32_SFLOAT;
 }
 
 void vk_terminate(VkContext *vk_context) {

@@ -16,3 +16,5 @@ glslangValidator -V shaders/line.vert -o shaders/line.vert.spv $TARGET_ENV $GEN_
 glslangValidator -V shaders/line.frag -o shaders/line.frag.spv $TARGET_ENV $GEN_DEBUG_INFO
 glslangValidator -V shaders/entity-picking.vert -o shaders/entity-picking.vert.spv $TARGET_ENV $GEN_DEBUG_INFO
 glslangValidator -V shaders/entity-picking.frag -o shaders/entity-picking.frag.spv $TARGET_ENV $GEN_DEBUG_INFO
+glslangValidator -V shaders/vertex-shadow.vert -o shaders/vertex-shadow.vert.spv $TARGET_ENV $GEN_DEBUG_INFO
+glslangValidator -V shaders/empty.frag -o shaders/empty.frag.spv $TARGET_ENV $GEN_DEBUG_INFO

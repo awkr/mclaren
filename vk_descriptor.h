@@ -17,7 +17,7 @@ void vk_reset_descriptor_pool(VkDevice device, VkDescriptorPool descriptor_pool)
 VkResult vk_allocate_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout layout,
                                     VkDescriptorSet *descriptor_set);
 
-VkResult vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, const void *next, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets);
+void vk_allocate_descriptor_sets(VkDevice device, VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout *layouts, const void *next, uint32_t descriptor_set_count, VkDescriptorSet *descriptor_sets);
 
 void vk_free_descriptor_set(VkDevice device, VkDescriptorPool descriptor_pool, VkDescriptorSet descriptor_set);
 

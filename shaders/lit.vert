@@ -8,6 +8,7 @@
 layout (location = 0) out vec2 out_tex_coord;
 layout (location = 1) out vec3 out_normal;
 layout (location = 2) flat out uint out_texture_index;
+layout (location = 3) flat out uint out_shadow_map_index;
 
 layout (push_constant) uniform LitInstanceState {
     mat4 model_matrix;
@@ -15,6 +16,7 @@ layout (push_constant) uniform LitInstanceState {
     vec4 color;
     VertexBuffer vertex_buffer; // actually it's a u64 handle
     uint texture_index;
+    uint shadow_map_index;
 } instance_state;
 
 void main() {
@@ -23,4 +25,5 @@ void main() {
     out_tex_coord = vertex.tex_coord;
     out_normal = (instance_state.model_matrix * vec4(vertex.normal, 0.0)).xyz;
     out_texture_index = instance_state.texture_index;
+    out_shadow_map_index = instance_state.shadow_map_index;
 }

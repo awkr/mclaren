@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "camera.h"
 #include "geometry.h"
 #include "geometry_system.h"
@@ -9,7 +10,6 @@
 #include "mesh_system.h"
 #include "vk_descriptor_allocator.h"
 #include "vk_pipeline.h"
-#include <cstdint>
 #include <queue>
 #include <volk.h>
 
@@ -19,7 +19,6 @@ struct ImGuiContext;
 struct Image;
 
 #define FRAMES_IN_FLIGHT 2
-#define MAX_TEXTURE_COUNT 100
 
 struct RenderFrame {
     VkCommandPool command_pool;
@@ -29,7 +28,9 @@ struct RenderFrame {
     DescriptorAllocator descriptor_allocator;
 
     Buffer *global_state_uniform_buffer;
-    Buffer *dir_light_uniform_buffer;
+    Buffer *light_buffer;
+    // VkBuffer light_buffer;
+    // VkDeviceMemory light_buffer_device_memory;
 };
 
 struct GlobalState {
@@ -62,6 +63,29 @@ struct EntityPickingInstanceState {
   glm::mat4 model_matrix;
   uint32_t id;
   VkDeviceAddress vertex_buffer_device_address;
+};
+
+struct SimpleInstanceState {
+  glm::mat4 model_matrix;
+  VkDeviceAddress vertex_buffer_device_address;
+};
+
+struct CameraData {
+  glm::mat4 view_matrix;
+  glm::mat4 projection_matrix;
+};
+
+struct Light {
+};
+
+struct LightsData {
+  // Light lights[MAX_LIGHT_COUNT];
+  // uint16_t light_count;
+  glm::mat4 view_projection_matrix;
+  alignas(16) glm::vec3 position;
+  alignas(16) glm::vec3 direction;
+  alignas(16) glm::vec3 ambient;
+  alignas(16) glm::vec3 diffuse;
 };
 
 struct App {
@@ -99,6 +123,16 @@ struct App {
     VkImageView image_views[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
     VkSampler samplers[FRAMES_IN_FLIGHT][MAX_TEXTURE_COUNT];
 
+    // todo shadow pass 的这些资源，都应该从统一的资源管理器里获取，不应自己创建
+    VkImage shadow_depth_images[FRAMES_IN_FLIGHT];
+    VkImageLayout shadow_depth_image_layouts[FRAMES_IN_FLIGHT];
+    VkDeviceMemory shadow_depth_image_memories[FRAMES_IN_FLIGHT];
+    VkImageView shadow_depth_image_views[FRAMES_IN_FLIGHT];
+    VkFramebuffer shadow_framebuffers[FRAMES_IN_FLIGHT];
+    VkRenderPass shadow_render_pass;
+    VkPipelineLayout shadow_pipeline_layout;
+    VkPipeline shadow_pipeline;
+
     VkPipelineLayout compute_pipeline_layout;
     VkPipeline compute_pipeline;
 
@@ -126,7 +160,7 @@ struct App {
     Camera camera;
     glm::mat4 projection_matrix;
     GlobalState global_state;
-    DirLight dir_light;
+    LightsData lights_data;
 
     ImGuiContext *gui_context;
 

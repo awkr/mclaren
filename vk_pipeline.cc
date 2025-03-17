@@ -37,15 +37,15 @@ void vk_destroy_shader_module(VkDevice device, VkShaderModule shader_module) {
 }
 
 void vk_create_pipeline_layout(VkDevice device, uint32_t descriptor_set_layout_count, const VkDescriptorSetLayout *descriptor_set_layouts,
-                               const VkPushConstantRange *push_constant, VkPipelineLayout *pipeline_layout) {
+                               const VkPushConstantRange *push_constant_range, VkPipelineLayout *pipeline_layout) {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.setLayoutCount = descriptor_set_layout_count;
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
 
-    if (push_constant) {
+    if (push_constant_range) {
         pipeline_layout_create_info.pushConstantRangeCount = 1;
-        pipeline_layout_create_info.pPushConstantRanges = push_constant;
+        pipeline_layout_create_info.pPushConstantRanges = push_constant_range;
     }
 
     VkResult result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, pipeline_layout);
@@ -56,7 +56,7 @@ void vk_destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline_layou
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 }
 
-void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, bool enable_blend, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config,
+void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, const ColorConfig &color_config, const DepthConfig &depth_config, const DepthBiasConfig &depth_bias_config,
                                  const std::vector<std::pair<VkShaderStageFlagBits, VkShaderModule>> &shader_modules,
                                  const std::vector<VkPrimitiveTopology> &primitive_topologies, VkPolygonMode polygon_mode, VkRenderPass render_pass, VkPipeline *pipeline) {
     std::vector<VkPipelineShaderStageCreateInfo> shader_stage_create_infos;
@@ -109,9 +109,9 @@ void vk_create_graphics_pipeline(VkDevice device, VkPipelineLayout layout, bool 
     depth_stencil_state.front = depth_stencil_state.back;
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_state{};
-    color_blend_attachment_state.blendEnable = enable_blend ? VK_TRUE : VK_FALSE;
-    color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    color_blend_attachment_state.blendEnable = color_config.enable_blend ? VK_TRUE : VK_FALSE;
+    color_blend_attachment_state.colorWriteMask = color_config.enable_write ? (VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                                                                            : 0;
     color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
     color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;

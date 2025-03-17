@@ -142,9 +142,14 @@ bool vk_create_device(VkContext *vk_context) {
     VkPhysicalDeviceFeatures physical_device_features{};
     vkGetPhysicalDeviceFeatures(vk_context->physical_device, &physical_device_features);
 
+    VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures separate_depth_stencil_features{};
+    separate_depth_stencil_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SEPARATE_DEPTH_STENCIL_LAYOUTS_FEATURES;
+    separate_depth_stencil_features.separateDepthStencilLayouts = VK_TRUE;
+
     VkPhysicalDeviceExtendedDynamicState2FeaturesEXT extended_dynamic_state2_features{};
     extended_dynamic_state2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_2_FEATURES_EXT;
     extended_dynamic_state2_features.extendedDynamicState2 = VK_TRUE;
+    extended_dynamic_state2_features.pNext = &separate_depth_stencil_features;
 
     VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state_features{};
     extended_dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
