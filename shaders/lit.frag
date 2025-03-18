@@ -48,8 +48,8 @@ layout (set = 0, binding = 1) readonly buffer LightsBuffer {
     vec3 diffuse;
 } lights_data;
 
-layout (set = 0, binding = 3) uniform sampler2D textures[];
-layout (set = 0, binding = 4) uniform sampler2D shadow_maps[];
+layout (set = 0, binding = 3) uniform sampler2D shadow_maps[];
+layout (set = 0, binding = 4) uniform sampler2D textures[];
 
 void main() {
     // frag_color = vec4(1.0, 0.0, 0.0, 1.0);
@@ -58,7 +58,7 @@ void main() {
 
     const float depth = texture(shadow_maps[nonuniformEXT(texture_index)], tex_coord).r;
     frag_color = vec4(depth, depth, depth, 1.0);
-    //return;
+    return;
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
     const vec3 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord).rgb;

@@ -131,8 +131,8 @@ void create_unified_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout
     bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}); // camera data, see `CameraData`
     bindings.push_back({1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // lights data, see `LightsData`
     bindings.push_back({2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // entity picking ( bindless )
-    bindings.push_back({3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 纹理采样器数组
-    bindings.push_back({4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_LIGHT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 阴影贴图数组
+    bindings.push_back({3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_LIGHT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 阴影贴图数组
+    bindings.push_back({4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 纹理采样器数组
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo descriptor_set_layout_binding_flags_create_info{};
     descriptor_set_layout_binding_flags_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -288,7 +288,7 @@ void app_create(SDL_Window *window, App **out_app) {
         vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
 
         // descriptor set
-        std::vector<uint32_t> variable_descriptor_counts = {MAX_LIGHT_COUNT};
+        std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
 
         VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_allocate_info{};
         variable_descriptor_count_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
@@ -314,8 +314,8 @@ void app_create(SDL_Window *window, App **out_app) {
         write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, nullptr, &descriptor_buffer_infos[0]);
         write_descriptor_sets[1] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[1]);
         write_descriptor_sets[2] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[2]);
-        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[0], nullptr);
-        write_descriptor_sets[4] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[1], nullptr);
+        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[1], nullptr);
+        write_descriptor_sets[4] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[0], nullptr);
 
         vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
       }
@@ -1627,9 +1627,8 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
         // std::vector<VkDescriptorImageInfo> descriptor_image_infos(1);
         // descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
 
-        std::vector<VkDescriptorImageInfo> descriptor_image_infos(2);
-        descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][0], app->image_views[frame_index][0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        descriptor_image_infos[1] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+        std::vector<VkDescriptorImageInfo> descriptor_image_infos(1);
+        descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
 
         std::vector<VkWriteDescriptorSet> write_descriptor_sets(1);
         write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_image_infos.size(), descriptor_image_infos.data(), nullptr);
