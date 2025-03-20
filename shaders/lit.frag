@@ -53,12 +53,44 @@ layout (set = 0, binding = 1) readonly buffer LightsBuffer {
 layout (set = 0, binding = 3) uniform sampler2D shadow_maps[];
 layout (set = 0, binding = 4) uniform sampler2D textures[];
 
-float shadow_calculation(vec4 frag_pos_light_space) {
+/*
+float calculate_shadow(vec4 frag_pos_light_space) {
+    // 将片段位置从光空间转换为投影坐标
     vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
+    // 将投影坐标从[-1, 1]范围转换到[0, 1]范围
     // proj_coords = proj_coords * 0.5 + 0.5;
+    // 从阴影贴图中获取最近的深度值
     float closest_depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], proj_coords.xy).r;
+    // 获取当前片段的深度值
     float current_depth = proj_coords.z;
+    // 计算阴影，如果当前深度值大于最近深度值，则在阴影中
     float shadow = current_depth - 0.002 > closest_depth ? 1.0 : 0.0;
+    return shadow;
+}
+*/
+
+float calculate_shadow(vec3 shadow_coord, vec2 offset) {
+    float closest_depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], shadow_coord.st + offset).r;
+    float current_depth = shadow_coord.z;
+    float shadow = current_depth - 0.001 > closest_depth ? 1.0 : 0.0;
+    return shadow;
+}
+
+float calculate_pcf_shadow(vec3 shadow_coord) {
+    ivec2 tex_dim = textureSize(shadow_maps[nonuniformEXT(shadow_map_index)], 0);
+    float scale = 1.5;
+    float dx = scale * 1.0 / float(tex_dim.x);
+    float dy = scale * 1.0 / float(tex_dim.y);
+    float shadow = 0.0;
+    int count = 0;
+    int range = 1;
+    for (int x = -range; x <= range; ++x) {
+        for (int y = -range; y <= range; ++y) {
+            shadow += calculate_shadow(shadow_coord, vec2(dx * x, dy * y));
+            count++;
+        }
+    }
+    shadow /= float(count);
     return shadow;
 }
 
@@ -67,8 +99,8 @@ void main() {
     // return;
     // frag_color = texture(tex, tex_coord);
 
-    const float depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], tex_coord).r;
-    frag_color = vec4(depth, depth, depth, 1.0);
+    // const float depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], tex_coord).r;
+    // frag_color = vec4(depth, depth, depth, 1.0);
     // return;
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
@@ -80,7 +112,11 @@ void main() {
     vec3 diffuse = lights_data.diffuse * (diff * base_color);
     // float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
     // vec4 color = vec4(base_color * (diffuse + 0.1f), 1.0);
-    float shadow = shadow_calculation(frag_pos_light_space);
+
+    vec3 shadow_coord = frag_pos_light_space.xyz / frag_pos_light_space.w;
+    // float shadow = calculate_pcf_shadow(shadow_coord);
+    float shadow = calculate_shadow(shadow_coord, vec2(0.0));
+
     vec3 result = ambient + diffuse * (1.0 - shadow);
     frag_color = vec4(result, 1.0);
     return;

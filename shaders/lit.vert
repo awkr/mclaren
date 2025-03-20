@@ -29,7 +29,8 @@ layout (push_constant) uniform LitInstanceState {
     uint shadow_map_index;
 } instance_state;
 
-const mat4 bias = mat4(
+// 缩放和平移矩阵，将[-1,1]的NDC转换为[0,1]的纹理坐标范围。它将x和y分量缩放为原来的一半，然后平移0.5个单位，而z分量保持不变。
+const mat4 bias = mat4( // 列主序
 	0.5, 0.0, 0.0, 0.0,
 	0.0, 0.5, 0.0, 0.0,
 	0.0, 0.0, 1.0, 0.0,

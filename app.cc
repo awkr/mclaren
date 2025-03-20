@@ -36,7 +36,7 @@
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
     // clang-format off
-    1.0f,  0.0f, 0.0f, 0.0f, // 1st column
+    1.0f,  0.0f, 0.0f, 0.0f, // glm 是列主序，即 1st column
     0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
     0.0f,  0.0f, 0.5f, 0.0f, // 3rd column
     0.0f,  0.0f, 0.5f, 1.0f  // 4th column
