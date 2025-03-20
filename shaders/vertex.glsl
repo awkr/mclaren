@@ -4,6 +4,6 @@ struct Vertex {
     vec3 normal;
 };
 
-layout (buffer_reference, std430) readonly buffer VertexBuffer {
+layout (buffer_reference, std140) readonly buffer VertexBuffer {
     Vertex vertices[];
 };

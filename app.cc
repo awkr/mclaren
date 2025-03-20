@@ -20,8 +20,11 @@
 #include "vk_sampler.h"
 #include "vk_semaphore.h"
 #include "vk_swapchain.h"
+#include "shadow_pass.h"
 #include <glm/ext/scalar_reciprocal.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.inl>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <thread>
 #include <chrono>
@@ -33,7 +36,7 @@
 // vulkan clip space has inverted Y and half Z
 glm::mat4 clip = glm::mat4(
     // clang-format off
-    1.0f,  0.0f, 0.0f, 0.0f, // 1st column
+    1.0f,  0.0f, 0.0f, 0.0f, // glm 是列主序，即 1st column
     0.0f, -1.0f, 0.0f, 0.0f, // 2nd column
     0.0f,  0.0f, 0.5f, 0.0f, // 3rd column
     0.0f,  0.0f, 0.5f, 1.0f  // 4th column
@@ -73,12 +76,75 @@ void create_color_image(App *app, const VkFormat format) {
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT /* can be written by computer shader */;
     vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, usage, false, &app->color_image);
-    vk_create_image_view(app->vk_context->device, app->color_image->handle, format, VK_IMAGE_ASPECT_COLOR_BIT, &app->color_image_view);
+    vk_alloc_image_memory(app->vk_context, app->color_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->color_image_memory);
+    vk_create_image_view(app->vk_context->device, app->color_image, format, VK_IMAGE_ASPECT_COLOR_BIT, &app->color_image_view);
 }
 
-void create_depth_image(App *app, const VkFormat format) {
-    vk_create_image(app->vk_context, app->vk_context->swapchain_extent, format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false, &app->depth_image);
-    vk_create_image_view(app->vk_context->device, app->depth_image->handle, format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->depth_image_view);
+void create_depth_image(App *app) {
+    vk_create_image(app->vk_context, app->vk_context->swapchain_extent, app->vk_context->depth_image_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, false, &app->depth_image);
+    vk_alloc_image_memory(app->vk_context, app->depth_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->depth_image_memory);
+    vk_create_image_view(app->vk_context->device, app->depth_image, app->vk_context->depth_image_format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->depth_image_view);
+}
+
+void create_default_texture(VkContext *vk_context, VkImage *out_image, VkDeviceMemory *out_memory, VkImageView *out_image_view, VkSampler *out_sampler) {
+    constexpr size_t width = 8;
+    // clang-format off
+    std::array<uint8_t, 32> palette = {
+        255, 102, 159, 255,
+        255, 159, 102, 255,
+        236, 255, 102, 255,
+        121, 255, 102, 255,
+        102, 255, 198, 255,
+        102, 198, 255, 255,
+        121, 102, 255, 255,
+        236, 102, 255, 255};
+    // clang-format on
+    std::vector<uint8_t> texture_data(width * width * 4, 0);
+    for (size_t y = 0; y < width; ++y) {
+      size_t offset = width * y * 4;
+      std::copy(palette.begin(), palette.end(), texture_data.begin() + offset);
+      std::rotate(palette.rbegin(), palette.rbegin() + 4, palette.rend()); // 向右旋转4个元素
+    }
+
+    vk_create_image(vk_context, {width, width}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, out_image);
+    vk_alloc_image_memory(vk_context, *out_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, out_memory);
+    vk_create_image_view(vk_context->device, *out_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, out_image_view);
+
+    Buffer *staging_buffer = nullptr;
+    size_t size = width * width * 4;
+    vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
+    vk_copy_data_to_buffer(vk_context, texture_data.data(), size, staging_buffer);
+
+    vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
+          vk_cmd_pipeline_image_barrier(command_buffer, *out_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+          vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, *out_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
+          vk_cmd_pipeline_image_barrier(command_buffer, *out_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+        }, vk_context->graphics_queue);
+
+    vk_destroy_buffer(vk_context, staging_buffer);
+
+    vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, out_sampler);
+}
+
+void create_unified_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout *out_descriptor_set_layout) {
+    std::vector<VkDescriptorSetLayoutBinding> bindings;
+    bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}); // camera data, see `CameraData`
+    bindings.push_back({1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // lights data, see `LightsData`
+    bindings.push_back({2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // entity picking ( bindless )
+    bindings.push_back({3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_LIGHT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 阴影贴图数组
+    bindings.push_back({4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}); // 纹理采样器数组
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo descriptor_set_layout_binding_flags_create_info{};
+    descriptor_set_layout_binding_flags_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    descriptor_set_layout_binding_flags_create_info.bindingCount = bindings.size();
+    VkDescriptorBindingFlags binding_flags[] = {0,
+                                                0,
+                                                0,
+                                                VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+                                                VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT};
+    descriptor_set_layout_binding_flags_create_info.pBindingFlags = binding_flags;
+
+    vk_create_descriptor_set_layout(device, bindings, &descriptor_set_layout_binding_flags_create_info, out_descriptor_set_layout);
 }
 
 void app_create(SDL_Window *window, App **out_app) {
@@ -91,25 +157,26 @@ void app_create(SDL_Window *window, App **out_app) {
     app->vk_context = new VkContext();
 
     vk_init(app->vk_context, window, render_width, render_height);
+    geometry_system_create(&app->geometry_system_state);
 
     VkContext *vk_context = app->vk_context;
 
     {
       AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-      AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-      vk_create_render_pass(vk_context->device, &color_attachment_config, &depth_attachment_config, &app->lit_render_pass);
+      AttachmentConfig depth_attachment_config = {vk_context->depth_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+      vk_create_render_pass(vk_context->device, "lit", &color_attachment_config, &depth_attachment_config, &app->lit_render_pass);
     }
     {
-      AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, nullptr, &depth_attachment_config, &app->entity_picking_render_pass);
+      AttachmentConfig depth_attachment_config = {vk_context->depth_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
+      vk_create_render_pass(vk_context->device, "entity picking", nullptr, &depth_attachment_config, &app->entity_picking_render_pass);
     }
     {
       AttachmentConfig color_attachment_config = {vk_context->swapchain_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
-      AttachmentConfig depth_attachment_config = {VK_FORMAT_D32_SFLOAT, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
-      vk_create_render_pass(vk_context->device, &color_attachment_config, &depth_attachment_config, &app->vertex_lit_render_pass);
+      AttachmentConfig depth_attachment_config = {vk_context->depth_image_format, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
+      vk_create_render_pass(vk_context->device, "vertex lit", &color_attachment_config, &depth_attachment_config, &app->vertex_lit_render_pass);
     }
 
-    create_depth_image(app, VK_FORMAT_D32_SFLOAT);
+    create_depth_image(app);
 
     app->framebuffers.resize(vk_context->swapchain_image_count);
 
@@ -161,7 +228,8 @@ void app_create(SDL_Window *window, App **out_app) {
         descriptor_count.insert({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100});
         vk_descriptor_allocator_create(vk_context->device, max_sets, descriptor_count, &frame->descriptor_allocator);
 
-        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->global_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(GlobalState), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->global_state_uniform_buffer);
+        vk_create_buffer(vk_context, sizeof(LightsData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame->light_buffer);
     }
 
     VkFormat color_image_format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -170,22 +238,87 @@ void app_create(SDL_Window *window, App **out_app) {
     {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_storage_image_descriptor_set_layout);
+        vk_create_descriptor_set_layout(vk_context->device, bindings, nullptr, &app->single_storage_image_descriptor_set_layout);
     }
+    create_unified_descriptor_set_layout(vk_context->device, &app->descriptor_set_layout);
     {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        bindings.push_back({0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_storage_buffer_descriptor_set_layout);
+        AttachmentConfig depth_attachment_config = {vk_context->depth_image_format, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
+        vk_create_render_pass(vk_context->device, "shadow", nullptr, &depth_attachment_config, &app->shadow_render_pass);
+
+        VkPushConstantRange push_constant_range{};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.size = sizeof(SimpleInstanceState);
+
+        vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->shadow_pipeline_layout);
+
+        VkShaderModule vert_shader, frag_shader;
+        vk_create_shader_module(vk_context->device, "shaders/vertex-shadow.vert.spv", &vert_shader);
+        vk_create_shader_module(vk_context->device, "shaders/empty.frag.spv", &frag_shader);
+
+        std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
+        DepthConfig depth_config{};
+        depth_config.enable_test = true;
+        depth_config.enable_write = true;
+        DepthBiasConfig depth_bias_config{};
+        vk_create_graphics_pipeline(vk_context->device, app->shadow_pipeline_layout, {}, depth_config, depth_bias_config,
+                                    {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies,
+                                    VK_POLYGON_MODE_FILL, app->shadow_render_pass, &app->shadow_pipeline);
+
+        vk_destroy_shader_module(vk_context->device, frag_shader);
+        vk_destroy_shader_module(vk_context->device, vert_shader);
     }
-    {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->global_uniform_buffer_descriptor_set_layout);
-    }
-    {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        bindings.push_back({0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-        vk_create_descriptor_set_layout(vk_context->device, bindings, &app->single_combined_image_sampler_descriptor_set_layout);
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      {
+        vk_create_image(vk_context, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION}, vk_context->depth_image_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->shadow_depth_images[frame_index]);
+        app->shadow_depth_image_layouts[frame_index] = VK_IMAGE_LAYOUT_UNDEFINED;
+        vk_alloc_image_memory(vk_context, app->shadow_depth_images[frame_index], VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->shadow_depth_image_memories[frame_index]);
+        vk_create_image_view(vk_context->device, app->shadow_depth_images[frame_index], vk_context->depth_image_format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->shadow_depth_image_views[frame_index]);
+        vk_create_framebuffer(vk_context->device, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION}, app->shadow_render_pass, &app->shadow_depth_image_views[frame_index], 1, &app->shadow_framebuffers[frame_index]);
+        vk_create_sampler(vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->samplers[frame_index][1]); // 第二个 sampler 为 shadow map
+      }
+
+      // 第一个 texture 为默认纹理
+      create_default_texture(vk_context, &app->images[frame_index][0], &app->image_memories[frame_index][0], &app->image_views[frame_index][0], &app->samplers[frame_index][0]);
+      {
+        // descriptor pool
+        std::vector<VkDescriptorPoolSize> pool_sizes;
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1}); // camera
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}); // lights, entity picking
+        pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURE_COUNT + MAX_LIGHT_COUNT}); // textures, shadow maps
+        vk_create_descriptor_pool(vk_context->device, 1, pool_sizes, &app->descriptor_pools[frame_index]);
+
+        // descriptor set
+        std::vector<uint32_t> variable_descriptor_counts = {MAX_TEXTURE_COUNT};
+
+        VkDescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_allocate_info{};
+        variable_descriptor_count_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+        variable_descriptor_count_allocate_info.descriptorSetCount = variable_descriptor_counts.size();
+        variable_descriptor_count_allocate_info.pDescriptorCounts = variable_descriptor_counts.data();
+
+        vk_allocate_descriptor_sets(vk_context->device, app->descriptor_pools[frame_index], &app->descriptor_set_layout, &variable_descriptor_count_allocate_info, 1, &app->descriptor_sets[frame_index]);
+
+        // update descriptor set
+        std::vector<VkDescriptorBufferInfo> descriptor_buffer_infos(3);
+
+        descriptor_buffer_infos[0] = vk_descriptor_buffer_info(app->frames[frame_index].global_state_uniform_buffer->handle, VK_WHOLE_SIZE);
+        descriptor_buffer_infos[1] = vk_descriptor_buffer_info(app->frames[frame_index].light_buffer->handle, VK_WHOLE_SIZE);
+        descriptor_buffer_infos[2] = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[frame_index]->handle, VK_WHOLE_SIZE);
+
+        std::vector<VkDescriptorImageInfo> descriptor_image_infos(2);
+
+        descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][0], app->image_views[frame_index][0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        descriptor_image_infos[1] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets(5);
+
+        write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, nullptr, &descriptor_buffer_infos[0]);
+        write_descriptor_sets[1] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[1]);
+        write_descriptor_sets[2] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, nullptr, &descriptor_buffer_infos[2]);
+        write_descriptor_sets[3] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[1], nullptr);
+        write_descriptor_sets[4] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &descriptor_image_infos[0], nullptr);
+
+        vk_update_descriptor_sets(vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+      }
     }
 
     {
@@ -199,18 +332,16 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
+        VkPushConstantRange push_constant_range{};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.size = sizeof(LitInstanceState);
+
+        vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->lit_pipeline_layout);
+
         VkShaderModule vert_shader, frag_shader;
         vk_create_shader_module(vk_context->device, "shaders/lit.vert.spv", &vert_shader);
         vk_create_shader_module(vk_context->device, "shaders/lit.frag.spv", &frag_shader);
 
-        VkPushConstantRange push_constant_range{};
-        push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constant_range.size = sizeof(InstanceState);
-
-        VkDescriptorSetLayout descriptor_set_layouts[2];
-        descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
-        descriptor_set_layouts[1] = app->single_combined_image_sampler_descriptor_set_layout;
-        vk_create_pipeline_layout(vk_context->device, 2, descriptor_set_layouts, &push_constant_range, &app->lit_pipeline_layout);
         std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
         DepthConfig depth_config{};
         depth_config.enable_test = true;
@@ -220,7 +351,7 @@ void app_create(SDL_Window *window, App **out_app) {
         depth_bias_config.enable = true;
         depth_bias_config.constant_factor = 1.0f;
         depth_bias_config.slope_factor = 0.5f;
-        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, true, depth_config, depth_bias_config,
+        vk_create_graphics_pipeline(vk_context->device, app->lit_pipeline_layout, {true, true}, depth_config, depth_bias_config,
                                     {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_FILL, app->lit_render_pass, &app->lit_pipeline);
 
         vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -234,17 +365,15 @@ void app_create(SDL_Window *window, App **out_app) {
 
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
+      push_constant_range.size = sizeof(UnlitInstanceState);
 
-      VkDescriptorSetLayout descriptor_set_layouts[1];
-      descriptor_set_layouts[0] = app->global_uniform_buffer_descriptor_set_layout;
-      vk_create_pipeline_layout(vk_context->device, 1, descriptor_set_layouts, &push_constant_range, &app->wireframe_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->wireframe_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = false;
-      vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, true, depth_config, {},
+      vk_create_graphics_pipeline(vk_context->device, app->wireframe_pipeline_layout, {true, true}, depth_config, {},
                                   {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}}, primitive_topologies, VK_POLYGON_MODE_LINE, app->lit_render_pass, &app->wireframe_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -258,16 +387,15 @@ void app_create(SDL_Window *window, App **out_app) {
 
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
+      push_constant_range.size = sizeof(VertexLitInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
-      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->vertex_lit_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->vertex_lit_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = true;
-      vk_create_graphics_pipeline(vk_context->device, app->vertex_lit_pipeline_layout, true, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+      vk_create_graphics_pipeline(vk_context->device, app->vertex_lit_pipeline_layout, {true, true}, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                   primitive_topologies, VK_POLYGON_MODE_FILL, app->vertex_lit_render_pass, &app->vertex_lit_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -275,22 +403,22 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
+      VkPushConstantRange push_constant_range{};
+      push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+      push_constant_range.size = sizeof(UnlitInstanceState);
+
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->line_pipeline_layout);
+
       VkShaderModule vert_shader, frag_shader;
       vk_create_shader_module(vk_context->device, "shaders/line.vert.spv", &vert_shader);
       vk_create_shader_module(vk_context->device, "shaders/line.frag.spv", &frag_shader);
 
-      VkPushConstantRange push_constant_range{};
-      push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-      push_constant_range.size = sizeof(InstanceState);
-
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{app->global_uniform_buffer_descriptor_set_layout};
-      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->line_pipeline_layout);
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = true;
-      vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, true, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+      vk_create_graphics_pipeline(vk_context->device, app->line_pipeline_layout, {true, true}, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                   primitive_topologies, VK_POLYGON_MODE_FILL, app->lit_render_pass, &app->line_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -298,24 +426,22 @@ void app_create(SDL_Window *window, App **out_app) {
     }
 
     {
-      VkShaderModule vert_shader, frag_shader;
-      vk_create_shader_module(vk_context->device, "shaders/entity-picking.vert.spv", &vert_shader);
-      vk_create_shader_module(vk_context->device, "shaders/entity-picking.frag.spv", &frag_shader);
-
       VkPushConstantRange push_constant_range{};
       push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
       push_constant_range.size = sizeof(EntityPickingInstanceState);
 
-      std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
-      descriptor_set_layouts.push_back(app->global_uniform_buffer_descriptor_set_layout);
-      descriptor_set_layouts.push_back(app->single_storage_buffer_descriptor_set_layout);
-      vk_create_pipeline_layout(vk_context->device, descriptor_set_layouts.size(), descriptor_set_layouts.data(), &push_constant_range, &app->entity_picking_pipeline_layout);
+      vk_create_pipeline_layout(vk_context->device, 1, &app->descriptor_set_layout, &push_constant_range, &app->entity_picking_pipeline_layout);
+
+      VkShaderModule vert_shader, frag_shader;
+      vk_create_shader_module(vk_context->device, "shaders/entity-picking.vert.spv", &vert_shader);
+      vk_create_shader_module(vk_context->device, "shaders/entity-picking.frag.spv", &frag_shader);
+
       std::vector<VkPrimitiveTopology> primitive_topologies{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
       DepthConfig depth_config{};
       depth_config.enable_test = true;
       depth_config.enable_write = false;
       depth_config.is_depth_test_dynamic = false;
-      vk_create_graphics_pipeline(vk_context->device, app->entity_picking_pipeline_layout, false, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
+      vk_create_graphics_pipeline(vk_context->device, app->entity_picking_pipeline_layout, {true, false}, depth_config, {}, {{VK_SHADER_STAGE_VERTEX_BIT, vert_shader}, {VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader}},
                                   primitive_topologies, VK_POLYGON_MODE_FILL, app->entity_picking_render_pass, &app->entity_picking_pipeline);
 
       vk_destroy_shader_module(vk_context->device, frag_shader);
@@ -332,18 +458,19 @@ void app_create(SDL_Window *window, App **out_app) {
         }
       }
       vk_create_image(vk_context, {16, 16}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->checkerboard_image);
-      vk_create_image_view(vk_context->device, app->checkerboard_image->handle, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->checkerboard_image_view);
+      vk_alloc_image_memory(vk_context, app->checkerboard_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->checkerboard_image_memory);
+      vk_create_image_view(vk_context->device, app->checkerboard_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->checkerboard_image_view);
 
       Buffer *staging_buffer = nullptr;
       size_t size = 16 * 16 * 4;
       vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, pixels, size);
+      vk_copy_data_to_buffer(vk_context, pixels, size, staging_buffer);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
-        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->checkerboard_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 16, 16);
-        vk_cmd_pipeline_image_barrier2(command_buffer, app->checkerboard_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
-      });
+            vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->checkerboard_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 16, 16);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->checkerboard_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+      }, vk_context->graphics_queue);
 
       vk_destroy_buffer(vk_context, staging_buffer);
     }
@@ -361,18 +488,19 @@ void app_create(SDL_Window *window, App **out_app) {
       }
 
       vk_create_image(vk_context, {width, width}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, &app->uv_debug_image);
-      vk_create_image_view(vk_context->device, app->uv_debug_image->handle, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->uv_debug_image_view);
+      vk_alloc_image_memory(vk_context, app->uv_debug_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->uv_debug_image_memory);
+      vk_create_image_view(vk_context->device, app->uv_debug_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, &app->uv_debug_image_view);
 
       Buffer *staging_buffer = nullptr;
       size_t size = width * width * 4;
       vk_create_buffer(vk_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer);
-      vk_copy_data_to_buffer(vk_context, staging_buffer, texture_data.data(), size);
+      vk_copy_data_to_buffer(vk_context, texture_data.data(), size, staging_buffer);
 
       vk_command_buffer_submit(vk_context, [&](VkCommandBuffer command_buffer) {
-        vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
-        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->uv_debug_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
-        vk_cmd_pipeline_image_barrier2(command_buffer, app->uv_debug_image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
-      });
+            vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        vk_cmd_copy_buffer_to_image(command_buffer, staging_buffer->handle, app->uv_debug_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, width, width);
+        vk_cmd_pipeline_image_barrier(command_buffer, app->uv_debug_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+      }, vk_context->graphics_queue);
 
       vk_destroy_buffer(vk_context, staging_buffer);
     }
@@ -388,13 +516,20 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       Geometry geometry{};
+      create_plane_geometry(&app->mesh_system_state, vk_context, 16.0f, 16.0f, &geometry);
+      geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+      geometry.transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+      app->lit_geometries.push_back(geometry);
+    }
+    {
+      Geometry geometry{};
       // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
       load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &geometry);
       // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
       // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
-      geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+      geometry.transform.position = glm::vec3(0.0f, -2.0f, 0.0f);
       geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-      geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+      geometry.transform.scale = glm::vec3(0.2f, 0.2f, 0.2f);
       app->lit_geometries.push_back(geometry);
     }
 
@@ -408,6 +543,7 @@ void app_create(SDL_Window *window, App **out_app) {
     {
       Geometry geometry{};
       create_cube_geometry(&app->mesh_system_state, vk_context, 1.0f, &geometry);
+      geometry.transform.position = glm::vec3(0.0f, 0.75f, 0.0f);
       app->lit_geometries.push_back(geometry);
     }
 
@@ -452,11 +588,11 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      // generate_torus_geometry_config(1.5f, 0.25f, 64, 8, &config);
+      generate_torus_geometry_config(1.5f, 0.25f, 64, 16, 180, &config);
       Geometry geometry{};
-      // create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
+      create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &geometry);
       geometry.transform.position = glm::vec3(-4.0f, 1.0f, 2.0f);
-      // app->lit_geometries.push_back(geometry);
+      app->lit_geometries.push_back(geometry);
       dispose_geometry_config(&config);
     }
 
@@ -476,7 +612,7 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       GeometryConfig config{};
-      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, &config);
+      generate_torus_geometry_config(app->gizmo.config.ring_major_radius, app->gizmo.config.ring_minor_radius, 64, 8, 360, &config);
       create_geometry_from_config(&app->mesh_system_state, vk_context, &config, &app->gizmo.ring_geometry);
       dispose_geometry_config(&config);
     }
@@ -486,6 +622,9 @@ void app_create(SDL_Window *window, App **out_app) {
 
     app->frame_count = 0;
     app->selected_mesh_id = UINT32_MAX;
+    if (!app->lit_geometries.empty()) {
+      app->selected_mesh_id = app->lit_geometries[0].meshes[0].id;
+    }
 }
 
 static VkSemaphore pop_semaphore_from_pool(App *app) {
@@ -511,15 +650,25 @@ void app_destroy(App *app) {
 
     destroy_camera(&app->camera);
 
-    for (auto &geometry : app->lit_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
-    for (auto &geometry : app->line_geometries) { destroy_geometry(&app->mesh_system_state, app->vk_context, &geometry); }
-    destroy_gizmo(&app->gizmo, &app->mesh_system_state, app->vk_context);
+    for (auto &geometry : app->lit_geometries) { destroy_geometry(app->vk_context, &geometry); }
+    for (auto &geometry : app->line_geometries) { destroy_geometry(app->vk_context, &geometry); }
+    destroy_gizmo(&app->gizmo, &app->geometry_system_state, app->vk_context);
+
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      for (size_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+        if (app->images[frame_index][i]) { vk_destroy_image(app->vk_context, app->images[frame_index][i], app->image_memories[frame_index][i]); }
+        if (app->image_views[frame_index][i]) { vk_destroy_image_view(app->vk_context->device, app->image_views[frame_index][i]); }
+        if (app->samplers[frame_index][i]) { vk_destroy_sampler(app->vk_context->device, app->samplers[frame_index][i]); }
+      }
+      vk_destroy_descriptor_pool(app->vk_context->device, app->descriptor_pools[frame_index]);
+    }
+    vk_destroy_descriptor_set_layout(app->vk_context->device, app->descriptor_set_layout);
 
     vk_destroy_sampler(app->vk_context->device, app->sampler_nearest);
     vk_destroy_image_view(app->vk_context->device, app->uv_debug_image_view);
-    vk_destroy_image(app->vk_context, app->uv_debug_image);
+    vk_destroy_image(app->vk_context, app->uv_debug_image, app->uv_debug_image_memory);
     vk_destroy_image_view(app->vk_context->device, app->checkerboard_image_view);
-    vk_destroy_image(app->vk_context, app->checkerboard_image);
+    vk_destroy_image(app->vk_context, app->checkerboard_image, app->checkerboard_image_memory);
 
     // ImGui::DestroyContext(app->gui_context);
     vk_destroy_pipeline(app->vk_context->device, app->line_pipeline);
@@ -540,9 +689,6 @@ void app_destroy(App *app) {
     vk_destroy_pipeline(app->vk_context->device, app->compute_pipeline);
     vk_destroy_pipeline_layout(app->vk_context->device, app->compute_pipeline_layout);
 
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_combined_image_sampler_descriptor_set_layout);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->global_uniform_buffer_descriptor_set_layout);
-    vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_buffer_descriptor_set_layout);
     vk_destroy_descriptor_set_layout(app->vk_context->device, app->single_storage_image_descriptor_set_layout);
 
     // 清理 gizmo render pass 相关资源 todo 移入类似 on_plugin_clean_up 方法
@@ -563,13 +709,14 @@ void app_destroy(App *app) {
     vk_destroy_render_pass(app->vk_context->device, app->vertex_lit_render_pass);
 
     vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-    vk_destroy_image(app->vk_context, app->depth_image);
+    vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_memory);
 
     vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-    vk_destroy_image(app->vk_context, app->color_image);
+    vk_destroy_image(app->vk_context, app->color_image, app->color_image_memory);
 
     for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-      vk_destroy_buffer(app->vk_context, app->frames[i].global_uniform_buffer);
+      vk_destroy_buffer(app->vk_context, app->frames[i].light_buffer);
+      vk_destroy_buffer(app->vk_context, app->frames[i].global_state_uniform_buffer);
         vk_descriptor_allocator_destroy(app->vk_context->device, &app->frames[i].descriptor_allocator);
         vk_destroy_fence(app->vk_context->device, app->frames[i].in_flight_fence);
         vk_destroy_command_pool(app->vk_context->device, app->frames[i].command_pool);
@@ -589,7 +736,19 @@ void app_destroy(App *app) {
         vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
     }
     app->framebuffers.clear();
+
+    // destroy shadow pass related resources
+    vk_destroy_pipeline(app->vk_context->device, app->shadow_pipeline);
+    vk_destroy_pipeline_layout(app->vk_context->device, app->shadow_pipeline_layout);
+    for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+      vk_destroy_image(app->vk_context, app->shadow_depth_images[i], app->shadow_depth_image_memories[i]);
+      vk_destroy_image_view(app->vk_context->device, app->shadow_depth_image_views[i]);
+      vk_destroy_framebuffer(app->vk_context->device, app->shadow_framebuffers[i]);
+    }
+    vk_destroy_render_pass(app->vk_context->device, app->shadow_render_pass);
+
     vk_destroy_render_pass(app->vk_context->device, app->lit_render_pass);
+    geometry_system_destroy(&app->geometry_system_state);
     vk_terminate(app->vk_context);
     delete app->vk_context;
     delete app;
@@ -603,11 +762,8 @@ struct {
 } is_mouse_start_up[FRAMES_IN_FLIGHT] = {};
 
 struct {
-  Geometry *geometry;
-  uint8_t frame_index;
-} rotation_sector_geometry{};
-
-Geometry *rotation_sector_geometries_delete_queue[FRAMES_IN_FLIGHT] = {};
+  Geometry *sector_geometry;
+} frame_resources[FRAMES_IN_FLIGHT]{};
 
 void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline);
@@ -616,58 +772,60 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame
     vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_image_descriptor_set_layout, &descriptor_set);
 
     VkDescriptorImageInfo image_info = vk_descriptor_image_info(VK_NULL_HANDLE, app->color_image_view, VK_IMAGE_LAYOUT_GENERAL);
-    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &image_info, nullptr);
+    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &image_info, nullptr);
     vk_update_descriptor_sets(app->vk_context->device, 1, &write_descriptor_set);
 
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, app->compute_pipeline_layout, 1, &descriptor_set);
     vk_cmd_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0), std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
-void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
+// Depth bias (and slope) are used to avoid shadowing artifacts
+// Constant depth bias factor (always applied)
+float depthBiasConstant = 4.0f;
+// Slope depth bias factor, applied depending on polygon's slope
+float depthBiasSlope = 1.5f;
+
+void draw_shadow(App *app, VkCommandBuffer command_buffer, uint8_t frame_index) {
+    vkCmdSetDepthBias(
+        command_buffer,
+        depthBiasConstant,
+        0.0f,
+        depthBiasSlope);
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->shadow_pipeline);
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->shadow_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
+    for (const Geometry &geometry : app->lit_geometries) {
+      const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+      for (const Mesh &mesh : geometry.meshes) {
+        SimpleInstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->shadow_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+    }
+}
+
+void draw_world(App *app, VkCommandBuffer command_buffer, uint8_t frame_index, RenderFrame *frame) {
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, 0, 0, app->vk_context->swapchain_extent);
 
   { // lit pipeline
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline);
-
-    std::vector<VkDescriptorSet> descriptor_sets;
-    std::deque<VkDescriptorBufferInfo> buffer_infos;
-    std::deque<VkDescriptorImageInfo> image_infos;
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    {
-      vk_copy_data_to_buffer(app->vk_context, frame->global_uniform_buffer, &app->global_state, sizeof(GlobalState));
-
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->global_uniform_buffer_descriptor_set_layout, &frame->global_uniform_buffer_descriptor_set);
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-
-      VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(frame->global_uniform_buffer->handle, sizeof(GlobalState));
-      buffer_infos.push_back(descriptor_buffer_info);
-
-      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &buffer_infos.back());
-      write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    {
-      VkDescriptorSet descriptor_set;
-      vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_combined_image_sampler_descriptor_set_layout, &descriptor_set);
-      descriptor_sets.push_back(descriptor_set);
-
-      VkDescriptorImageInfo descriptor_image_info = vk_descriptor_image_info(app->sampler_nearest, app->uv_debug_image_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      image_infos.push_back(descriptor_image_info);
-
-      VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_sets.back(), 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos.back(), nullptr);
-      write_descriptor_sets.push_back(write_descriptor_set);
-    }
-    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->lit_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
     for (const Geometry &geometry : app->lit_geometries) {
       const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
       for (const Mesh &mesh : geometry.meshes) {
-        InstanceState instance_state{};
+        LitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        instance_state.texture_index = 0;
+        instance_state.shadow_map_index = 0;
+        vk_cmd_push_constants(command_buffer, app->lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -676,48 +834,42 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
   }
 
-  // { // draw wireframe
-  //   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
-  //
-  //   std::vector<VkDescriptorSet> descriptor_sets;
-  //   descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-  //   vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-  //
-  //   for (const Geometry &geometry : app->wireframe_geometries) {
-  //     glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
-  //
-  //     for (const Mesh &mesh : geometry.meshes) {
-  //       InstanceState instance_state{};
-  //       instance_state.model_matrix = model_matrix;
-  //       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-  //       vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
-  //       for (const Primitive &primitive : mesh.primitives) {
-  //         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
-  //         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
-  //       }
-  //     }
-  //   }
-  // }
+  { // draw wireframe
+    vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline);
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->wireframe_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
+
+    for (const Geometry &geometry : app->wireframe_geometries) {
+      glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
+
+      for (const Mesh &mesh : geometry.meshes) {
+        UnlitInstanceState instance_state{};
+        instance_state.model_matrix = model_matrix;
+        instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->wireframe_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
+        for (const Primitive &primitive : mesh.primitives) {
+          vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
+          vk_cmd_draw_indexed(command_buffer, primitive.index_count);
+        }
+      }
+    }
+  }
 
   { // draw line, aabb
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline);
     vk_cmd_set_primitive_topology(command_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
     vk_cmd_set_depth_test_enable(command_buffer, true);
+    vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
     {
-      std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
       for (const Geometry &geometry : app->line_geometries) {
         const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
         for (const Mesh &mesh : geometry.meshes) {
-          InstanceState instance_state{};
+          UnlitInstanceState instance_state{};
           instance_state.model_matrix = model_matrix;
           instance_state.color = glm::vec4(1, 1, 1, 1);
           instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+          vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
           for (const Primitive &primitive : mesh.primitives) {
             vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
           }
@@ -726,21 +878,17 @@ void draw_world(App *app, VkCommandBuffer command_buffer, RenderFrame *frame) {
     }
 
     {
-      std::vector<VkDescriptorSet> descriptor_sets;
-      descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-      vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->line_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
-
       for (const Geometry &geometry : app->lit_geometries) {
         if (!is_aabb_valid(geometry.aabb)) {
           continue;
         }
         const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
 
-        InstanceState instance_state{};
+        UnlitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
-        instance_state.color = glm::vec4(1, 1, 1, 1);
+        instance_state.color = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
         instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
           vk_cmd_draw(command_buffer, primitive.vertex_count, 1, 0, 0);
         }
@@ -755,25 +903,22 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
 
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline);
   vk_cmd_set_depth_test_enable(command_buffer, false);
-
-  std::vector<VkDescriptorSet> descriptor_sets;
-  descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->vertex_lit_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
   const glm::mat4 gizmo_model_matrix = model_matrix_from_transform(gizmo_get_transform(&app->gizmo));
 
   if ((app->gizmo.mode & GIZMO_MODE_ROTATE) == GIZMO_MODE_ROTATE) {
-    if (Geometry *geometry = rotation_sector_geometry.geometry; geometry) {
-      // log_debug("frame %d frame index %d, rendering rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
+    if (Geometry *geometry = frame_resources[frame_index].sector_geometry; geometry) {
+      // log_debug("frame %d frame index %d, render geometry %p", app->frame_count, frame_index, geometry);
       for (const Mesh &mesh : geometry->meshes) {
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.color = glm::vec4(0.4f, 0.4f, 0.0f, 0.4f);
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -789,7 +934,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix(1.0f);
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -799,8 +944,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -812,7 +956,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -822,8 +966,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -835,7 +978,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         model_matrix = gizmo_model_matrix * model_matrix;
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_ROTATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -845,8 +988,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-
-        vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
@@ -862,7 +1004,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -872,8 +1014,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -883,7 +1025,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       glm::mat4 model_matrix(1.0f);
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -893,8 +1035,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -905,7 +1047,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       model_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
       model_matrix = gizmo_model_matrix * model_matrix;
 
-      InstanceState instance_state{};
+      VertexLitInstanceState instance_state{};
       instance_state.model_matrix = model_matrix;
       glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
       if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -915,8 +1057,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       }
       instance_state.color = color;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-      vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -930,7 +1072,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length, 0.0f, 0.0f));
         model_matrix = glm::rotate(model_matrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_X) {
@@ -940,8 +1082,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -950,7 +1092,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       { // y axis
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, app->gizmo.config.axis_length, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Y) {
@@ -960,8 +1102,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -971,7 +1113,7 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(0.0f, 0.0f, app->gizmo.config.axis_length));
         model_matrix = glm::rotate(model_matrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         glm::vec4 color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
         if (app->gizmo.mode & GIZMO_MODE_TRANSLATE && app->gizmo.axis & GIZMO_AXIS_Z) {
@@ -981,8 +1123,8 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
         }
         instance_state.color = color;
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -996,12 +1138,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       { // x axis
         glm::mat4 model_matrix = glm::translate(gizmo_model_matrix, glm::vec3(app->gizmo.config.axis_length + app->gizmo.config.arrow_length + app->gizmo.config.cube_offset + app->gizmo.config.cube_size * 0.5f, 0.0f, 0.0f));
 
-        InstanceState instance_state{};
+        VertexLitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
         instance_state.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
 
-        vk_cmd_push_constants(command_buffer, app->vertex_lit_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
         for (const Primitive &primitive : mesh.primitives) {
           vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
           vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1010,12 +1152,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       //         { // y axis
       //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 1.0f, 0.0f));
       //
-      //             InstanceState instance_state{};
+      //             VertexLitInstanceState instance_state{};
       //             instance_state.model_matrix = model;
       //             instance_state.color = glm::vec3(0.0f, 1.0f, 0.0f);
       //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       //
-      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       //             for (const Primitive &primitive : mesh.primitives) {
       //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
       //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1025,12 +1167,12 @@ void draw_gizmo(App *app, VkCommandBuffer command_buffer, RenderFrame *frame, ui
       //             glm::mat4 model = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 1.0f));
       //             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
       //
-      //             InstanceState instance_state{};
+      //             VertexLitInstanceState instance_state{};
       //             instance_state.model_matrix = model;
       //             instance_state.color = glm::vec3(0.0f, 0.0f, 1.0f);
       //             instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
+      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       //
-      //             vk_cmd_push_constants(command_buffer, app->gizmo_triangle_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(InstanceState), &instance_state);
       //             for (const Primitive &primitive : mesh.primitives) {
       //                 vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
       //                 vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1046,24 +1188,8 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
   vk_cmd_set_viewport(command_buffer, 0, 0, app->vk_context->swapchain_extent);
   vk_cmd_set_scissor(command_buffer, app->mouse_pos.x, app->mouse_pos.y, {1, 1});
 
-  std::vector<VkDescriptorSet> descriptor_sets{};
-  descriptor_sets.push_back(frame->global_uniform_buffer_descriptor_set);
-  {
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets{};
-
-    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-    vk_descriptor_allocator_alloc(app->vk_context->device, &frame->descriptor_allocator, app->single_storage_buffer_descriptor_set_layout, &descriptor_set);
-    descriptor_sets.push_back(descriptor_set);
-
-    VkDescriptorBufferInfo descriptor_buffer_info = vk_descriptor_buffer_info(app->entity_picking_storage_buffers[frame_index]->handle, VK_WHOLE_SIZE);
-
-    VkWriteDescriptorSet write_descriptor_set = vk_write_descriptor_set(descriptor_set, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &descriptor_buffer_info);
-    write_descriptor_sets.push_back(write_descriptor_set);
-
-    vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
-  }
   vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->entity_picking_pipeline);
-  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->entity_picking_pipeline_layout, descriptor_sets.size(), descriptor_sets.data());
+  vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->entity_picking_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
 
   for (const Geometry &geometry : app->lit_geometries) {
     const glm::mat4 model_matrix = model_matrix_from_transform(geometry.transform);
@@ -1072,7 +1198,7 @@ void draw_entity_picking(App *app, VkCommandBuffer command_buffer, RenderFrame *
       instance_state.model_matrix = model_matrix;
       instance_state.id = mesh.id;
       instance_state.vertex_buffer_device_address = mesh.vertex_buffer_device_address;
-      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(EntityPickingInstanceState), &instance_state);
+      vk_cmd_push_constants(command_buffer, app->entity_picking_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
       for (const Primitive &primitive : mesh.primitives) {
         vk_cmd_bind_index_buffer(command_buffer, mesh.index_buffer->handle, primitive.index_offset);
         vk_cmd_draw_indexed(command_buffer, primitive.index_count);
@@ -1092,20 +1218,48 @@ void scene_raycast(App *app, const Ray *ray, RaycastHitResult *result) {
     // sort the hit results by distance
 }
 
-void update_scene(App *app) {
-    camera_update(&app->camera);
+void update_scene(App *app, uint8_t frame_index) {
+  RenderFrame *frame = &app->frames[frame_index];
 
-    app->global_state.view_matrix = app->camera.view_matrix;
+  camera_update(&app->camera);
 
+  //
+  app->global_state.view_matrix = app->camera.view_matrix;
+
+  {
     const float fov_y = 45.0f;
-    const float z_near = 0.05f, z_far = 100.0f;
+    const float z_near = 0.1f, z_far = 100.0f;
     const glm::mat4 projection_matrix = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
     app->projection_matrix = projection_matrix;
 
     app->global_state.projection_matrix = clip * projection_matrix;
+  }
 
-    app->global_state.sunlight_dir = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
+  vk_copy_data_to_buffer(app->vk_context, &app->global_state, sizeof(GlobalState), frame->global_state_uniform_buffer);
 
+  //
+  app->lights_data.position = glm::vec3(1.0f, 1.0f, 1.0f);
+  app->lights_data.direction = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
+  app->lights_data.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+  app->lights_data.diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
+  // app->dir_light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
+
+  {
+    glm::quat rotation;
+    calc_rotation_of_two_directions(glm::vec3(0.0f, 0.0f, -1.0f), app->lights_data.direction, rotation);
+
+    glm::mat4 view_matrix;
+    calc_view_matrix(app->lights_data.position, rotation, view_matrix);
+
+    glm::mat4 projection_matrix;
+    projection_matrix = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
+
+    app->lights_data.view_projection_matrix = clip * projection_matrix * view_matrix;
+  }
+
+  vk_copy_data_to_buffer(app->vk_context, &app->lights_data, sizeof(LightsData), frame->light_buffer);
+
+  //
   if (app->selected_mesh_id != UINT32_MAX) {
     for (const Geometry &geometry : app->lit_geometries) {
       for (const Mesh &mesh : geometry.meshes) {
@@ -1123,25 +1277,31 @@ bool begin_frame(App *app) { return false; }
 
 void end_frame(App *app) {}
 
+void on_frame_render_complete(App *app, const uint64_t frame_count, const uint8_t frame_index) {
+  // 若之前该 frame index 的帧已经检测到鼠标点击事件，则读取数据
+  if (is_mouse_start_up[frame_index].up && frame_count >= is_mouse_start_up[frame_index].frame_count) {
+    uint32_t id = 0;
+    vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
+    // log_debug("frame %d frame index %d, data: %u", frame_count, frame_index, id);
+    if (id > 0) {
+      app->selected_mesh_id = id;
+    }
+  }
+}
+
 void app_update(App *app, InputSystemState *input_system_state) {
   uint8_t frame_index = app->frame_count % FRAMES_IN_FLIGHT;
+  log_debug("frame %lld frame index %d", app->frame_count, frame_index);
 
-  if (app->frame_count >= FRAMES_IN_FLIGHT - 1) {
+  if (app->frame_count >= FRAMES_IN_FLIGHT - 1) { // 等待之前的 frame index 帧渲染完毕，释放资源
     RenderFrame *frame = &app->frames[frame_index];
     vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
 
-    if (is_mouse_start_up[frame_index].up && app->frame_count >= is_mouse_start_up[frame_index].frame_count) {
-      uint32_t id = 0;
-      vk_read_data_from_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], &id, sizeof(uint32_t));
-      // log_debug("frame %d frame index %d, data: %u (early frame %d)", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, id, frame_index);
-      if (id > 0) { app->selected_mesh_id = id; }
-    }
+    on_frame_render_complete(app, app->frame_count, frame_index);
 
-    if (Geometry *geometry = rotation_sector_geometries_delete_queue[frame_index]; geometry) {
-      // log_debug("frame %d frame index %d, destroy rotation sector geometry %p index buffer %p", app->frame_count, frame_index, geometry, geometry->meshes.front().index_buffer->handle);
-      destroy_geometry(&app->mesh_system_state, app->vk_context, geometry);
-      delete geometry;
-      rotation_sector_geometries_delete_queue[frame_index] = nullptr;
+    if (frame_resources[frame_index].sector_geometry) {
+      geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, frame_resources[frame_index].sector_geometry);
+      frame_resources[frame_index].sector_geometry = nullptr;
     }
 
     // reset frame data before corresponding frame begins
@@ -1149,10 +1309,14 @@ void app_update(App *app, InputSystemState *input_system_state) {
     is_mouse_start_up[frame_index] = {};
   }
 
-  update_scene(app);
+  if (app->gizmo.sector_geometry) {
+    frame_resources[frame_index].sector_geometry = app->gizmo.sector_geometry;
+    geometry_system_increase_geometry_ref(&app->geometry_system_state, app->gizmo.sector_geometry);
+  }
+
+  update_scene(app, frame_index);
   RenderFrame *frame = &app->frames[frame_index];
   vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
-  frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
   vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
   vk_reset_command_pool(app->vk_context->device, frame->command_pool);
   VkSemaphore present_complete_semaphore = pop_semaphore_from_pool(app);
@@ -1166,7 +1330,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
   vk_begin_one_flight_command_buffer(command_buffer);
 
   // 清理颜色附件（在初始布局为 UNDEFINED 时，必须保证颜色附件已准备好用于写入）
-  vk_cmd_pipeline_image_barrier2(command_buffer,
+  vk_cmd_pipeline_image_barrier(command_buffer,
                                 app->vk_context->swapchain_images[image_index],
                                 VK_IMAGE_ASPECT_COLOR_BIT,
                                 VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1175,41 +1339,77 @@ void app_update(App *app, InputSystemState *input_system_state) {
                                 VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                 VK_ACCESS_2_NONE,
                                 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
-  vk_cmd_pipeline_image_barrier2(command_buffer,
-                                 app->depth_image->handle,
-                                 VK_IMAGE_ASPECT_DEPTH_BIT,
-                                 VK_IMAGE_LAYOUT_UNDEFINED,
-                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                 VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                 VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-                                 VK_ACCESS_2_NONE,
-                                 VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+  vk_cmd_pipeline_image_barrier(command_buffer,
+                                app->depth_image,
+                                VK_IMAGE_ASPECT_DEPTH_BIT,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                                VK_ACCESS_2_NONE,
+                                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
+  {
+    if (app->shadow_depth_image_layouts[frame_index] == VK_IMAGE_LAYOUT_UNDEFINED) {
+      vk_cmd_pipeline_image_barrier(command_buffer,
+                                    app->shadow_depth_images[frame_index],
+                                    VK_IMAGE_ASPECT_DEPTH_BIT,
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                                    VK_ACCESS_2_NONE,
+                                    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+    } else if (app->shadow_depth_image_layouts[frame_index] == VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL) {
+      vk_cmd_pipeline_image_barrier(command_buffer,
+                                    app->shadow_depth_images[frame_index],
+                                    VK_IMAGE_ASPECT_DEPTH_BIT,
+                                    VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL,
+                                    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                                    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                                    VK_ACCESS_2_SHADER_READ_BIT,
+                                    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+    } else {
+      ASSERT(false);
+    }
+    app->shadow_depth_image_layouts[frame_index] = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+    VkClearValue clear_values[1] = {};
+    clear_values[0].depthStencil = {1.0f, 0};
+    vk_begin_render_pass(command_buffer, app->shadow_render_pass, app->shadow_framebuffers[frame_index], {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION}, clear_values, 1);
+    vk_cmd_set_viewport(command_buffer, 0, 0, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION});
+    vk_cmd_set_scissor(command_buffer, 0, 0, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION});
+    draw_shadow(app, command_buffer, frame_index);
+    vk_end_render_pass(command_buffer);
+
+    app->shadow_depth_image_layouts[frame_index] = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL; // 设置为render pass的final layout
+  }
   {
     VkClearValue clear_values[2] = {};
     clear_values[0].color = {.float32 = {0.2f, 0.1f, 0.1f, 0.2f}};
     clear_values[1].depthStencil = {1.0f, 0};
     vk_begin_render_pass(command_buffer, app->lit_render_pass, app->framebuffers[image_index], app->vk_context->swapchain_extent, clear_values, 2);
-    draw_world(app, command_buffer, frame);
+    draw_world(app, command_buffer, frame_index, frame);
     vk_end_render_pass(command_buffer);
   }
-  vk_cmd_pipeline_image_barrier2(command_buffer,
-                                 app->depth_image->handle,
-                                 VK_IMAGE_ASPECT_DEPTH_BIT,
-                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                                 VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
-  vk_cmd_pipeline_buffer_barrier2(command_buffer,
-                                  app->entity_picking_storage_buffers[frame_index]->handle,
-                                  0,
-                                  VK_WHOLE_SIZE,
-                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                                  VK_ACCESS_2_SHADER_WRITE_BIT,
-                                  VK_ACCESS_2_SHADER_WRITE_BIT);
+  vk_cmd_pipeline_image_barrier(command_buffer,
+                                app->depth_image,
+                                VK_IMAGE_ASPECT_DEPTH_BIT,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+  vk_cmd_pipeline_buffer_barrier(command_buffer,
+                                 app->entity_picking_storage_buffers[frame_index]->handle,
+                                 0,
+                                 VK_WHOLE_SIZE,
+                                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                                 VK_ACCESS_2_SHADER_WRITE_BIT,
+                                 VK_ACCESS_2_SHADER_WRITE_BIT);
   {
     vk_clear_buffer(app->vk_context, app->entity_picking_storage_buffers[frame_index], sizeof(uint32_t));
 
@@ -1240,7 +1440,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
     // vk_wait_fence(app->vk_context->device, frame->in_flight_fence, UINT64_MAX);
     // vk_reset_fence(app->vk_context->device, frame->in_flight_fence);
     //
-    // frame->global_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
+    // frame->global_state_uniform_buffer_descriptor_set = VK_NULL_HANDLE;
     // vk_descriptor_allocator_reset(app->vk_context->device, &frame->descriptor_allocator);
     // vk_reset_command_pool(app->vk_context->device, frame->command_pool);
     //
@@ -1357,6 +1557,7 @@ void app_update(App *app, InputSystemState *input_system_state) {
 }
 
 void app_resize(App *app, uint32_t width, uint32_t height) {
+  log_debug("resize app");
   vk_resize(app->vk_context, width, height);
 
   for (uint8_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
@@ -1372,17 +1573,17 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
   }
 
   vk_destroy_image_view(app->vk_context->device, app->depth_image_view);
-  vk_destroy_image(app->vk_context, app->depth_image);
+  vk_destroy_image(app->vk_context, app->depth_image, app->depth_image_memory);
 
   vk_destroy_image_view(app->vk_context->device, app->color_image_view);
-  vk_destroy_image(app->vk_context, app->color_image);
+  vk_destroy_image(app->vk_context, app->color_image, app->color_image_memory);
 
   for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
     vk_destroy_framebuffer(app->vk_context->device, app->framebuffers[i]);
   }
   app->framebuffers.clear();
 
-  create_depth_image(app, VK_FORMAT_D32_SFLOAT);
+  create_depth_image(app);
   app->framebuffers.resize(app->vk_context->swapchain_image_count);
   for (size_t i = 0; i < app->vk_context->swapchain_image_count; ++i) {
     VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
@@ -1403,6 +1604,15 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
       vk_destroy_framebuffer(app->vk_context->device, app->entity_picking_framebuffers[i]);
     }
     app->entity_picking_framebuffers.clear();
+
+    // 清理 shadow 相关资源 todo 移入类似 on_plugin_clean_up 方法
+    for (uint8_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      vk_destroy_sampler(app->vk_context->device, app->samplers[frame_index][1]);
+      vk_destroy_framebuffer(app->vk_context->device, app->shadow_framebuffers[frame_index]);
+      vk_destroy_image_view(app->vk_context->device, app->shadow_depth_image_views[frame_index]);
+      vk_destroy_image(app->vk_context, app->shadow_depth_images[frame_index], app->shadow_depth_image_memories[frame_index]);
+      app->shadow_depth_image_layouts[frame_index] = VK_IMAGE_LAYOUT_UNDEFINED;
+    }
   }
 
   { // 按序重建各 render pass 资源
@@ -1422,6 +1632,30 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
       VkImageView attachments[2] = {app->vk_context->swapchain_image_views[i], app->depth_image_view};
       vk_create_framebuffer(app->vk_context->device, app->vk_context->swapchain_extent, app->vertex_lit_render_pass, attachments, 2, &app->gizmo_framebuffers[i]);
     }
+
+    // 重建 shadow 相关资源 todo 移入类似 on_plugin_prepare 方法
+    for (size_t frame_index = 0; frame_index < FRAMES_IN_FLIGHT; ++frame_index) {
+      vk_create_image(app->vk_context, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION}, app->vk_context->depth_image_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, false, &app->shadow_depth_images[frame_index]);
+      vk_alloc_image_memory(app->vk_context, app->shadow_depth_images[frame_index], VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->shadow_depth_image_memories[frame_index]);
+      vk_create_image_view(app->vk_context->device, app->shadow_depth_images[frame_index], app->vk_context->depth_image_format, VK_IMAGE_ASPECT_DEPTH_BIT, &app->shadow_depth_image_views[frame_index]);
+      vk_create_framebuffer(app->vk_context->device, {SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION}, app->shadow_render_pass, &app->shadow_depth_image_views[frame_index], 1, &app->shadow_framebuffers[frame_index]);
+      vk_create_sampler(app->vk_context->device, VK_FILTER_NEAREST, VK_FILTER_NEAREST, &app->samplers[frame_index][1]); // 第二个 sampler 为 shadow map
+
+      {
+        // update descriptor set
+        // std::vector<VkDescriptorImageInfo> descriptor_image_infos(1);
+        // descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+
+        std::vector<VkDescriptorImageInfo> descriptor_image_infos(1);
+        descriptor_image_infos[0] = vk_descriptor_image_info(app->samplers[frame_index][1], app->shadow_depth_image_views[frame_index], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets(1);
+        write_descriptor_sets[0] = vk_write_descriptor_set(app->descriptor_sets[frame_index], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_image_infos.size(), descriptor_image_infos.data(), nullptr);
+
+        vk_update_descriptor_sets(app->vk_context->device, write_descriptor_sets.size(), write_descriptor_sets.data());
+      }
+    }
+    log_debug("app resized");
   }
 
   app->mouse_pos = glm::vec2(0.0f);
@@ -1432,16 +1666,16 @@ void app_resize(App *app, uint32_t width, uint32_t height) {
 void app_key_down(App *app, Key key) {
     if (key == KEY_W) {
         Camera *camera = &app->camera;
-        camera_forward(camera, 0.2f);
+        camera_move_forward(camera, 0.2f);
     } else if (key == KEY_S) {
         Camera *camera = &app->camera;
-        camera_backward(camera, 0.2f);
+        camera_move_backward(camera, 0.2f);
     } else if (key == KEY_A) {
         Camera *camera = &app->camera;
-        camera_left(camera, 0.2f);
+        camera_move_left(camera, 0.2f);
     } else if (key == KEY_D) {
         Camera *camera = &app->camera;
-        camera_right(camera, 0.2f);
+        camera_move_right(camera, 0.2f);
     } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);
@@ -1466,16 +1700,16 @@ void app_key_down(App *app, Key key) {
 void app_key_up(App *app, Key key) {
     if (key == KEY_W) {
         Camera *camera = &app->camera;
-        camera_forward(camera, 0.2f);
+        camera_move_forward(camera, 0.2f);
     } else if (key == KEY_S) {
         Camera *camera = &app->camera;
-        camera_backward(camera, 0.2f);
+        camera_move_backward(camera, 0.2f);
     } else if (key == KEY_A) {
         Camera *camera = &app->camera;
-        camera_left(camera, 0.2f);
+        camera_move_left(camera, 0.2f);
     } else if (key == KEY_D) {
         Camera *camera = &app->camera;
-        camera_right(camera, 0.2f);
+        camera_move_right(camera, 0.2f);
     } else if (key == KEY_Q) {
         Camera *camera = &app->camera;
         camera_up(camera, 0.2f);
@@ -1638,16 +1872,12 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
   if (mouse_button != MOUSE_BUTTON_LEFT) {
     return;
   }
-  {
-    const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
-
-    Vertex vertices[2];
-    memcpy(vertices[0].position, glm::value_ptr(ray.origin), sizeof(float) * 3);
-    memcpy(vertices[1].position, glm::value_ptr(ray.origin + ray.direction * 100.0f), sizeof(float) * 3);
-    Geometry geometry{};
-    create_geometry(&app->mesh_system_state, app->vk_context, vertices, sizeof(vertices) / sizeof(Vertex), sizeof(Vertex), nullptr, 0, 0, nullptr, &geometry);
-    app->line_geometries.push_back(geometry);
-  }
+  // { // draw a debug line
+  //   const Ray ray = ray_from_screen(app->vk_context->swapchain_extent, x, y, app->camera.position, app->camera.view_matrix, app->projection_matrix);
+  //   Geometry geometry{};
+  //   create_line_geometry(&app->mesh_system_state, app->vk_context, ray.origin, ray.origin + ray.direction * 100.0f, &geometry);
+  //   app->line_geometries.push_back(geometry);
+  // }
 
   // reset gizmo runtime data
   app->gizmo.is_active = false;
@@ -1656,10 +1886,10 @@ void app_mouse_button_up(App *app, MouseButton mouse_button, float x, float y) {
     app->gizmo.rotation_clock_dir = '0';
     app->gizmo.rotation_start_pos = glm::vec3(FLT_MAX);
 
-    if (rotation_sector_geometry.geometry) {
-      rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;
+    if (app->gizmo.sector_geometry) {
+      geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, app->gizmo.sector_geometry);
+      app->gizmo.sector_geometry = nullptr;
     }
-    rotation_sector_geometry.geometry = nullptr;
   }
   app->gizmo.axis = GIZMO_AXIS_NONE; // todo remove this line
 
@@ -1749,12 +1979,14 @@ void app_mouse_move(App *app, float x, float y) {
         Geometry *geometry = new Geometry();
         create_geometry_from_config(&app->mesh_system_state, app->vk_context, &config, geometry);
         dispose_geometry_config(&config);
-        if (rotation_sector_geometry.geometry) {
-          rotation_sector_geometries_delete_queue[rotation_sector_geometry.frame_index] = rotation_sector_geometry.geometry;
+
+        if (app->gizmo.sector_geometry) {
+          geometry_system_decrease_geometry_ref(&app->geometry_system_state, app->vk_context, app->gizmo.sector_geometry);
+          app->gizmo.sector_geometry = nullptr;
         }
-        rotation_sector_geometry.geometry = geometry;
-        rotation_sector_geometry.frame_index = app->frame_count % FRAMES_IN_FLIGHT;
-        // log_debug("frame %d frame index %d, rotation sector geometry created %p index buffer %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry, geometry->meshes.front().index_buffer->handle);
+        app->gizmo.sector_geometry = geometry;
+        geometry_system_increase_geometry_ref(&app->geometry_system_state, geometry);
+        // log_debug("frame %d frame index %d, create geometry %p", app->frame_count, app->frame_count % FRAMES_IN_FLIGHT, geometry);
       }
 
       if (app->selected_mesh_id != UINT32_MAX) {

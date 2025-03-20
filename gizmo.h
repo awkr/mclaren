@@ -1,6 +1,7 @@
 #pragma once
 
 #include "geometry.h"
+#include "geometry_system.h"
 
 enum GizmoMode {
   GIZMO_MODE_NONE = 0,
@@ -35,6 +36,7 @@ struct Gizmo {
   Geometry arrow_geometry; // the head of the axes
   Geometry ring_geometry;
   Geometry cube_geometry;
+  Geometry *sector_geometry;
 
   Transform transform;
   GizmoMode mode;
@@ -55,7 +57,7 @@ struct Gizmo {
 };
 
 void create_gizmo(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &position, Gizmo *gizmo);
-void destroy_gizmo(Gizmo *gizmo, MeshSystemState *mesh_system_state, VkContext *vk_context);
+void destroy_gizmo(Gizmo *gizmo, GeometrySystemState *geometry_system_state, VkContext *vk_context);
 void gizmo_set_position(Gizmo *gizmo, const glm::vec3 &position); // world space
 void gizmo_set_scale(Gizmo *gizmo, const glm::vec3 &scale); // world space
 const Transform &gizmo_get_transform(const Gizmo *gizmo);

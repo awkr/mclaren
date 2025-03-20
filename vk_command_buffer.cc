@@ -77,7 +77,7 @@ VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaph
     return submit_info;
 }
 
-void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func) {
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func, VkQueue queue) {
     VkCommandBuffer command_buffer;
     vk_alloc_command_buffers(vk_context->device, vk_context->command_pool, 1, &command_buffer);
     vk_begin_one_flight_command_buffer(command_buffer);
@@ -87,7 +87,7 @@ void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(Vk
     VkFence fence;
     vk_create_fence(vk_context->device, false, &fence);
 
-    vk_queue_submit(vk_context->graphics_queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence); // todo: 区分 graphics queue 和 transfer queue
+    vk_queue_submit(queue, command_buffer, VK_PIPELINE_STAGE_NONE, VK_NULL_HANDLE, VK_NULL_HANDLE, fence); // todo: 区分 graphics queue 和 transfer queue
 
     vk_wait_fence(vk_context->device, fence, UINT64_MAX);
     vk_destroy_fence(vk_context->device, fence);
@@ -252,34 +252,7 @@ void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_ima
   vkCmdCopyImageToBuffer(command_buffer, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst_buffer, 1, &region);
 }
 
-void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask) {
-  VkImageMemoryBarrier barrier = {};
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.srcAccessMask = src_access_mask;
-  barrier.dstAccessMask = dst_access_mask;
-  barrier.oldLayout = old_layout;
-  barrier.newLayout = new_layout;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = image;
-  barrier.subresourceRange.aspectMask = aspect;
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = 1;
-  barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(command_buffer,
-                       src_stage_mask,
-                       dst_stage_mask,
-                       0,
-                       0,
-                       NULL,
-                       0,
-                       NULL,
-                       1,
-                       &barrier);
-}
-
-void vk_cmd_pipeline_image_barrier2(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
+void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
   VkImageMemoryBarrier2 image_memory_barrier = {};
   image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
   image_memory_barrier.srcStageMask = src_stage_mask;
@@ -301,7 +274,7 @@ void vk_cmd_pipeline_image_barrier2(VkCommandBuffer command_buffer, VkImage imag
   vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
 }
 
-void vk_cmd_pipeline_buffer_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
+void vk_cmd_pipeline_buffer_barrier(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask) {
   VkBufferMemoryBarrier2 buffer_memory_barrier = {};
   buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 

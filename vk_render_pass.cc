@@ -2,7 +2,7 @@
 #include "logging.h"
 #include <vector>
 
-void vk_create_render_pass(VkDevice device, const AttachmentConfig *color_attachment_config, const AttachmentConfig *depth_attachment_config, VkRenderPass *render_pass) {
+void vk_create_render_pass(VkDevice device, const char *name, const AttachmentConfig *color_attachment_config, const AttachmentConfig *depth_attachment_config, VkRenderPass *render_pass) {
   std::vector<VkAttachmentDescription> attachments{};
 
   VkAttachmentReference color_attachment_ref{};
@@ -56,11 +56,12 @@ void vk_create_render_pass(VkDevice device, const AttachmentConfig *color_attach
   VkResult result = vkCreateRenderPass(device, &render_pass_info, nullptr, render_pass);
   ASSERT(result == VK_SUCCESS);
 
-  log_debug("vk render pass created");
+  log_debug("vk render pass created '%s' %p", name, *render_pass);
 }
 
 void vk_destroy_render_pass(VkDevice device, VkRenderPass render_pass) {
   vkDestroyRenderPass(device, render_pass, nullptr);
+  log_debug("vk render pass destroyed %p", render_pass);
 }
 
 void vk_begin_render_pass(VkCommandBuffer command_buffer, VkRenderPass render_pass, VkFramebuffer framebuffer, const VkExtent2D &extent, const VkClearValue *clear_values, uint32_t clear_value_count) {

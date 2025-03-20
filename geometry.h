@@ -51,20 +51,20 @@ void dispose_geometry_config(GeometryConfig *config) noexcept;
 
 void create_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const void *vertices, uint32_t vertex_count, uint32_t vertex_stride, const uint32_t *indices, uint32_t index_count, uint32_t index_stride, const AABB *aabb, Geometry *geometry);
 void create_geometry_from_config(MeshSystemState *mesh_system_state, VkContext *vk_context, const GeometryConfig *config, Geometry *geometry);
-void destroy_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, Geometry *geometry);
+void destroy_geometry(VkContext *vk_context, Geometry *geometry);
 
 void create_plane_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float x, float y, Geometry *geometry);
 void create_cube_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float length, Geometry *geometry);
 void create_uv_sphere_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, float radius, uint16_t sectors, uint16_t stacks, Geometry *geometry);
 void create_ico_sphere_geometry(VkContext *vk_context, Geometry *geometry);
+void create_line_geometry(MeshSystemState *mesh_system_state, VkContext *vk_context, const glm::vec3 &a, const glm::vec3 &b, Geometry *geometry);
 
 void generate_cone_geometry_config_lit(float radius, float height, uint16_t sector, GeometryConfig *config);
 void generate_cone_geometry_config_vertex_lit(float radius, float height, uint16_t sector, GeometryConfig *config);
 void generate_solid_circle_geometry_config(const glm::vec3 &center, bool is_facing_up, float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_stroke_circle_geometry_config(float radius, uint16_t sector, GeometryConfig *config) noexcept;
 void generate_cylinder_geometry_config(float height, float radius, uint16_t sector, GeometryConfig *config) noexcept;
-// sector：major 的圆分成了多少段
-void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t sector, uint16_t side, GeometryConfig *config) noexcept;
+void generate_torus_geometry_config(float major_radius, float minor_radius, uint16_t major_sector, uint16_t minor_sector, uint16_t theta, GeometryConfig *config) noexcept;
 void generate_sector_geometry_config(const glm::vec3 &normal, const glm::vec3 &start_pos, const glm::vec3 &end_pos, char clock_dir, uint16_t sector_count, GeometryConfig *config);
 
 struct Ray {

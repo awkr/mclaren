@@ -28,7 +28,7 @@ VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer command_
 VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo *command_buffer, VkSemaphoreSubmitInfo *wait_semaphore,
                              VkSemaphoreSubmitInfo *signal_semaphore);
 
-void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func);
+void vk_command_buffer_submit(VkContext *vk_context, const std::function<void(VkCommandBuffer command_buffer)> &func, VkQueue queue);
 
 void vk_cmd_clear_color_image(VkCommandBuffer command_buffer, VkImage image, VkImageLayout image_layout, VkClearColorValue *clear_color);
 
@@ -68,7 +68,5 @@ void vk_cmd_copy_buffer2(VkCommandBuffer command_buffer, VkBuffer src, VkBuffer 
 void vk_cmd_copy_buffer_to_image(VkCommandBuffer command_buffer, VkBuffer src, VkImage dst, VkImageLayout layout, uint32_t width, uint32_t height);
 void vk_cmd_copy_image_to_buffer(VkCommandBuffer command_buffer, VkImage src_image, VkBuffer dst_buffer, const VkOffset2D &offset, const VkExtent2D &extent) noexcept;
 
-// 建议使用 vk_cmd_pipeline_image_barrier2
-void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask);
-void vk_cmd_pipeline_image_barrier2(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask);
-void vk_cmd_pipeline_buffer_barrier2(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask);
+void vk_cmd_pipeline_image_barrier(VkCommandBuffer command_buffer, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask);
+void vk_cmd_pipeline_buffer_barrier(VkCommandBuffer command_buffer, VkBuffer buffer, uint64_t offset, uint64_t size, VkPipelineStageFlags2 src_stage_mask, VkPipelineStageFlags2 dst_stage_mask, VkAccessFlags2 src_access_mask, VkAccessFlags2 dst_access_mask);

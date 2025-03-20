@@ -7,7 +7,7 @@
 
 layout (early_fragment_tests) in;
 
-layout (set = 1, binding = 0) buffer EntityPickingSSBO {
+layout (std430, set = 0, binding = 2) buffer EntityPickingSSBO {
   uint data[];
 };
 

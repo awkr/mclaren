@@ -16,9 +16,12 @@ set(CORE_SRCS
     raycast.cc
     event_system.cc
     input_system.cc
+    mesh_system.cc
+    geometry_system.cc
     gizmo.cc
     frame_graph.cc
     # scene.cc
+    shadow_pass.cc
 )
 set(VK_SRCS
     vk.cc

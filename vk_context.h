@@ -4,8 +4,6 @@
 #include <vector>
 
 struct VkContext {
-    uint32_t api_version;
-    bool is_debugging_mode;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_utils_messenger;
     VkSurfaceKHR surface;
@@ -19,6 +17,7 @@ struct VkContext {
     uint16_t swapchain_image_count;
     std::vector<VkImage> swapchain_images;
     std::vector<VkImageView> swapchain_image_views;
+    VkFormat depth_image_format;
 
     VkCommandPool command_pool;
 };
