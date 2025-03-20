@@ -516,13 +516,20 @@ void app_create(SDL_Window *window, App **out_app) {
 
     {
       Geometry geometry{};
+      create_plane_geometry(&app->mesh_system_state, vk_context, 16.0f, 16.0f, &geometry);
+      geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+      geometry.transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+      app->lit_geometries.push_back(geometry);
+    }
+    {
+      Geometry geometry{};
       // load_gltf(app->vk_context, "models/cube.gltf", &app->gltf_model_geometry);
       load_gltf(&app->mesh_system_state, app->vk_context, "models/chinese-dragon.gltf", &geometry);
       // load_gltf(app->vk_context, "models/Fox.glb", &app->gltf_model_geometry);
       // load_gltf(app->vk_context, "models/suzanne/scene.gltf", &app->gltf_model_geometry);
-      geometry.transform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+      geometry.transform.position = glm::vec3(0.0f, -2.0f, 0.0f);
       geometry.transform.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-      geometry.transform.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+      geometry.transform.scale = glm::vec3(0.2f, 0.2f, 0.2f);
       app->lit_geometries.push_back(geometry);
     }
 
@@ -536,6 +543,7 @@ void app_create(SDL_Window *window, App **out_app) {
     {
       Geometry geometry{};
       create_cube_geometry(&app->mesh_system_state, vk_context, 1.0f, &geometry);
+      geometry.transform.position = glm::vec3(0.0f, 0.75f, 0.0f);
       app->lit_geometries.push_back(geometry);
     }
 
@@ -771,7 +779,18 @@ void draw_background(const App *app, VkCommandBuffer command_buffer, RenderFrame
     vk_cmd_dispatch(command_buffer, std::ceil(app->vk_context->swapchain_extent.width / 16.0), std::ceil(app->vk_context->swapchain_extent.height / 16.0), 1);
 }
 
+// Depth bias (and slope) are used to avoid shadowing artifacts
+// Constant depth bias factor (always applied)
+float depthBiasConstant = 4.0f;
+// Slope depth bias factor, applied depending on polygon's slope
+float depthBiasSlope = 1.5f;
+
 void draw_shadow(App *app, VkCommandBuffer command_buffer, uint8_t frame_index) {
+    vkCmdSetDepthBias(
+        command_buffer,
+        depthBiasConstant,
+        0.0f,
+        depthBiasSlope);
     vk_cmd_bind_pipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->shadow_pipeline);
     vk_cmd_bind_descriptor_sets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app->shadow_pipeline_layout, 1, &app->descriptor_sets[frame_index]);
     for (const Geometry &geometry : app->lit_geometries) {
@@ -867,7 +886,7 @@ void draw_world(App *app, VkCommandBuffer command_buffer, uint8_t frame_index, R
 
         UnlitInstanceState instance_state{};
         instance_state.model_matrix = model_matrix;
-        instance_state.color = glm::vec4(1, 1, 1, 1);
+        instance_state.color = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
         instance_state.vertex_buffer_device_address = geometry.aabb_mesh.vertex_buffer_device_address;
         vk_cmd_push_constants(command_buffer, app->line_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(instance_state), &instance_state);
         for (const Primitive &primitive : geometry.aabb_mesh.primitives) {
@@ -1209,7 +1228,7 @@ void update_scene(App *app, uint8_t frame_index) {
 
   {
     const float fov_y = 45.0f;
-    const float z_near = 0.05f, z_far = 100.0f;
+    const float z_near = 0.1f, z_far = 100.0f;
     const glm::mat4 projection_matrix = glm::perspective(glm::radians(fov_y), (float) app->vk_context->swapchain_extent.width / (float) app->vk_context->swapchain_extent.height, z_near, z_far);
     app->projection_matrix = projection_matrix;
 
@@ -1233,9 +1252,9 @@ void update_scene(App *app, uint8_t frame_index) {
     calc_view_matrix(app->lights_data.position, rotation, view_matrix);
 
     glm::mat4 projection_matrix;
-    projection_matrix = glm::ortho(-8.0f, 8.0f, -8.0f, 8.0f, 0.1f, 100.0f);
+    projection_matrix = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
 
-    app->lights_data.view_projection_matrix = projection_matrix * view_matrix;
+    app->lights_data.view_projection_matrix = clip * projection_matrix * view_matrix;
   }
 
   vk_copy_data_to_buffer(app->vk_context, &app->lights_data, sizeof(LightsData), frame->light_buffer);

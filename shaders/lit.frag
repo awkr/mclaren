@@ -35,8 +35,10 @@ struct SpotLight {
 
 layout (location = 0) in  vec2 tex_coord;
 layout (location = 1) in  vec3 normal;
-layout (location = 2) flat in uint texture_index;
-layout (location = 3) flat in uint shadow_map_index;
+layout (location = 2) in  vec3 frag_pos;
+layout (location = 3) in  vec4 frag_pos_light_space;
+layout (location = 4) flat in uint texture_index;
+layout (location = 5) flat in uint shadow_map_index;
 
 layout (location = 0) out vec4 frag_color;
 
@@ -51,14 +53,23 @@ layout (set = 0, binding = 1) readonly buffer LightsBuffer {
 layout (set = 0, binding = 3) uniform sampler2D shadow_maps[];
 layout (set = 0, binding = 4) uniform sampler2D textures[];
 
+float shadow_calculation(vec4 frag_pos_light_space) {
+    vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
+    // proj_coords = proj_coords * 0.5 + 0.5;
+    float closest_depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], proj_coords.xy).r;
+    float current_depth = proj_coords.z;
+    float shadow = current_depth - 0.002 > closest_depth ? 1.0 : 0.0;
+    return shadow;
+}
+
 void main() {
     // frag_color = vec4(1.0, 0.0, 0.0, 1.0);
     // return;
     // frag_color = texture(tex, tex_coord);
 
-    const float depth = texture(shadow_maps[nonuniformEXT(texture_index)], tex_coord).r;
+    const float depth = texture(shadow_maps[nonuniformEXT(shadow_map_index)], tex_coord).r;
     frag_color = vec4(depth, depth, depth, 1.0);
-    return;
+    // return;
 
     // const vec3 base_color = vec3(0.9, 0.9, 0.9);
     const vec3 base_color = texture(textures[nonuniformEXT(texture_index)], tex_coord).rgb;
@@ -69,7 +80,8 @@ void main() {
     vec3 diffuse = lights_data.diffuse * (diff * base_color);
     // float diffuse = max(dot(normal, global_state.sunlight_dir), 0.0);
     // vec4 color = vec4(base_color * (diffuse + 0.1f), 1.0);
-    vec3 result = ambient + diffuse;
+    float shadow = shadow_calculation(frag_pos_light_space);
+    vec3 result = ambient + diffuse * (1.0 - shadow);
     frag_color = vec4(result, 1.0);
     return;
 
