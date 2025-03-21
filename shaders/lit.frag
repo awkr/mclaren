@@ -50,7 +50,7 @@ layout (set = 0, binding = 1) readonly buffer LightsBuffer {
     vec3 diffuse;
 } lights_data;
 
-layout (set = 0, binding = 3) uniform sampler2D shadow_maps[];
+layout (set = 0, binding = 3) uniform sampler2D shadow_maps[]; // todo 使用 sampler2DShadow 采样器
 layout (set = 0, binding = 4) uniform sampler2D textures[];
 
 /*
@@ -79,14 +79,13 @@ float calculate_shadow(vec3 shadow_coord, vec2 offset) {
 float calculate_pcf_shadow(vec3 shadow_coord) {
     ivec2 tex_dim = textureSize(shadow_maps[nonuniformEXT(shadow_map_index)], 0);
     float scale = 1.5;
-    float dx = scale * 1.0 / float(tex_dim.x);
-    float dy = scale * 1.0 / float(tex_dim.y);
+    vec2 texel_size = scale * 1.0 / vec2(tex_dim);
     float shadow = 0.0;
     int count = 0;
     int range = 1;
     for (int x = -range; x <= range; ++x) {
         for (int y = -range; y <= range; ++y) {
-            shadow += calculate_shadow(shadow_coord, vec2(dx * x, dy * y));
+            shadow += calculate_shadow(shadow_coord, vec2(x, y) * texel_size);
             count++;
         }
     }
